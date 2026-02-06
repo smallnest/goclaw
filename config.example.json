@@ -82,7 +82,7 @@
       "timeout": 10
     },
     "browser": {
-      "enabled": false,
+      "enabled": true,
       "headless": true,
       "timeout": 30
     }

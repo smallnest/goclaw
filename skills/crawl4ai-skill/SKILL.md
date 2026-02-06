@@ -1,6 +1,16 @@
 ---
 name: crawl4ai
 description: This skill should be used when users need to scrape websites, extract structured data, handle JavaScript-heavy pages, crawl multiple URLs, or build automated web data pipelines. Includes optimized extraction patterns with schema generation for efficient, LLM-free extraction.
+version: 1.0.0
+author: Claude
+always: true
+metadata:
+  openclaw:
+    emoji: 🕷️
+    always: true
+    requires:
+      bins: [python3]
+      os: [darwin, linux, windows]
 ---
 
 # Crawl4AI

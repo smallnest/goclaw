@@ -1,7 +1,16 @@
 ---
 name: patchright-skill
 description: Patchright-based browser automation with bot detection bypass. Use when Claude needs to interact with local web applications, test localhost/dev servers, take screenshots, or perform UI interactions on private networks. Ideal for QA automation, frontend debugging, E2E testing, and pre-deployment verification on local development environments.
-license: See LICENSE.txt
+version: 1.0.0
+author: Claude
+always: true
+metadata:
+  openclaw:
+    emoji: 🌐
+    always: true
+    requires:
+      bins: [python3]
+      os: [darwin, linux, windows]
 ---
 
 # Patchright - Browser Automation Skill

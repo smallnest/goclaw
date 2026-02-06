@@ -105,6 +105,17 @@ func runStart(cmd *cobra.Command, args []string) {
 	// 创建工具注册表
 	toolRegistry := tools.NewRegistry()
 
+	// 创建技能加载器
+	skillsLoader := agent.NewSkillsLoader(workspace, []string{})
+	if err := skillsLoader.Discover(); err != nil {
+		logger.Warn("Failed to discover skills", zap.Error(err))
+	} else {
+		skills := skillsLoader.List()
+		if len(skills) > 0 {
+			logger.Info("Skills loaded", zap.Int("count", len(skills)))
+		}
+	}
+
 	// 注册文件系统工具
 	fsTool := tools.NewFileSystemTool(cfg.Tools.FileSystem.AllowedPaths, cfg.Tools.FileSystem.DeniedPaths)
 	for _, tool := range fsTool.GetTools() {
@@ -137,6 +148,20 @@ func runStart(cmd *cobra.Command, args []string) {
 		if err := toolRegistry.Register(tool); err != nil {
 			logger.Warn("Failed to register tool", zap.String("tool", tool.Name()))
 		}
+	}
+
+	// 注册浏览器工具（如果启用）
+	if cfg.Tools.Browser.Enabled {
+		browserTool := tools.NewBrowserTool(
+			cfg.Tools.Browser.Headless,
+			cfg.Tools.Browser.Timeout,
+		)
+		for _, tool := range browserTool.GetTools() {
+			if err := toolRegistry.Register(tool); err != nil {
+				logger.Warn("Failed to register tool", zap.String("tool", tool.Name()))
+			}
+		}
+		logger.Info("Browser tools registered")
 	}
 
 	// 创建 LLM 提供商
@@ -177,6 +202,7 @@ func runStart(cmd *cobra.Command, args []string) {
 		Memory:       memoryStore,
 		Context:      contextBuilder,
 		Tools:        toolRegistry,
+		SkillsLoader: skillsLoader,
 		Subagents:    subagentMgr,
 		Workspace:    workspace,
 		MaxIteration: cfg.Agents.Defaults.MaxIterations,

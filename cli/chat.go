@@ -13,6 +13,7 @@ import (
 	"github.com/smallnest/dogclaw/goclaw/agent"
 	"github.com/smallnest/dogclaw/goclaw/agent/tools"
 	"github.com/smallnest/dogclaw/goclaw/bus"
+	"github.com/smallnest/dogclaw/goclaw/cli/commands"
 	"github.com/smallnest/dogclaw/goclaw/config"
 	"github.com/smallnest/dogclaw/goclaw/internal/logger"
 	"github.com/smallnest/dogclaw/goclaw/providers"
@@ -58,7 +59,9 @@ func runChat(cmd *cobra.Command, args []string) {
 	defer logger.Sync()
 
 	fmt.Println("🐾 goclaw Interactive Chat")
-	fmt.Println("Type 'quit' or 'exit' to stop, 'clear' to clear history")
+	fmt.Println()
+	cmdRegistry := commands.NewCommandRegistry()
+	fmt.Println(cmdRegistry.GetCommandPrompt())
 	fmt.Println()
 
 	// 创建工作区
@@ -175,7 +178,6 @@ func runChat(cmd *cobra.Command, args []string) {
 		Prompt:          "➤ ",
 		HistoryFile:     os.Getenv("HOME") + "/.goclaw/history",
 		HistoryLimit:    1000,
-		AutoComplete:    nil,
 		InterruptPrompt: "^C",
 		EOFPrompt:       "^D",
 	})
@@ -217,17 +219,21 @@ func runChat(cmd *cobra.Command, args []string) {
 
 		input = strings.TrimSpace(input)
 
-		// 检查退出命令
-		if input == "quit" || input == "exit" {
-			fmt.Println("Goodbye!")
-			break
-		}
-
-		// 检查清空命令
-		if input == "clear" {
-			sess.Clear()
-			_ = sessionMgr.Save(sess)
-			fmt.Println("History cleared.")
+		// 检查是否是命令
+		result, isCommand, shouldExit := cmdRegistry.Execute(input)
+		if isCommand {
+			if shouldExit {
+				fmt.Println("Goodbye!")
+				break
+			}
+			if result != "" {
+				fmt.Println(result)
+			}
+			// 如果是 clear 命令，需要清空会话
+			if input == "/clear" {
+				sess.Clear()
+				_ = sessionMgr.Save(sess)
+			}
 			continue
 		}
 

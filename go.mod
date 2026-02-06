@@ -31,6 +31,7 @@ require (
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/magiconair/properties v1.8.10 // indirect
+	github.com/manifoldco/promptui v0.9.0 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
 	github.com/pkoukk/tiktoken-go v0.1.6 // indirect
