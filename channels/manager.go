@@ -178,34 +178,19 @@ func (m *Manager) SetupFromConfig(cfg *config.Config) error {
 		}
 	}
 
-	// QQ 通道 (优先使用官方 API，如果配置了 AppID)
+	// QQ 通道 (使用官方 API)
 	if cfg.Channels.QQ.Enabled {
-		var channel BaseChannel
-		var err error
-
-		// 如果配置了 AppID，使用官方 API
 		if cfg.Channels.QQ.AppID != "" {
-			channel, err = NewQQOfficialChannel(cfg.Channels.QQ, m.bus)
+			channel, err := NewQQChannel(cfg.Channels.QQ, m.bus)
 			if err != nil {
-				logger.Error("Failed to create QQ Official channel", zap.Error(err))
-			} else {
-				if err := m.Register(channel); err != nil {
-					logger.Error("Failed to register QQ Official channel", zap.Error(err))
-				}
-			}
-		} else if cfg.Channels.QQ.WSURL != "" {
-			// 向后兼容：如果没有 AppID 但有 WSURL，使用旧的 OneBot 实现
-			logger.Warn("QQ WSURL is deprecated, please use AppID and AppSecret for QQ Official API")
-			channel, err = NewQQChannel(cfg.Channels.QQ, m.bus)
-			if err != nil {
-				logger.Error("Failed to create QQ channel (legacy WebSocket)", zap.Error(err))
+				logger.Error("Failed to create QQ channel", zap.Error(err))
 			} else {
 				if err := m.Register(channel); err != nil {
 					logger.Error("Failed to register QQ channel", zap.Error(err))
 				}
 			}
 		} else {
-			logger.Warn("QQ channel enabled but no AppID or WSURL configured")
+			logger.Warn("QQ channel enabled but app_id not configured")
 		}
 	}
 

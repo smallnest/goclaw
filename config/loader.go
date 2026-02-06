@@ -233,11 +233,11 @@ func validateChannels(cfg *Config) error {
 
 	// QQ
 	if cfg.Channels.QQ.Enabled {
-		if cfg.Channels.QQ.WSURL == "" {
-			return fmt.Errorf("qq ws_url is required when enabled")
+		if cfg.Channels.QQ.AppID == "" {
+			return fmt.Errorf("qq app_id is required when enabled")
 		}
-		if !strings.HasPrefix(cfg.Channels.QQ.WSURL, "ws") {
-			return fmt.Errorf("qq ws_url must be a valid WebSocket URL")
+		if cfg.Channels.QQ.AppSecret == "" {
+			return fmt.Errorf("qq app_secret is required when enabled")
 		}
 	}
 

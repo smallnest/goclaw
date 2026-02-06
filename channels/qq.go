@@ -1,37 +1,37 @@
 package channels
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-	"net"
+	"io"
 	"net/http"
-	"regexp"
 	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/smallnest/dogclaw/goclaw/bus"
 	"github.com/smallnest/dogclaw/goclaw/config"
 	"github.com/smallnest/dogclaw/goclaw/internal/logger"
 	"go.uber.org/zap"
 )
 
-// QQChannel QQ 通道 (基于 OneBot V11)
+// QQChannel QQ 官方开放平台 Bot 通道
+// 基于 QQ 开放平台 API v2: https://bot.q.qq.com/wiki
 type QQChannel struct {
 	*BaseChannelImpl
-	wsURL       string
-	accessToken string
-	conn        *websocket.Conn
-	mu          sync.Mutex
-	apiCallbacks map[string]chan map[string]interface{}
-	callbackMu   sync.Mutex
+	appID        string
+	appSecret    string
+	accessToken  string
+	httpClient   *http.Client
+	mu           sync.RWMutex
+	msgSeqMap    map[string]int64 // 消息序列号管理，用于去重
 }
 
-// NewQQChannel 创建 QQ 通道
+// NewQQChannel 创建 QQ 官方 Bot 通道
 func NewQQChannel(cfg config.QQChannelConfig, bus *bus.MessageBus) (*QQChannel, error) {
-	if cfg.WSURL == "" {
-		return nil, fmt.Errorf("qq ws_url is required")
+	if cfg.AppID == "" {
+		return nil, fmt.Errorf("qq app_id is required")
 	}
 
 	baseCfg := BaseChannelConfig{
@@ -40,284 +40,243 @@ func NewQQChannel(cfg config.QQChannelConfig, bus *bus.MessageBus) (*QQChannel, 
 	}
 
 	return &QQChannel{
-		BaseChannelImpl: NewBaseChannelImpl("qq", baseCfg, bus),
-		wsURL:           cfg.WSURL,
-		accessToken:     cfg.AccessToken,
-		apiCallbacks:    make(map[string]chan map[string]interface{}),
+		BaseChannelImpl: NewBaseChannelImpl("qq-official", baseCfg, bus),
+		appID:           cfg.AppID,
+		appSecret:       cfg.AppSecret,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
+		msgSeqMap: make(map[string]int64),
 	}, nil
 }
 
-// Start 启动 QQ 通道
+// Start 启动 QQ 官方 Bot 通道
 func (c *QQChannel) Start(ctx context.Context) error {
 	if err := c.BaseChannelImpl.Start(ctx); err != nil {
 		return err
 	}
 
-	logger.Info("Starting QQ channel", zap.String("ws_url", c.wsURL))
+	logger.Info("Starting QQ Official Bot channel", zap.String("app_id", c.appID))
 
-	go c.connectAndListen(ctx)
+	// 获取访问令牌
+	if err := c.refreshAccessToken(); err != nil {
+		return fmt.Errorf("failed to get access token: %w", err)
+	}
+
+	// 启动 WebSocket 监听（用于接收消息推送）
+	go c.listenWebSocket(ctx)
 
 	return nil
 }
 
-// connectAndListen 连接 WebSocket 并监听消息
-func (c *QQChannel) connectAndListen(ctx context.Context) {
-	reconnectDelay := 1 * time.Second
-	maxReconnectDelay := 30 * time.Second
-
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		case <-c.WaitForStop():
-			return
-		default:
-			if err := c.connect(); err != nil {
-				logger.Error("Failed to connect to QQ WebSocket", zap.Error(err))
-				select {
-				case <-time.After(reconnectDelay):
-					// 指数退避
-					reconnectDelay = reconnectDelay * 2
-					if reconnectDelay > maxReconnectDelay {
-						reconnectDelay = maxReconnectDelay
-					}
-					continue
-				case <-ctx.Done():
-					return
-				}
-			}
-
-			// 重置重连延迟
-			reconnectDelay = 1 * time.Second
-
-			// 读取循环
-			c.readLoop(ctx)
-
-			// 连接断开，清理资源
-			c.mu.Lock()
-			if c.conn != nil {
-				c.conn.Close()
-				c.conn = nil
-			}
-			c.mu.Unlock()
-		}
-	}
+// QQAccessTokenResponse QQ 访问令牌响应
+type QQAccessTokenResponse struct {
+	AccessToken string `json:"access_token"`
+	ExpiresIn   int64  `json:"expires_in"`
 }
 
-func (c *QQChannel) connect() error {
-	header := http.Header{}
-	if c.accessToken != "" {
-		header.Set("Authorization", "Bearer "+c.accessToken)
+// refreshAccessToken 刷新访问令牌
+func (c *QQChannel) refreshAccessToken() error {
+	url := "https://bot.q.qq.com/openapi/oauth2/token"
+
+	req := map[string]string{
+		"app_id":     c.appID,
+		"client_secret": c.appSecret,
 	}
 
-	conn, _, err := websocket.DefaultDialer.Dial(c.wsURL, header)
+	body, err := json.Marshal(req)
 	if err != nil {
 		return err
 	}
 
+	httpReq, err := http.NewRequest("POST", url, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+
+	httpReq.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(httpReq)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		data, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to get access token: status %d, response: %s", resp.StatusCode, string(data))
+	}
+
+	var tokenResp QQAccessTokenResponse
+	if err := json.NewDecoder(resp.Body).Decode(&tokenResp); err != nil {
+		return err
+	}
+
 	c.mu.Lock()
-	c.conn = conn
+	c.accessToken = tokenResp.AccessToken
 	c.mu.Unlock()
 
-	logger.Info("Connected to QQ OneBot")
+	logger.Info("QQ access token refreshed", zap.String("expires_in", fmt.Sprintf("%d seconds", tokenResp.ExpiresIn)))
+
 	return nil
 }
 
-func (c *QQChannel) readLoop(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			// 设置读取超时，避免永久阻塞
-			c.conn.SetReadDeadline(time.Now().Add(30 * time.Second))
-
-			_, message, err := c.conn.ReadMessage()
-			if err != nil {
-				if websocket.IsCloseError(err, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
-					logger.Info("QQ WebSocket connection closed normally")
-				} else if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
-					logger.Debug("WebSocket read timeout, checking context...")
-					continue
-				} else {
-					logger.Error("QQ WebSocket read error", zap.Error(err))
-				}
-				return
-			}
-
-			var data map[string]interface{}
-			if err := json.Unmarshal(message, &data); err != nil {
-				logger.Warn("Invalid JSON from QQ WebSocket", zap.Error(err))
-				continue
-			}
-
-			// 处理 API 响应
-			if echo, ok := data["echo"].(string); ok {
-				c.callbackMu.Lock()
-				if ch, ok := c.apiCallbacks[echo]; ok {
-					select {
-					case ch <- data:
-					case <-time.After(5 * time.Second):
-						logger.Warn("Callback channel timeout", zap.String("echo", echo))
-					}
-					close(ch)
-					delete(c.apiCallbacks, echo)
-				}
-				c.callbackMu.Unlock()
-				continue
-			}
-
-			// 处理事件
-			postType, _ := data["post_type"].(string)
-			if postType == "message" {
-				c.handleMessage(data)
-			}
-		}
-	}
+// QQMessageEvent QQ 消息事件
+type QQMessageEvent struct {
+	PostType     string `json:"post_type"`
+	MessageType  string `json:"message_type"`
+	MessageID    string `json:"message_id"`
+	Message      struct {
+		ID      string `json:"id"`
+		Content string `json:"content"`
+	} `json:"message"`
+	Author       struct {
+		ID       string `json:"id"`
+		Nickname string `json:"nickname"`
+	} `json:"author"`
+	GroupID      string `json:"group_id,omitempty"`
+	ChannelID   string `json:"channel_id,omitempty"`
+	GuildID     string `json:"guild_id,omitempty"`
+	Timestamp    int64  `json:"timestamp"`
 }
 
-var cqCodeRegex = regexp.MustCompile(`\[CQ:([^,\]]+),?([^\]]*)\]`)
-
-// parseCQCode 解析 CQ 码
-func parseCQCode(message string) string {
-	return cqCodeRegex.ReplaceAllStringFunc(message, func(match string) string {
-		submatch := cqCodeRegex.FindStringSubmatch(match)
-		if len(submatch) < 2 {
-			return match
-		}
-		cqType := submatch[1]
-		params := submatch[2]
-
-		switch cqType {
-		case "at":
-			// [CQ:at,qq=123] -> @123
-			re := regexp.MustCompile(`qq=(\d+)`)
-			if m := re.FindStringSubmatch(params); len(m) > 1 {
-				return "@" + m[1]
-			}
-		case "image":
-			return "[图片]"
-		case "face":
-			return "[表情]"
-		case "record":
-			return "[语音]"
-		case "video":
-			return "[视频]"
-		case "file":
-			return "[文件]"
-		case "share":
-			return "[链接分享]"
-		}
-		return "[" + cqType + "]"
-	})
-}
-
-func (c *QQChannel) handleMessage(data map[string]interface{}) {
-	// 安全解析 user_id
-	userIDFloat, ok := data["user_id"].(float64)
-	if !ok {
-		logger.Warn("Invalid user_id type in QQ message")
-		return
-	}
-	userID := fmt.Sprintf("%.0f", userIDFloat)
-
-	// 检查权限
-	if !c.IsAllowed(userID) {
-		return
-	}
-
-	// 解析发送者
-	sender, _ := data["sender"].(map[string]interface{})
-	senderName := ""
-	if sender != nil {
-		if name, ok := sender["nickname"].(string); ok {
-			senderName = name
-		}
-	}
-
-	// 解析消息类型
-	messageType, _ := data["message_type"].(string)
-	rawMessage, _ := data["message"].(string)
-
-	chatID := userID
-	chatType := "private"
-	if messageType == "group" {
-		groupIDFloat, ok := data["group_id"].(float64)
-		if !ok {
-			logger.Warn("Invalid group_id type in QQ message")
-			return
-		}
-		chatID = fmt.Sprintf("%.0f", groupIDFloat)
-		chatType = "group"
-	}
-
-	// 解析消息 ID
-	messageIDFloat, ok := data["message_id"].(float64)
-	if !ok {
-		logger.Warn("Invalid message_id type in QQ message")
-		return
-	}
-	messageID := fmt.Sprintf("%.0f", messageIDFloat)
-
-	// 处理 CQ 码
-	content := parseCQCode(rawMessage)
-
-	msg := &bus.InboundMessage{
-		ID:        messageID,
-		Content:   content,
-		SenderID:  userID,
-		ChatID:    chatID,
-		Channel:   c.Name(),
-		Timestamp: time.Now(),
-		Metadata: map[string]interface{}{
-			"sender_name": senderName,
-			"chat_type":   chatType,
-			"raw_message": rawMessage,
-		},
-	}
-
-	c.PublishInbound(context.Background(), msg)
+// listenWebSocket 监听 WebSocket 消息（待实现）
+// QQ 官方 API 支持 Webhook 推送，这里需要设置 Webhook 服务器
+func (c *QQChannel) listenWebSocket(ctx context.Context) {
+	// QQ 官方 API 主要通过 Webhook 推送事件
+	// 需要设置一个公网可访问的 Webhook 服务器
+	// 这里暂时不实现，可以作为后续功能
+	logger.Info("QQ Official Bot uses Webhook for event delivery, WebSocket not implemented yet")
 }
 
 // Send 发送消息
 func (c *QQChannel) Send(msg *bus.OutboundMessage) error {
+	c.mu.RLock()
+	token := c.accessToken
+	c.mu.RUnlock()
+
+	if token == "" {
+		return fmt.Errorf("no access token")
+	}
+
+	// 根据消息类型调用不同的 API
+	// 支持：私聊消息、群消息、频道消息
+
+	// 获取或递增 msg_seq
+	msgSeq := c.getNextMsgSeq(msg.ChatID)
+
+	payload := map[string]interface{}{
+		"content":   msg.Content,
+		"msg_id":    msg.ID,
+		"msg_seq":   msgSeq,
+		"timestamp": time.Now().Unix(),
+	}
+
+	// 判断消息类型并调用对应 API
+	var url string
+	if chatType, ok := msg.Metadata["chat_type"].(string); ok {
+		switch chatType {
+		case "group":
+			url = fmt.Sprintf("https://bot.q.qq.com/openapi/v2/groups/%s/messages", msg.ChatID)
+		case "channel":
+			url = fmt.Sprintf("https://bot.q.qq.com/openapi/v2/channels/%s/messages", msg.ChatID)
+		default:
+			url = fmt.Sprintf("https://bot.q.qq.com/openapi/v2/users/%s/messages", msg.ChatID)
+		}
+	} else {
+		// 默认私聊
+		url = fmt.Sprintf("https://bot.q.qq.com/openapi/v2/users/%s/messages", msg.ChatID)
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return err
+	}
+
+	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
+	if err != nil {
+		return err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "QQBot "+token)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		data, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("failed to send message: status %d, response: %s", resp.StatusCode, string(data))
+	}
+
+	return nil
+}
+
+// getNextMsgSeq 获取下一个消息序列号
+func (c *QQChannel) getNextMsgSeq(chatID string) int64 {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	if c.conn == nil {
-		return fmt.Errorf("qq channel not connected")
-	}
-
-	payload := map[string]interface{}{
-		"action": "send_msg",
-		"params": map[string]interface{}{
-			"message": msg.Content,
-		},
-	}
-	
-	// 判断是群还是私聊
-	// 这里通过 ChatID 的特征或元数据判断，或者尝试两个都发
-	// 简单起见，如果 msg.Metadata["chat_type"] 存在则使用，否则尝试推断
-	
-	chatType, ok := msg.Metadata["chat_type"].(string)
-	if !ok {
-		// 默认私聊
-		payload["params"].(map[string]interface{})["user_id"] = msg.ChatID
-	} else if chatType == "group" {
-		payload["params"].(map[string]interface{})["group_id"] = msg.ChatID
-	} else {
-		payload["params"].(map[string]interface{})["user_id"] = msg.ChatID
-	}
-
-	return c.conn.WriteJSON(payload)
+	seq := c.msgSeqMap[chatID] + 1
+	c.msgSeqMap[chatID] = seq
+	return seq
 }
 
-// Stop 停止 QQ 通道
+// Stop 停止 QQ 官方 Bot 通道
 func (c *QQChannel) Stop() error {
-	c.mu.Lock()
-	if c.conn != nil {
-		c.conn.Close()
-	}
-	c.mu.Unlock()
 	return c.BaseChannelImpl.Stop()
+}
+
+// HandleWebhook 处理 QQ Webhook 回调
+func (c *QQChannel) HandleWebhook(ctx context.Context, event []byte) error {
+	var msgEvent QQMessageEvent
+	if err := json.Unmarshal(event, &msgEvent); err != nil {
+		return fmt.Errorf("failed to parse webhook event: %w", err)
+	}
+
+	// 只处理消息事件
+	if msgEvent.PostType != "message" {
+		return nil
+	}
+
+	// 解析用户 ID
+	userID := msgEvent.Author.ID
+	if !c.IsAllowed(userID) {
+		return nil
+	}
+
+	// 解析聊天 ID
+	chatID := userID
+	chatType := "private"
+
+	if msgEvent.GroupID != "" {
+		chatID = msgEvent.GroupID
+		chatType = "group"
+	} else if msgEvent.ChannelID != "" {
+		chatID = msgEvent.ChannelID
+		chatType = "channel"
+	}
+
+	// 构造消息
+	msg := &bus.InboundMessage{
+		ID:        msgEvent.Message.ID,
+		Content:   msgEvent.Message.Content,
+		SenderID:  userID,
+		ChatID:    chatID,
+		Channel:   c.Name(),
+		Timestamp: time.Unix(msgEvent.Timestamp, 0),
+		Metadata: map[string]interface{}{
+			"sender_name": msgEvent.Author.Nickname,
+			"chat_type":   chatType,
+			"guild_id":    msgEvent.GuildID,
+			"channel_id":  msgEvent.ChannelID,
+		},
+	}
+
+	c.PublishInbound(ctx, msg)
+
+	return nil
 }
