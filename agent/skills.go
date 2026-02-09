@@ -30,7 +30,7 @@ type Skill struct {
 				Config  []string `yaml:"config"`
 				OS      []string `yaml:"os"`
 			} `yaml:"requires"`
-		} `yaml:"openclaw"`
+		} `yaml:"goclaw"`
 	} `yaml:"metadata"`
 	Requires SkillRequirements `yaml:"requires"` // 兼容旧格式
 	Content  string            `yaml:"-"`        // 技能内容（Markdown）

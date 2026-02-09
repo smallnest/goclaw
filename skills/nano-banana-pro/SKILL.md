@@ -4,7 +4,7 @@ description: Generate or edit images via Gemini 3 Pro Image (Nano Banana Pro).
 homepage: https://ai.google.dev/
 metadata:
   {
-    "openclaw":
+    "goclaw":
       {
         "emoji": "🍌",
         "requires": { "bins": ["uv"], "env": ["GEMINI_API_KEY"] },

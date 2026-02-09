@@ -3,7 +3,7 @@ name: sherpa-onnx-tts
 description: Local text-to-speech via sherpa-onnx (offline, no cloud)
 metadata:
   {
-    "openclaw":
+    "goclaw":
       {
         "emoji": "🗣️",
         "os": ["darwin", "linux", "win32"],

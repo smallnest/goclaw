@@ -4,7 +4,7 @@ description: Manage Things 3 via the `things` CLI on macOS (add/update projects+
 homepage: https://github.com/ossianhempel/things3-cli
 metadata:
   {
-    "openclaw":
+    "goclaw":
       {
         "emoji": "✅",
         "os": ["darwin"],

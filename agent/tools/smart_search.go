@@ -2,7 +2,10 @@ package tools
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -63,7 +66,7 @@ func (s *SmartSearch) SmartSearchResult(ctx context.Context, params map[string]i
 				logger.Info("Web search result invalid, falling back to browser search",
 					zap.String("reason", s.getInvalidReason(webResults)),
 					zap.String("query", query))
-				return s.fallbackToBrowser(ctx, query)
+				return s.fallbackToCrawl4AI(ctx, query)
 			}
 			// web search successful
 			return webResults, nil
@@ -72,13 +75,13 @@ func (s *SmartSearch) SmartSearchResult(ctx context.Context, params map[string]i
 			logger.Info("Web search failed, falling back to browser search",
 				zap.String("query", query),
 				zap.Error(webErr))
-			return s.fallbackToBrowser(ctx, query)
+			return s.fallbackToCrawl4AI(ctx, query)
 		}
 	}
 
 	// web search not enabled, use browser directly
 	logger.Info("Web search not enabled, using browser search", zap.String("query", query))
-	return s.fallbackToBrowser(ctx, query)
+	return s.fallbackToCrawl4AI(ctx, query)
 }
 
 // isWebSearchResultValid Check if web search result is valid
@@ -130,20 +133,190 @@ func (s *SmartSearch) getInvalidReason(results string) string {
 	return "unknown"
 }
 
-// fallbackToBrowser Fallback to browser search
+// fallbackToCrawl4AI Use crawl4ai script to search Google
+func (s *SmartSearch) fallbackToCrawl4AI(ctx context.Context, query string) (string, error) {
+	logger.Info("Using crawl4ai for Google search", zap.String("query", query))
+
+	// Find the script path
+	scriptPath := s.findCrawl4AIScript()
+	if scriptPath == "" {
+		return s.fallbackToBrowser(ctx, query)
+	}
+
+	logger.Info("Found crawl4ai script", zap.String("path", scriptPath))
+
+	// Build command
+	var cmd *exec.Cmd
+	pythonCmd := s.findPythonCommand()
+	if pythonCmd == "" {
+		return fmt.Sprintf("Google Search for: %s\n\nPython 3 is required but not found. Please install Python 3 to use crawl4ai search.", query), nil
+	}
+
+	logger.Info("Using Python", zap.String("command", pythonCmd))
+
+	maxResults := 10
+	cmdArgs := []string{scriptPath, query, fmt.Sprintf("%d", maxResults)}
+	cmd = exec.CommandContext(ctx, pythonCmd, cmdArgs...)
+
+	logger.Info("Executing crawl4ai script", zap.Strings("args", cmdArgs))
+
+	// Set output to capture stdout
+	output, err := cmd.CombinedOutput()
+
+	logger.Info("Script output",
+		zap.Int("output_length", len(output)),
+		zap.Error(err))
+
+	if err != nil {
+		logger.Warn("Crawl4ai script failed",
+			zap.Error(err),
+			zap.String("output", string(output)))
+		// Fallback to original browser method
+		return s.fallbackToBrowser(ctx, query)
+	}
+
+	// Parse JSON output
+	// The script outputs debug info, need to extract the JSON part
+	// JSON is after "FULL JSON OUTPUT:" marker
+	jsonOutput := string(output)
+	if idx := strings.Index(jsonOutput, "FULL JSON OUTPUT:"); idx != -1 {
+		// Find the JSON object after the marker
+		jsonStart := strings.Index(jsonOutput[idx:], "{")
+		if jsonStart != -1 {
+			// Find the matching closing brace
+			braceCount := 0
+			inString := false
+			jsonEnd := -1
+			for i := idx + jsonStart; i < len(jsonOutput); i++ {
+				c := jsonOutput[i]
+				if c == '"' && (i == 0 || jsonOutput[i-1] != '\\') {
+					inString = !inString
+				} else if c == '{' && !inString {
+					braceCount++
+				} else if c == '}' && !inString {
+					braceCount--
+					if braceCount == 0 {
+						jsonEnd = i + 1
+						break
+					}
+				}
+			}
+			if jsonEnd != -1 {
+				jsonOutput = jsonOutput[idx+jsonStart : jsonEnd]
+			}
+		}
+	}
+
+	var searchResult struct {
+		Query        string `json:"query"`
+		TotalResults int    `json:"total_results"`
+		Results      []struct {
+			Title       string `json:"title"`
+			Link        string `json:"link"`
+			Description string `json:"description"`
+			SiteName    string `json:"site_name"`
+		} `json:"results"`
+	}
+
+	if err := json.Unmarshal([]byte(jsonOutput), &searchResult); err != nil {
+		logger.Warn("Failed to parse crawl4ai JSON output",
+			zap.Error(err),
+			zap.String("extracted_json", jsonOutput))
+		// Fallback to original browser method
+		return s.fallbackToBrowser(ctx, query)
+	}
+
+	// Check if we got results
+	if len(searchResult.Results) == 0 {
+		return fmt.Sprintf("Google Search for: %s\n\nNo results found. The query may not have matching results or Google blocked the request.", query), nil
+	}
+
+	// Format results
+	var formattedResults []string
+	for i, r := range searchResult.Results {
+		formatted := fmt.Sprintf("%d. Title: %s\n   URL: %s", i+1, r.Title, r.Link)
+		if r.Description != "" {
+			formatted += fmt.Sprintf("\n   Description: %s", r.Description)
+		}
+		if r.SiteName != "" {
+			formatted += fmt.Sprintf("\n   Site: %s", r.SiteName)
+		}
+		formattedResults = append(formattedResults, formatted)
+	}
+
+	logger.Info("Successfully extracted search results",
+		zap.Int("result_count", len(formattedResults)))
+
+	return fmt.Sprintf("Google Search Results for: %s\n\n%s",
+		query,
+		strings.Join(formattedResults, "\n\n---\n\n")), nil
+}
+
+// findCrawl4AIScript Find the crawl4ai google_search.py script
+func (s *SmartSearch) findCrawl4AIScript() string {
+	// Possible locations for the script
+	possiblePaths := []string{
+		"./skills/crawl4ai-skill/scripts/google_search.py",
+		"../skills/crawl4ai-skill/scripts/google_search.py",
+		"skills/crawl4ai-skill/scripts/google_search.py",
+	}
+
+	// Get current working directory
+	cwd, err := exec.Command("pwd").Output()
+	if err == nil {
+		workingDir := strings.TrimSpace(string(cwd))
+		possiblePaths = append(possiblePaths,
+			filepath.Join(workingDir, "skills/crawl4ai-skill/scripts/google_search.py"),
+			filepath.Join(workingDir, "..", "skills", "crawl4ai-skill", "scripts", "google_search.py"),
+		)
+	}
+
+	for _, path := range possiblePaths {
+		if _, err := exec.Command("test", "-f", path).CombinedOutput(); err == nil {
+			absPath, _ := filepath.Abs(path)
+			return absPath
+		}
+	}
+
+	logger.Warn("crawl4ai script not found")
+	return ""
+}
+
+// findPythonCommand Find python3 or python command
+func (s *SmartSearch) findPythonCommand() string {
+	// Try python3 first, then python
+	commands := []string{"python3", "python"}
+
+	for _, cmd := range commands {
+		if _, err := exec.Command(cmd, "--version").CombinedOutput(); err == nil {
+			return cmd
+		}
+	}
+
+	return ""
+}
+
+// fallbackToBrowser Fallback to original browser search method (CDP)
 func (s *SmartSearch) fallbackToBrowser(ctx context.Context, query string) (string, error) {
+	logger.Info("Falling back to CDP browser search", zap.String("query", query))
+
+	// Check if python is available for crawl4ai
+	if s.findPythonCommand() == "" {
+		return fmt.Sprintf("Google Search for: %s\n\n[⚠️ FALLBACK METHOD UNAVAILABLE]\n\nBoth crawl4ai (Python) and CDP (Chrome) methods require:\n- crawl4ai: Python 3\n- CDP: Chrome browser with remote debugging\n\nPlease install either:\n1. Python 3 with crawl4ai: pip install crawl4ai\n2. Chrome browser\n\nThen try again.", query), nil
+	}
+
 	// Get or create browser session
 	sessionMgr := GetBrowserSession()
 	if !sessionMgr.IsReady() {
 		if err := sessionMgr.Start(s.timeout); err != nil {
-			return fmt.Sprintf("Browser search failed: failed to start browser session: %v\n\nNote: Please ensure browser tools are properly configured.", err), nil
+			return fmt.Sprintf("Google Search for: %s\n\n[⚠️ CDP METHOD FAILED]\n\nFailed to start browser session: %v\n\nPlease ensure Chrome browser is installed and accessible.", query, err), nil
 		}
 	}
 
 	// Get CDP client
 	client, err := sessionMgr.GetClient()
 	if err != nil {
-		return fmt.Sprintf("Browser search failed: failed to get browser client: %v", err), nil
+		return fmt.Sprintf("Google Search for: %s\n\n[⚠️ CDP METHOD FAILED]\n\nFailed to get browser client: %v", query, err), nil
 	}
 
 	// Build Google search URL
@@ -154,7 +327,7 @@ func (s *SmartSearch) fallbackToBrowser(ctx context.Context, query string) (stri
 	// Navigate to Google search
 	nav, err := client.Page.Navigate(ctx, page.NewNavigateArgs(googleURL))
 	if err != nil {
-		return fmt.Sprintf("Browser search failed: failed to navigate: %v", err), nil
+		return fmt.Sprintf("Google Search for: %s\n\n[⚠️ CDP METHOD FAILED]\n\nFailed to navigate: %v", query, err), nil
 	}
 
 	// Wait for page load
@@ -169,14 +342,14 @@ func (s *SmartSearch) fallbackToBrowser(ctx context.Context, query string) (stri
 	// Get page content
 	doc, err := client.DOM.GetDocument(ctx, nil)
 	if err != nil {
-		return fmt.Sprintf("Browser search failed: failed to get document: %v", err), nil
+		return fmt.Sprintf("Google Search for: %s\n\n[⚠️ CDP METHOD FAILED]\n\nFailed to get document: %v", query, err), nil
 	}
 
 	html, err := client.DOM.GetOuterHTML(ctx, &dom.GetOuterHTMLArgs{
 		NodeID: &doc.Root.NodeID,
 	})
 	if err != nil {
-		return fmt.Sprintf("Browser search failed: failed to get page content: %v", err), nil
+		return fmt.Sprintf("Google Search for: %s\n\n[⚠️ CDP METHOD FAILED]\n\nFailed to get page content: %v", query, err), nil
 	}
 
 	content := html.OuterHTML
@@ -184,7 +357,6 @@ func (s *SmartSearch) fallbackToBrowser(ctx context.Context, query string) (stri
 	logger.Info("Page content retrieved", zap.Int("content_length", len(content)), zap.String("frame_id", string(nav.FrameID)))
 
 	// Check if blocked by Google (verify page)
-	// Google 显示 CAPTCHA 页面的常见特征
 	captchaKeywords := []string{
 		"unusual traffic",
 		"CAPTCHA",
@@ -214,30 +386,19 @@ func (s *SmartSearch) fallbackToBrowser(ctx context.Context, query string) (stri
 	// Extract search results
 	searchResults := s.extractGoogleSearchResults(content)
 
-	logger.Info("Search results extracted", zap.Int("results_length", len(searchResults)))
-
 	if searchResults == "" {
 		// Return partial content for debugging
 		preview := content
-		if len(preview) > 1000 {
-			preview = preview[:1000] + "..."
+		if len(preview) > 500 {
+			preview = preview[:500] + "..."
 		}
-		return fmt.Sprintf("Google search completed for: %s\n\nNo results could be extracted. Page preview:\n%s\n\nThe page structure may have changed or search was blocked.\n\nTry using browser_navigate and browser_get_text tools directly.", query, preview), nil
+		return fmt.Sprintf("Google Search for: %s\n\n[⚠️ NO RESULTS EXTRACTED]\n\nNo results could be extracted from the page.\n\nPage preview:\n%s\n\nPossible reasons:\n- Google changed their HTML structure\n- CAPTCHA page was not detected\n- Empty search results\n\nTry:\n1. Waiting and retrying later\n2. Using a different search query", query, preview), nil
 	}
-
-	// Debug: log the actual extracted results
-	logger.Info("Extracted search results preview",
-		zap.String("preview", func() string {
-			if len(searchResults) > 500 {
-				return searchResults[:500] + "..."
-			}
-			return searchResults
-		}()))
 
 	return fmt.Sprintf("Google Search Results for: %s\n\n%s", query, searchResults), nil
 }
 
-// extractGoogleSearchResults Extract search results from Google search page
+// extractGoogleSearchResults Extract search results from Google search page HTML
 func (s *SmartSearch) extractGoogleSearchResults(pageText string) string {
 	// Convert HTML to plain text
 	text := htmlToTextForSearch(pageText)
@@ -246,11 +407,6 @@ func (s *SmartSearch) extractGoogleSearchResults(pageText string) string {
 	var results []string
 	var currentResult strings.Builder
 	resultCount := 0
-
-	// Google search result common patterns:
-	// 1. Title line (shorter, meaningful text)
-	// 2. URL line (starts with http:// or https://)
-	// 3. Description line (longer text)
 
 	for i := 0; i < len(lines); i++ {
 		line := strings.TrimSpace(lines[i])
@@ -273,7 +429,7 @@ func (s *SmartSearch) extractGoogleSearchResults(pageText string) string {
 				if s.isValidResult(result) {
 					results = append(results, result)
 					resultCount++
-					if resultCount >= 10 { // Limit to 10 results
+					if resultCount >= 10 {
 						break
 					}
 				}
@@ -302,14 +458,13 @@ func (s *SmartSearch) extractGoogleSearchResults(pageText string) string {
 	}
 
 	if len(results) == 0 {
-		// No valid results found - return a clear message
-		// Check if page contains "No results found" or similar
+		// No valid results found
 		if strings.Contains(text, "No results found") ||
 			strings.Contains(text, "did not match any documents") ||
 			strings.Contains(text, "Your search -") && strings.Contains(text, "- did not match") {
 			return "No results found for this search query."
 		}
-		return "" // No results extracted, page structure may have changed
+		return ""
 	}
 
 	return strings.Join(results, "\n\n---\n\n")
@@ -321,7 +476,7 @@ func (s *SmartSearch) isGoogleUIElement(line string) bool {
 		"Google", "Search", "Images", "Maps", "News", "Videos",
 		"Shopping", "More", "Sign in", "Settings", "Privacy",
 		"Terms", "About", "Advertising", "Business", "Cookies",
-		"All", "Images", "News", "Videos", "Tools", "SafeSearch",
+		"All", "Tools", "SafeSearch",
 		"Related searches", "People also ask", "Top stories",
 		"Page", "of", "Next", "Previous",
 	}
@@ -426,7 +581,7 @@ func (s *SmartSearch) isValidResult(result string) bool {
 func (s *SmartSearch) GetTool() Tool {
 	return NewBaseTool(
 		"smart_search",
-		"Intelligent search that automatically falls back to Google browser search if web search fails or returns no results. Uses Chrome DevTools Protocol.",
+		"Intelligent search that automatically falls back to Google browser search if web search fails. Uses crawl4ai (Python) for better anti-bot protection.",
 		map[string]interface{}{
 			"type": "object",
 			"properties": map[string]interface{}{

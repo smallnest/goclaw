@@ -4,7 +4,7 @@ description: Set up and use 1Password CLI (op). Use when installing the CLI, ena
 homepage: https://developer.1password.com/docs/cli/get-started/
 metadata:
   {
-    "openclaw":
+    "goclaw":
       {
         "emoji": "🔐",
         "requires": { "bins": ["op"] },

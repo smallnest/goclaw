@@ -4,7 +4,7 @@ description: Transcribe audio via OpenAI Audio Transcriptions API (Whisper).
 homepage: https://platform.openai.com/docs/guides/speech-to-text
 metadata:
   {
-    "openclaw":
+    "goclaw":
       {
         "emoji": "☁️",
         "requires": { "bins": ["curl"], "env": ["OPENAI_API_KEY"] },

@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/smallnest/dogclaw/goclaw/agent"
 	"github.com/smallnest/dogclaw/goclaw/agent/tools"
@@ -28,13 +30,15 @@ var chatCmd = &cobra.Command{
 }
 
 var (
-	chatDebugPrompt bool
-	chatLogLevel    string
+	chatDebugPrompt   bool
+	chatLogLevel      string
+	chatContinueSession bool
 )
 
 func init() {
 	chatCmd.Flags().BoolVar(&chatDebugPrompt, "debug-prompt", false, "Print the full system prompt including injected skills")
 	chatCmd.Flags().StringVar(&chatLogLevel, "log-level", "info", "Log level (debug, info, warn, error)")
+	chatCmd.Flags().BoolVarP(&chatContinueSession, "continue", "c", false, "Continue previous session (default: start new session)")
 }
 
 // runChat 交互式聊天
@@ -58,6 +62,11 @@ func runChat(cmd *cobra.Command, args []string) {
 	defer logger.Sync()
 
 	fmt.Println("🐾 goclaw Interactive Chat")
+	if chatContinueSession {
+		fmt.Println("  Mode: Continuing previous session")
+	} else {
+		fmt.Println("  Mode: New session (use -c to continue previous)")
+	}
 	fmt.Println()
 	cmdRegistry := commands.NewCommandRegistry()
 	fmt.Println(cmdRegistry.GetCommandPrompt())
@@ -162,11 +171,27 @@ func runChat(cmd *cobra.Command, args []string) {
 	_ = subagentMgr // 暂不使用，避免编译错误
 
 	// 获取或创建会话
-	const sessionKey = "cli:direct"
+	var sessionKey string
+	if chatContinueSession {
+		// 使用固定的 key，继续之前的会话
+		sessionKey = "cli:direct"
+	} else {
+		// 使用时间戳作为 key，每次重启都是新会话
+		sessionKey = "cli:" + strconv.FormatInt(time.Now().Unix(), 10)
+	}
+
 	sess, err := sessionMgr.GetOrCreate(sessionKey)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create session: %v\n", err)
 		os.Exit(1)
+	}
+
+	if chatContinueSession {
+		// 检查是否从旧会话恢复了消息
+		history := sess.GetHistory(0)
+		if len(history) > 0 {
+			fmt.Printf("Resumed previous session with %d messages\n", len(history))
+		}
 	}
 
 	// 创建上下文

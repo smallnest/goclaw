@@ -4,7 +4,7 @@ description: Manage Apple Notes via the `memo` CLI on macOS (create, view, edit,
 homepage: https://github.com/antoniorodr/memo
 metadata:
   {
-    "openclaw":
+    "goclaw":
       {
         "emoji": "📝",
         "os": ["darwin"],

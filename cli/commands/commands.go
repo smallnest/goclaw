@@ -75,9 +75,38 @@ func (r *CommandRegistry) registerBuiltInCommands() {
 	r.Register(&Command{
 		Name:        "clear",
 		Usage:       "/clear",
-		Description: "Clear chat history",
+		Description: "Clear chat history (current session only)",
 		Handler: func(args []string) (string, bool) {
 			return "History cleared.", false
+		},
+	})
+
+	// /clear-sessions - 清除所有会话文件
+	r.Register(&Command{
+		Name:        "clear-sessions",
+		Usage:       "/clear-sessions",
+		Description: "Clear all saved session files (restart recommended)",
+		Handler: func(args []string) (string, bool) {
+			sessionDir := filepath.Join(r.homeDir, ".goclaw", "sessions")
+			// 检查目录是否存在
+			if _, err := os.Stat(sessionDir); os.IsNotExist(err) {
+				return "No sessions to clear.", false
+			}
+			// 删除目录中的所有文件
+			entries, err := os.ReadDir(sessionDir)
+			if err != nil {
+				return fmt.Sprintf("Error reading sessions directory: %v", err), false
+			}
+			count := 0
+			for _, entry := range entries {
+				if err := os.Remove(filepath.Join(sessionDir, entry.Name())); err == nil {
+					count++
+				}
+			}
+			if count > 0 {
+				return fmt.Sprintf("Cleared %d session file(s). Restart the application to clear in-memory sessions.", count), false
+			}
+			return "No session files to clear.", false
 		},
 	})
 
@@ -424,7 +453,7 @@ func (r *CommandRegistry) NewCompleter() readline.AutoCompleter {
 // GetCommandPrompt 获取命令提示信息
 func (r *CommandRegistry) GetCommandPrompt() string {
 	var sb strings.Builder
-	sb.WriteString("Available commands: /quit /exit /clear /help /read /cd /pwd /ls (Tab to show menu)")
+	sb.WriteString("Available commands: /quit /exit /clear /clear-sessions /help /read /cd /pwd /ls (Tab to show menu)")
 	return sb.String()
 }
 
