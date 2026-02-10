@@ -88,9 +88,6 @@ func (l *Loop) Start(ctx context.Context) error {
 	logger.Info("Starting agent loop")
 	l.running = true
 
-	// 启动出站消息分发
-	go l.dispatchOutbound(ctx)
-
 	// 主循环
 	for l.running {
 		select {
@@ -451,7 +448,18 @@ func (l *Loop) runIteration(ctx context.Context, sess *session.Session, userRequ
 			continue
 		}
 
-		// 没有工具调用，检查任务是否完成
+		// 没有工具调用，检查是否需要继续迭代
+		// 如果 LLM 返回了实质性内容，说明任务已完成，直接返回
+		responseContent := strings.TrimSpace(response.Content)
+		if responseContent != "" {
+			// 有实质内容，任务已完成
+			logger.Info("Agent returned content, task completed",
+				zap.Int("content_length", len(response.Content)))
+			lastResponse = response.Content
+			break
+		}
+
+		// 响应为空，使用 reflection 判断是否需要继续
 		if l.reflector != nil && l.reflector.config.Enabled {
 			// 获取当前对话历史进行反思
 			reflectionHistory := sess.GetHistory(30)
@@ -675,31 +683,4 @@ func (l *Loop) generateSummary(ctx context.Context, msg *bus.InboundMessage) str
 	// 简单实现：直接返回内容
 	// 实际应该调用 LLM 生成更友好的总结
 	return fmt.Sprintf("任务完成：%s", msg.Content)
-}
-
-// dispatchOutbound 分发出站消息
-func (l *Loop) dispatchOutbound(ctx context.Context) {
-	for {
-		select {
-		case <-ctx.Done():
-			return
-		default:
-			msg, err := l.bus.ConsumeOutbound(ctx)
-			if err != nil {
-				if err == context.DeadlineExceeded || err == context.Canceled {
-					continue
-				}
-				logger.Error("Failed to consume outbound message", zap.Error(err))
-				continue
-			}
-
-			logger.Info("Dispatching outbound message",
-				zap.String("channel", msg.Channel),
-				zap.String("chat_id", msg.ChatID),
-			)
-
-			// 这里应该根据 channel 调用对应的通道发送器
-			// 暂时只记录日志
-		}
-	}
 }

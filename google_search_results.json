@@ -1,66 +1,60 @@
 {
-  "query": "openclaw site:openclaw.org OR site:github.com OR site:medium.com OR site:twitter.com after:2026-02-02",
+  "query": "北京天气",
   "total_results": 10,
   "results": [
     {
-      "title": "Running OpenClaw Without Burning Money, Quotas, or ...",
-      "link": "https://gist.github.com/digitalknk/ec360aab27ca47cb4106a183b2c25a98",
-      "description": "1天前—OpenClaw is useful, but most of the pain people run into comes from letting one model do everything, chasing hype, or running expensive models in places ...",
-      "site_name": "Gist"
+      "title": "搜索结果 ·中国北京市",
+      "link": "#"
     },
     {
-      "title": "VoltAgent/awesome-openclaw-skills",
-      "link": "https://github.com/VoltAgent/awesome-openclaw-skills",
-      "description": "3天前—OpenClaw (previously known as Moltbot, originally Clawdbot... identity crisis included, no extra charge)is a locally-running AI assistantthat operates ...",
-      "site_name": "GitHub"
+      "title": "10日（今天）",
+      "link": "https://www.weather.com.cn/weather/101010100.shtml",
+      "description": "今天降温主要区域将转移至江南中东部、华南等地，中东部其余大部地区气温将开启回升。今天雨雪范围明显缩小，明天起大部地区将迎来降水间歇期。",
+      "site_name": "天气网"
     },
     {
-      "title": "OpenClaw (formerly Clawdbot): A Deep Dive into Running ...",
-      "link": "https://medium.com/algomart/openclaw-formerly-clawdbot-a-deep-dive-into-running-your-own-24-7-ai-assistant-on-a-vps-60aac37c9703",
-      "description": "Instead of being another web‑based chatbot,OpenClawis a self‑hosted, always‑running AI automation gateway. It connects large language models (LLMs) directly ...",
-      "site_name": "Medium · Yash Jain"
+      "title": "北京-天气预报",
+      "link": "https://www.nmc.cn/publish/forecast/ABJ/beijing.html",
+      "description": "1.8 · 6.2 · 12.8 · 20.6 · 27 · 30.7 · 32.1 · 30.6 30.6 26.6 26.6 19.4 19.4 10.2 10.2 3.5 3.5 -7.3 -7.3 -4.1 -4.1 1.8 1.8 8.9 8.9 15 ...",
+      "site_name": "中央气象台"
     },
     {
-      "title": "OpenClaw: What It Is and Isn't",
-      "link": "https://medium.com/@tjlsmith0831/openclaw-what-it-is-and-isnt-fcb6260594d1",
-      "description": "Install and Configure OpenClaw:Install required runtimes and the OpenClaw CLI. Run the onboarding wizard to configure models, channels, and daemon ...",
-      "site_name": "Medium"
+      "title": "北京天气｜四季气候、最佳旅游时间与穿搭指南【2026 更新】",
+      "link": "https://my.trip.com/guide/info/%E5%8C%97%E4%BA%AC%E5%A4%A9%E6%B0%94.html",
+      "site_name": "Trip.com"
     },
     {
-      "title": "cloudflare/moltworker: Run OpenClaw, (formerly Moltbot, ...",
-      "link": "https://github.com/cloudflare/moltworker",
-      "description": "6天前—This project packagesOpenClaw to run in a Cloudflare Sandbox container, providing a fully managed, always-on deployment without needing to self-host. Optional ...",
-      "site_name": "GitHub"
+      "title": "北京旅游必去的20大景点，中国人都想去，首都旅行最全攻略",
+      "link": "https://www.visitbeijing.com.cn/article/47QqC4Np2ua",
+      "site_name": "北京旅游网"
     },
     {
-      "title": "OpenClaw🦞 (@openclaw) / Posts / X",
-      "link": "https://twitter.com/openclaw?ref_src=twsrc%5Etfw",
-      "description": "The AI that does things.Emails, calendar, home automation, from your favorite chat app. Your machine, your rules. New shell, same lobster soul.",
-      "site_name": "twitter.com"
+      "title": "首都气候– 北京 - 中国天气网",
+      "link": "https://bj.weather.com.cn/sdqh/index.shtml",
+      "site_name": "北京 - 中国天气网"
     },
     {
-      "title": "OpenClaw Demystified: From Installation to Architecture",
-      "link": "https://medium.com/@gohsoonheng00/openclaw-demystified-from-installation-to-architecture-29dd2580ed42",
-      "description": "OpenClaw isa powerful open-source AI assistantthat's safe to use if you stick to trusted skills and take basic precautions. Treat it like any flexible tool — ...",
-      "site_name": "Medium"
+      "title": "三月来京旅游穿衣攻略",
+      "link": "https://www.visitbeijing.com.cn/article/47QsT9J4E2m?device=amp",
+      "site_name": "北京旅游网"
     },
     {
-      "title": "OpenClaw: The Local-first personal AI assistant you run ...",
-      "link": "https://medium.com/coding-nexus/openclaw-the-local-first-personal-ai-assistant-you-run-yourself-caed6688ccd9",
-      "description": "Here's the simplest way to think about OpenClaw. It's apersonal AI assistant you run on your own devices. Not a SaaS chatbot. Not a browser. A system. The ...",
-      "site_name": "Medium · Tattva Tarang"
+      "title": "Beijing, Beijing, China Weather Forecast",
+      "link": "https://www.accuweather.com/en/cn/beijing/101924/weather-forecast/101924",
+      "description": "Hourly Weather· 1 PM 37°. rain drop 0% · 2 PM 38°. rain drop 0% · 3 PM 39°. rain drop 0% · 4 PM 40°. rain drop 0% · 5 PM 38°. rain drop 0% · 6 PM 36°. rain ...",
+      "site_name": "AccuWeather"
     },
     {
-      "title": "I Ship Code I Don't Read: Lessons from the Explosive Rise ...",
-      "link": "https://medium.com/@natishalom/i-ship-code-i-dont-read-lessons-from-the-explosive-rise-of-openclaw-c7fde5fbe5cb",
-      "description": "OpenClaw isan innovative, local-first AI toolfundamentally challenging the existing business model of “wrapper companies” that merely add a markup to ...",
-      "site_name": "Medium"
+      "title": "【北京天气】北京40天天气预报,北京更长预报 ...",
+      "link": "https://www.weather.com.cn/weather40d/101010100.shtml",
+      "description": "今天降温主要区域将转移至江南中东部、华南等地，中东部其余大部地区气温将开启回升。今天雨雪范围明显缩小，明天起大部地区将迎来降水间歇期。",
+      "site_name": "天气网"
     },
     {
-      "title": "Openclaw works, but is it worth paying for big LLM ...",
-      "link": "https://cechinel.medium.com/openclaw-works-but-is-it-worth-paying-for-big-llm-subscriptions-or-buying-expensive-hardware-only-9ec2efda5ffa",
-      "description": "Openclaw works, butis it worth paying for big LLM subscriptionsor buying expensive hardware only to get a private AI assistant?",
-      "site_name": "Medium · Jeff Cechinel"
+      "title": "北京",
+      "link": "https://weathernew.pae.baidu.com/weathernew/pc?query=%E5%8C%97%E4%BA%AC%E5%A4%A9%E6%B0%94&srcid=4982",
+      "description": "北京今天：霾 -4°~9°C 西北风3级. 02月10日 周二 农历腊月廿三. -1°. 127 轻度. 霾 ... 生活气象指数 夜深了，天气不好，也记得让心情保持舒畅哦. 穿衣: 棉服类. -4℃~9 ...",
+      "site_name": "百度"
     }
   ]
 }
