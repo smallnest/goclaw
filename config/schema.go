@@ -11,6 +11,7 @@ type Config struct {
 	Providers ProvidersConfig `mapstructure:"providers" json:"providers"`
 	Gateway   GatewayConfig   `mapstructure:"gateway" json:"gateway"`
 	Tools     ToolsConfig     `mapstructure:"tools" json:"tools"`
+	Approvals ApprovalsConfig `mapstructure:"approvals" json:"approvals"`
 }
 
 // AgentsConfig Agent 配置
@@ -202,4 +203,10 @@ type BrowserToolConfig struct {
 	Enabled  bool `mapstructure:"enabled" json:"enabled"`
 	Headless bool `mapstructure:"headless" json:"headless"`
 	Timeout  int  `mapstructure:"timeout" json:"timeout"`
+}
+
+// ApprovalsConfig 审批配置
+type ApprovalsConfig struct {
+	Behavior  string   `mapstructure:"behavior" json:"behavior"`   // auto, manual, prompt
+	Allowlist []string `mapstructure:"allowlist" json:"allowlist"` // 工具允许列表
 }

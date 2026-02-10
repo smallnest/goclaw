@@ -11,6 +11,7 @@ import (
 	"github.com/smallnest/dogclaw/goclaw/agent/tools"
 	"github.com/smallnest/dogclaw/goclaw/bus"
 	"github.com/smallnest/dogclaw/goclaw/channels"
+	"github.com/smallnest/dogclaw/goclaw/cli/commands"
 	"github.com/smallnest/dogclaw/goclaw/config"
 	"github.com/smallnest/dogclaw/goclaw/cron"
 	"github.com/smallnest/dogclaw/goclaw/gateway"
@@ -48,7 +49,24 @@ func init() {
 	rootCmd.AddCommand(startCmd)
 	rootCmd.AddCommand(configCmd)
 	configCmd.AddCommand(configShowCmd)
-	rootCmd.AddCommand(chatCmd)
+	rootCmd.AddCommand(agentsCmd)
+	rootCmd.AddCommand(agentCmd)
+	rootCmd.AddCommand(sessionsCmd)
+
+	// Register memory and logs commands from commands package
+	// Note: skills command is already registered in cli/skills.go
+	rootCmd.AddCommand(commands.MemoryCmd)
+	rootCmd.AddCommand(commands.LogsCmd)
+
+	// Register browser, tui, gateway, health, status commands
+	rootCmd.AddCommand(commands.BrowserCommand())
+	rootCmd.AddCommand(commands.TUICommand())
+	rootCmd.AddCommand(commands.GatewayCommand())
+	rootCmd.AddCommand(commands.HealthCommand())
+	rootCmd.AddCommand(commands.StatusCommand())
+
+	// Register approvals, cron, system commands (registered via init)
+	// These commands auto-register themselves
 }
 
 // Execute 执行 CLI
