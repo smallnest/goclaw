@@ -1,4 +1,4 @@
-module github.com/smallnest/dogclaw/goclaw
+module github.com/smallnest/goclaw
 
 go 1.25
 
