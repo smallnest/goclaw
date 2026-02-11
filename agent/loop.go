@@ -780,5 +780,49 @@ func (l *Loop) filterResponse(response string) string {
 		}
 	}
 
+	// 检测 API 错误消息（如 token limit 超限等）
+	// 这些错误通常来自 LLM API 本身，应该被过滤掉而不是发送给用户
+	apiErrorPatterns := []string{
+		"400 input token limit",
+		"input token limit",
+		"maximum context length",
+		"context length exceeded",
+		"token limit exceeded",
+		"400 bad request",
+	}
+
+	for _, pattern := range apiErrorPatterns {
+		if strings.Contains(responseLower, pattern) {
+			logger.Warn("Response contains API error message, filtering it out",
+				zap.String("pattern", pattern),
+				zap.Int("response_length", len(response)))
+			return ""
+		}
+	}
+
+	// 检测纯数字错误代码开头的消息（如 "400 ..."）
+	if len(response) > 0 && response[0] >= '0' && response[0] <= '9' {
+		// 检查是否以错误代码开头（如 400, 401, 500 等）
+		if strings.Contains(response, " ") {
+			firstSpace := strings.Index(response, " ")
+			firstWord := response[:firstSpace]
+			// 如果第一个词是纯数字且小于 600，可能是 HTTP 错误代码
+			if len(firstWord) == 3 {
+				allDigits := true
+				for _, c := range firstWord {
+					if c < '0' || c > '9' {
+						allDigits = false
+						break
+					}
+				}
+				if allDigits {
+					logger.Warn("Response starts with HTTP error code, filtering it out",
+						zap.String("code", firstWord))
+					return ""
+				}
+			}
+		}
+	}
+
 	return response
 }
