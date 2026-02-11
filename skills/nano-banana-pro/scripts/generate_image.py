@@ -26,7 +26,7 @@ def get_api_key(provided_key: str | None) -> str | None:
     """Get API key from argument first, then environment."""
     if provided_key:
         return provided_key
-    return os.environ.get("GEMINI_API_KEY")
+    return os.environ.get("GOOGLE_API_KEY") or os.environ.get("GEMINI_API_KEY")
 
 
 def main():
@@ -75,6 +75,7 @@ def main():
     # Import here after checking API key to avoid slow import on error
     from google import genai
     from google.genai import types
+    from google.genai.types import Modality
     from PIL import Image as PILImage
 
     # Initialise client
@@ -130,7 +131,7 @@ def main():
             model="gemini-3-pro-image-preview",
             contents=contents,
             config=types.GenerateContentConfig(
-                response_modalities=["TEXT", "IMAGE"],
+                response_modalities=[Modality.TEXT, Modality.IMAGE],
                 image_config=types.ImageConfig(
                     image_size=output_resolution
                 )

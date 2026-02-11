@@ -361,6 +361,41 @@ func (b *ContextBuilder) buildSkillsPrompt(skills []*Skill, mode PromptMode) str
 		if skill.Version != "" {
 			sb.WriteString(fmt.Sprintf("**Version:** %s\n", skill.Version))
 		}
+
+		// 显示缺失依赖和安装命令
+		if skill.MissingDeps != nil {
+			sb.WriteString("**Missing Dependencies:**\n")
+			if len(skill.MissingDeps.PythonPkgs) > 0 {
+				sb.WriteString(fmt.Sprintf("  - Python Packages: %v\n", skill.MissingDeps.PythonPkgs))
+				sb.WriteString("    Install commands:\n")
+				for _, pkg := range skill.MissingDeps.PythonPkgs {
+					sb.WriteString(fmt.Sprintf("      `python3 -m pip install %s`\n", pkg))
+					sb.WriteString(fmt.Sprintf("      Or via uv: `uv pip install %s`\n", pkg))
+				}
+			}
+			if len(skill.MissingDeps.NodePkgs) > 0 {
+				sb.WriteString(fmt.Sprintf("  - Node.js Packages: %v\n", skill.MissingDeps.NodePkgs))
+				sb.WriteString("    Install commands:\n")
+				for _, pkg := range skill.MissingDeps.NodePkgs {
+					sb.WriteString(fmt.Sprintf("      `npm install -g %s`\n", pkg))
+					sb.WriteString(fmt.Sprintf("      Or via pnpm: `pnpm add -g %s`\n", pkg))
+				}
+			}
+			if len(skill.MissingDeps.Bins) > 0 {
+				sb.WriteString(fmt.Sprintf("  - Binary dependencies: %v\n", skill.MissingDeps.Bins))
+				sb.WriteString("    You may need to install these tools first.\n")
+			}
+			if len(skill.MissingDeps.AnyBins) > 0 {
+				sb.WriteString(fmt.Sprintf("  - Optional binary dependencies (one required): %v\n", skill.MissingDeps.AnyBins))
+				sb.WriteString("    Install at least one of these tools.\n")
+			}
+			if len(skill.MissingDeps.Env) > 0 {
+				sb.WriteString(fmt.Sprintf("  - Environment variables: %v\n", skill.MissingDeps.Env))
+				sb.WriteString("    Set these environment variables before using the skill.\n")
+			}
+			sb.WriteString("\n")
+		}
+
 		sb.WriteString("</skill>\n\n")
 	}
 
@@ -383,6 +418,39 @@ func (b *ContextBuilder) buildSelectedSkills(selectedSkillNames []string, skills
 				sb.WriteString(fmt.Sprintf("### %s\n", skill.Name))
 				if skill.Description != "" {
 					sb.WriteString(fmt.Sprintf("> Description: %s\n\n", skill.Description))
+				}
+
+				// 显示缺失依赖警告和安装命令
+				if skill.MissingDeps != nil {
+					sb.WriteString("**⚠️ MISSING DEPENDENCIES - Install before using:**\n\n")
+					if len(skill.MissingDeps.PythonPkgs) > 0 {
+						sb.WriteString(fmt.Sprintf("**Python Packages:** %v\n", skill.MissingDeps.PythonPkgs))
+						sb.WriteString("**Install commands:**\n")
+						for _, pkg := range skill.MissingDeps.PythonPkgs {
+							sb.WriteString(fmt.Sprintf("```bash\npython3 -m pip install %s\n# Or via uv: uv pip install %s\n```\n", pkg, pkg))
+						}
+						sb.WriteString("\n")
+					}
+					if len(skill.MissingDeps.NodePkgs) > 0 {
+						sb.WriteString(fmt.Sprintf("**Node.js Packages:** %v\n", skill.MissingDeps.NodePkgs))
+						sb.WriteString("**Install commands:**\n")
+						for _, pkg := range skill.MissingDeps.NodePkgs {
+							sb.WriteString(fmt.Sprintf("```bash\nnpm install -g %s\n# Or via pnpm: pnpm add -g %s\n```\n", pkg, pkg))
+						}
+						sb.WriteString("\n")
+					}
+					if len(skill.MissingDeps.Bins) > 0 {
+						sb.WriteString(fmt.Sprintf("**Binary dependencies:** %v\n", skill.MissingDeps.Bins))
+						sb.WriteString("You may need to install these tools first.\n\n")
+					}
+					if len(skill.MissingDeps.AnyBins) > 0 {
+						sb.WriteString(fmt.Sprintf("**Optional binary dependencies (one required):** %v\n", skill.MissingDeps.AnyBins))
+						sb.WriteString("Install at least one of these tools.\n\n")
+					}
+					if len(skill.MissingDeps.Env) > 0 {
+						sb.WriteString(fmt.Sprintf("**Environment variables:** %v\n", skill.MissingDeps.Env))
+						sb.WriteString("Set these environment variables before using the skill.\n\n")
+					}
 				}
 
 				// 注入技能正文内容

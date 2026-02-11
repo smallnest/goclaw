@@ -83,6 +83,13 @@ var skillsConfigSetCmd = &cobra.Command{
 	Run:   runSkillsConfigSet,
 }
 
+var skillsInstallDepsCmd = &cobra.Command{
+	Use:   "install-deps [skill-name]",
+	Short: "Install dependencies for a skill",
+	Args:  cobra.ExactArgs(1),
+	Run:   runSkillsInstallDeps,
+}
+
 func init() {
 	rootCmd.AddCommand(skillsCmd)
 
@@ -111,6 +118,9 @@ func init() {
 	skillsConfigCmd.AddCommand(skillsConfigShowCmd)
 	skillsConfigCmd.AddCommand(skillsConfigSetCmd)
 	skillsCmd.AddCommand(skillsConfigCmd)
+
+	// install-deps 命令
+	skillsCmd.AddCommand(skillsInstallDepsCmd)
 }
 
 func runSkillsList(cmd *cobra.Command, args []string) {
@@ -618,4 +628,42 @@ func runSkillsConfigSet(cmd *cobra.Command, args []string) {
 	fmt.Printf("Config type: %s, skill: %s\n", configType, skillKey)
 	fmt.Println("⚠️  Skills configuration file editing is not yet implemented.")
 	fmt.Println("   Please manually edit:", skillsConfigPath)
+}
+
+func runSkillsInstallDeps(cmd *cobra.Command, args []string) {
+	skillName := args[0]
+
+	// 初始化日志
+	if err := logger.Init("warn", false); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
+		os.Exit(1)
+	}
+	defer func() { _ = logger.Sync() }()
+
+	// 创建工作区
+	workspace := os.Getenv("HOME") + "/.goclaw/workspace"
+
+	// 创建技能加载器并启用自动安装
+	skillsLoader := agent.NewSkillsLoader(workspace, []string{})
+	skillsLoader.SetAutoInstall(true)
+
+	if err := skillsLoader.Discover(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to discover skills: %v\n", err)
+		os.Exit(1)
+	}
+
+	_, ok := skillsLoader.Get(skillName)
+	if !ok {
+		fmt.Printf("❌ Skill '%s' not found\n", skillName)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Installing dependencies for skill: %s\n\n", skillName)
+
+	if err := skillsLoader.InstallDependencies(skillName); err != nil {
+		fmt.Fprintf(os.Stderr, "\n❌ Failed to install dependencies: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Println("\n✅ All dependencies installed successfully")
 }

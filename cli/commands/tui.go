@@ -50,7 +50,7 @@ func TUICommand() *cobra.Command {
 	cmd.Flags().BoolVar(&tuiDeliver, "deliver", false, "Enable message delivery notifications")
 	cmd.Flags().BoolVar(&tuiThinking, "thinking", false, "Show thinking indicator")
 	cmd.Flags().StringVar(&tuiMessage, "message", "", "Send message on start")
-	cmd.Flags().IntVar(&tuiTimeoutMs, "timeout-ms", 30000, "Timeout in milliseconds")
+	cmd.Flags().IntVar(&tuiTimeoutMs, "timeout-ms", 600000, "Timeout in milliseconds")
 	cmd.Flags().IntVar(&tuiHistoryLimit, "history-limit", 50, "History limit")
 
 	return cmd

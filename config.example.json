@@ -47,18 +47,18 @@
     "openrouter": {
       "api_key": "",
       "base_url": "",
-      "timeout": 30,
+      "timeout": 600,
       "max_retries": 3
     },
     "openai": {
       "api_key": "YOUR_OPENAI_API_KEY_HERE",
       "base_url": "https://api.deepseek.com",
-      "timeout": 30
+      "timeout": 600
     },
     "anthropic": {
       "api_key": "",
       "base_url": "",
-      "timeout": 30
+      "timeout": 600
     }
   },
   "gateway": {

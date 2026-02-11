@@ -7,8 +7,8 @@ metadata:
     "goclaw":
       {
         "emoji": "🍌",
-        "requires": { "bins": ["uv"], "env": ["GEMINI_API_KEY"] },
-        "primaryEnv": "GEMINI_API_KEY",
+        "requires": { "bins": ["uv"], "env": ["GOOGLE_API_KEY"] },
+        "primaryEnv": "GOOGLE_API_KEY",
         "install":
           [
             {
@@ -27,32 +27,52 @@ metadata:
 
 Use the bundled script to generate or edit images.
 
-Generate
+## Quick Start
+
+Generate an image:
 
 ```bash
-uv run {baseDir}/scripts/generate_image.py --prompt "your image description" --filename "output.png" --resolution 1K
+uv run skills/nano-banana-pro/scripts/generate_image.py --prompt "your image description" --filename "output.png" --resolution 1K
 ```
 
-Edit (single image)
+## Commands
+
+### Generate Image
 
 ```bash
-uv run {baseDir}/scripts/generate_image.py --prompt "edit instructions" --filename "output.png" -i "/path/in.png" --resolution 2K
+uv run skills/nano-banana-pro/scripts/generate_image.py --prompt "your image description" --filename "output.png" --resolution 1K
 ```
 
-Multi-image composition (up to 14 images)
+### Edit Image
 
 ```bash
-uv run {baseDir}/scripts/generate_image.py --prompt "combine these into one scene" --filename "output.png" -i img1.png -i img2.png -i img3.png
+uv run skills/nano-banana-pro/scripts/generate_image.py --prompt "edit instructions" --filename "output.png" -i "/path/in.png" --resolution 2K
 ```
 
-API key
+### Multi-Image Composition
 
-- `GEMINI_API_KEY` env var
-- Or set `skills."nano-banana-pro".apiKey` / `skills."nano-banana-pro".env.GEMINI_API_KEY` in `~/.openclaw/openclaw.json`
+Combine up to 14 images:
 
-Notes
+```bash
+uv run skills/nano-banana-pro/scripts/generate_image.py --prompt "combine these into one scene" --filename "output.png" -i img1.png -i img2.png -i img3.png
+```
+
+## Parameters
+
+- `--prompt`: Image description (required)
+- `--filename`: Output filename (required)
+- `--resolution`: Image resolution: `1K` (default), `2K`, `4K`
+- `-i`: Input image path for editing/composition (can be used multiple times)
+
+## API Key
+
+Set one of the following environment variables:
+- `GOOGLE_API_KEY` (preferred)
+- `GEMINI_API_KEY`
+
+## Notes
 
 - Resolutions: `1K` (default), `2K`, `4K`.
 - Use timestamps in filenames: `yyyy-mm-dd-hh-mm-ss-name.png`.
-- The script prints a `MEDIA:` line for OpenClaw to auto-attach on supported chat providers.
+- The script prints a `MEDIA:` line for auto-attachment on supported chat providers.
 - Do not read the image back; report the saved path only.
