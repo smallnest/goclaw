@@ -1,18 +1,21 @@
 package channels
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/smallnest/dogclaw/goclaw/bus"
 	"github.com/smallnest/dogclaw/goclaw/internal/logger"
 	"go.uber.org/zap"
 	"google.golang.org/api/chat/v1"
-	"google.golang.org/api/googleapi/transport"
 	"google.golang.org/api/option"
-	"net/http"
 )
 
 // GoogleChatChannel Google Chat 通道
@@ -22,6 +25,7 @@ type GoogleChatChannel struct {
 	projectID    string
 	credentials  string
 	httpClient   *http.Client
+	serviceMutex sync.RWMutex
 }
 
 // GoogleChatConfig Google Chat 配置
@@ -46,7 +50,7 @@ func NewGoogleChatChannel(cfg GoogleChatConfig, bus *bus.MessageBus) (*GoogleCha
 		projectID:       cfg.ProjectID,
 		credentials:     cfg.Credentials,
 		httpClient: &http.Client{
-			Transport: &transport.APIKey{Key: cfg.Credentials},
+			Timeout: 30 * time.Second,
 		},
 	}, nil
 }
@@ -61,14 +65,16 @@ func (c *GoogleChatChannel) Start(ctx context.Context) error {
 		zap.String("project_id", c.projectID),
 	)
 
-	// 注意: Google Chat 使用 webhook 或 Pub/Sub 推送模式
-	// 这里我们创建一个服务实例用于发送消息
-	// 实际的接收需要通过 Cloud Pub/Sub 或 webhook
+	// 初始化 Google Chat 服务
+	if err := c.InitService(ctx); err != nil {
+		logger.Warn("Failed to initialize Google Chat service, webhook mode only", zap.Error(err))
+		// 不返回错误，允许在 webhook 模式下运行
+	}
 
 	// 启动健康检查
 	go c.healthCheck(ctx)
 
-	logger.Info("Google Chat channel started (webhook mode)")
+	logger.Info("Google Chat channel started")
 
 	return nil
 }
@@ -167,18 +173,39 @@ func (c *GoogleChatChannel) Send(msg *bus.OutboundMessage) error {
 		return fmt.Errorf("google chat channel is not running")
 	}
 
+	// 优先使用 webhook URL 发送
+	if webhookURL, ok := msg.Metadata["webhookUrl"].(string); ok && webhookURL != "" {
+		return c.SendWithWebhook(webhookURL, msg)
+	}
+
+	// 如果没有 webhook URL，使用 Google Chat API 发送
+	c.serviceMutex.RLock()
+	service := c.service
+	c.serviceMutex.RUnlock()
+
+	if service == nil {
+		return fmt.Errorf("google chat service is not initialized, please provide webhookUrl in message metadata")
+	}
+
 	// 创建消息
-	_ = &chat.Message{
+	chatMsg := &chat.Message{
 		Text: msg.Content,
 	}
 
-	// 发送消息 (需要初始化服务)
-	if c.service == nil {
-		return fmt.Errorf("google chat service is not initialized")
+	// 获取 space 名称 (chatID)
+	spaceName := msg.ChatID
+	if spaceName == "" {
+		return fmt.Errorf("chatID (space name) is required")
 	}
 
-	logger.Info("Google Chat message sent",
-		zap.String("space_name", msg.ChatID),
+	// 发送消息
+	_, err := service.Spaces.Messages.Create(spaceName, chatMsg).Do()
+	if err != nil {
+		return fmt.Errorf("failed to send google chat message: %w", err)
+	}
+
+	logger.Info("Google Chat message sent via API",
+		zap.String("space_name", spaceName),
 		zap.Int("content_length", len(msg.Content)),
 	)
 
@@ -192,12 +219,34 @@ func (c *GoogleChatChannel) SendWithWebhook(webhookURL string, msg *bus.Outbound
 	}
 
 	// 创建消息体
-	_ = map[string]interface{}{
+	payload := map[string]interface{}{
 		"text": msg.Content,
 	}
 
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal message: %w", err)
+	}
+
 	// 使用 HTTP 发送到 webhook
-	// 这里需要实现 HTTP POST 请求
+	req, err := http.NewRequest("POST", webhookURL, bytes.NewReader(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send webhook request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(body))
+	}
+
 	logger.Info("Google Chat webhook message sent",
 		zap.String("webhook_url", webhookURL),
 		zap.Int("content_length", len(msg.Content)),
@@ -208,15 +257,28 @@ func (c *GoogleChatChannel) SendWithWebhook(webhookURL string, msg *bus.Outbound
 
 // Stop 停止 Google Chat 通道
 func (c *GoogleChatChannel) Stop() error {
+	c.serviceMutex.Lock()
+	c.service = nil
+	c.serviceMutex.Unlock()
 	return c.BaseChannelImpl.Stop()
 }
 
 // InitService 初始化 Google Chat 服务 (如果需要主动发送)
 func (c *GoogleChatChannel) InitService(ctx context.Context) error {
-	var err error
-	c.service, err = chat.NewService(ctx, option.WithCredentialsJSON([]byte(c.credentials)))
+	c.serviceMutex.Lock()
+	defer c.serviceMutex.Unlock()
+
+	// 如果已经初始化，直接返回
+	if c.service != nil {
+		return nil
+	}
+
+	service, err := chat.NewService(ctx, option.WithCredentialsJSON([]byte(c.credentials)))
 	if err != nil {
 		return fmt.Errorf("failed to create google chat service: %w", err)
 	}
+
+	c.service = service
+	logger.Info("Google Chat service initialized successfully")
 	return nil
 }

@@ -1,8 +1,12 @@
 package channels
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"strings"
 	"time"
 
@@ -18,6 +22,7 @@ type TeamsChannel struct {
 	appPassword string
 	tenantID    string
 	webhookURL  string
+	httpClient  *http.Client
 }
 
 // TeamsConfig Teams 配置
@@ -41,6 +46,9 @@ func NewTeamsChannel(cfg TeamsConfig, bus *bus.MessageBus) (*TeamsChannel, error
 		appPassword:    cfg.AppPassword,
 		tenantID:       cfg.TenantID,
 		webhookURL:     cfg.WebhookURL,
+		httpClient: &http.Client{
+			Timeout: 30 * time.Second,
+		},
 	}, nil
 }
 
@@ -159,30 +167,110 @@ func (c *TeamsChannel) Send(msg *bus.OutboundMessage) error {
 		return fmt.Errorf("teams channel is not running")
 	}
 
-	// Teams 通过 Bot Framework 或 webhook 发送消息
-	// 这里需要实现实际的发送逻辑
+	// 优先使用配置的 webhook URL
+	targetURL := c.webhookURL
 
-	// 构建消息卡片
-	_ = map[string]interface{}{
-		"type": "message",
-		"attachments": []map[string]interface{}{
-			{
-				"contentType": "application/vnd.microsoft.card.adaptive",
-				"content": map[string]interface{}{
-					"type": "AdaptiveCard",
-					"body": []map[string]interface{}{
-						{
-							"type": "TextBlock",
-							"text": msg.Content,
-							"wrap": true,
-						},
-					},
-				},
-			},
-		},
+	// 如果消息中有特定的 serviceUrl，使用它
+	if serviceURL, ok := msg.Metadata["serviceUrl"].(string); ok && serviceURL != "" {
+		// 使用 Bot Framework REST API 发送
+		return c.sendViaBotFramework(msg, serviceURL)
 	}
 
-	logger.Info("Teams message prepared",
+	// 如果没有 webhook URL，返回错误
+	if targetURL == "" {
+		return fmt.Errorf("no webhook URL configured and no serviceUrl in message metadata")
+	}
+
+	// 使用简单的 webhook 发送
+	return c.sendViaWebhook(msg, targetURL)
+}
+
+// sendViaWebhook 通过 webhook URL 发送消息
+func (c *TeamsChannel) sendViaWebhook(msg *bus.OutboundMessage, webhookURL string) error {
+	// 构建简单的文本消息
+	payload := map[string]interface{}{
+		"type": "message",
+		"text": msg.Content,
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal message: %w", err)
+	}
+
+	req, err := http.NewRequest("POST", webhookURL, bytes.NewReader(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusAccepted {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	logger.Info("Teams message sent via webhook",
+		zap.String("webhook_url", webhookURL),
+		zap.Int("content_length", len(msg.Content)),
+	)
+
+	return nil
+}
+
+// sendViaBotFramework 通过 Bot Framework REST API 发送消息
+func (c *TeamsChannel) sendViaBotFramework(msg *bus.OutboundMessage, serviceURL string) error {
+	// 构建消息卡片
+	payload := map[string]interface{}{
+		"type": "message",
+		"from": map[string]interface{}{
+			"id": c.appID,
+		},
+		"conversation": map[string]interface{}{
+			"id": msg.ChatID,
+		},
+		"text": msg.Content,
+		// 如果有回复的消息 ID
+	}
+
+	if msg.ReplyTo != "" {
+		payload["replyToId"] = msg.ReplyTo
+	}
+
+	jsonData, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("failed to marshal message: %w", err)
+	}
+
+	// 构建发送 URL: {serviceUrl}/v3/conversations/{conversationId}/activities
+	sendURL := fmt.Sprintf("%s/v3/conversations/%s/activities", serviceURL, msg.ChatID)
+
+	req, err := http.NewRequest("POST", sendURL, bytes.NewReader(jsonData))
+	if err != nil {
+		return fmt.Errorf("failed to create request: %w", err)
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+c.appPassword)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("failed to send request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusCreated && resp.StatusCode != http.StatusAccepted {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("unexpected status code: %d, body: %s", resp.StatusCode, string(body))
+	}
+
+	logger.Info("Teams message sent via Bot Framework",
 		zap.String("conversation_id", msg.ChatID),
 		zap.Int("content_length", len(msg.Content)),
 	)

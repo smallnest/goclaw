@@ -163,13 +163,11 @@ func (c *WhatsAppChannel) Send(msg *bus.OutboundMessage) error {
 	}
 
 	// 发送请求
-	req, err := http.NewRequest("POST", c.bridgeURL+"/send", nil)
+	req, err := http.NewRequest("POST", c.bridgeURL+"/send", strings.NewReader(string(jsonData)))
 	if err != nil {
 		return err
 	}
-
 	req.Header.Set("Content-Type", "application/json")
-	req.Body = io.NopCloser(strings.NewReader(string(jsonData)))
 
 	// 实际发送请求
 	resp, err := c.client.Do(req)
@@ -177,6 +175,10 @@ func (c *WhatsAppChannel) Send(msg *bus.OutboundMessage) error {
 		return err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+	}
 
 	logger.Info("WhatsApp message sent",
 		zap.String("chat_id", msg.ChatID),
