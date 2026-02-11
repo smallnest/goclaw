@@ -16,6 +16,7 @@ import (
 	"github.com/smallnest/dogclaw/goclaw/cron"
 	"github.com/smallnest/dogclaw/goclaw/gateway"
 	"github.com/smallnest/dogclaw/goclaw/internal/logger"
+	"github.com/smallnest/dogclaw/goclaw/internal/workspace"
 	"github.com/smallnest/dogclaw/goclaw/providers"
 	"github.com/smallnest/dogclaw/goclaw/session"
 	"github.com/spf13/cobra"
@@ -45,8 +46,23 @@ var configShowCmd = &cobra.Command{
 	Run:   runConfigShow,
 }
 
+var installCmd = &cobra.Command{
+	Use:   "install",
+	Short: "Install goclaw workspace templates",
+	Run:   runInstall,
+}
+
+// Flags for install command
+var installConfigPath string
+var installWorkspacePath string
+
 func init() {
+	// Add install command flags
+	installCmd.Flags().StringVar(&installConfigPath, "config", "", "Path to config file")
+	installCmd.Flags().StringVar(&installWorkspacePath, "workspace", "", "Path to workspace directory (overrides config)")
+
 	rootCmd.AddCommand(startCmd)
+	rootCmd.AddCommand(installCmd)
 	rootCmd.AddCommand(configCmd)
 	configCmd.AddCommand(configShowCmd)
 	rootCmd.AddCommand(agentsCmd)
@@ -97,8 +113,19 @@ func runStart(cmd *cobra.Command, args []string) {
 		logger.Fatal("Invalid configuration", zap.Error(err))
 	}
 
-	// 创建工作区
-	workspace := os.Getenv("HOME") + "/.goclaw/workspace"
+	// 获取 workspace 目录
+	workspaceDir, err := config.GetWorkspacePath(cfg)
+	if err != nil {
+		logger.Fatal("Failed to get workspace path", zap.Error(err))
+	}
+
+	// 创建 workspace 管理器并确保文件存在
+	workspaceMgr := workspace.NewManager(workspaceDir)
+	if err := workspaceMgr.Ensure(); err != nil {
+		logger.Warn("Failed to ensure workspace files", zap.Error(err))
+	} else {
+		logger.Info("Workspace ready", zap.String("path", workspaceDir))
+	}
 
 	// 创建消息总线
 	messageBus := bus.NewMessageBus(100)
@@ -112,19 +139,16 @@ func runStart(cmd *cobra.Command, args []string) {
 	}
 
 	// 创建记忆存储
-	memoryStore := agent.NewMemoryStore(workspace)
-	if err := memoryStore.EnsureBootstrapFiles(); err != nil {
-		logger.Warn("Failed to create bootstrap files", zap.Error(err))
-	}
+	memoryStore := agent.NewMemoryStore(workspaceDir)
 
 	// 创建上下文构建器
-	contextBuilder := agent.NewContextBuilder(memoryStore, workspace)
+	contextBuilder := agent.NewContextBuilder(memoryStore, workspaceDir)
 
 	// 创建工具注册表
 	toolRegistry := tools.NewRegistry()
 
 	// 创建技能加载器
-	skillsLoader := agent.NewSkillsLoader(workspace, []string{})
+	skillsLoader := agent.NewSkillsLoader(workspaceDir, []string{})
 	if err := skillsLoader.Discover(); err != nil {
 		logger.Warn("Failed to discover skills", zap.Error(err))
 	} else {
@@ -135,7 +159,7 @@ func runStart(cmd *cobra.Command, args []string) {
 	}
 
 	// 注册文件系统工具
-	fsTool := tools.NewFileSystemTool(cfg.Tools.FileSystem.AllowedPaths, cfg.Tools.FileSystem.DeniedPaths, workspace)
+	fsTool := tools.NewFileSystemTool(cfg.Tools.FileSystem.AllowedPaths, cfg.Tools.FileSystem.DeniedPaths, workspaceDir)
 	for _, tool := range fsTool.GetTools() {
 		if err := toolRegistry.Register(tool); err != nil {
 			logger.Warn("Failed to register tool", zap.String("tool", tool.Name()))
@@ -237,7 +261,7 @@ func runStart(cmd *cobra.Command, args []string) {
 		Tools:        toolRegistry,
 		SkillsLoader: skillsLoader,
 		Subagents:    subagentMgr,
-		Workspace:    workspace,
+		Workspace:    workspaceDir,
 		MaxIteration: cfg.Agents.Defaults.MaxIterations,
 	}
 
@@ -313,4 +337,52 @@ func runConfigShow(cmd *cobra.Command, args []string) {
 	fmt.Printf("  Model: %s\n", cfg.Agents.Defaults.Model)
 	fmt.Printf("  Max Iterations: %d\n", cfg.Agents.Defaults.MaxIterations)
 	fmt.Printf("  Temperature: %.1f\n", cfg.Agents.Defaults.Temperature)
+}
+
+// runInstall 安装 goclaw workspace 模板
+func runInstall(cmd *cobra.Command, args []string) {
+	// 加载配置
+	cfg, err := config.Load(installConfigPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
+		os.Exit(1)
+	}
+
+	// 获取 workspace 目录
+	workspaceDir := installWorkspacePath
+	if workspaceDir == "" {
+		workspaceDir, err = config.GetWorkspacePath(cfg)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to get workspace path: %v\n", err)
+			os.Exit(1)
+		}
+	}
+
+	// 创建 workspace 管理器并确保文件存在
+	workspaceMgr := workspace.NewManager(workspaceDir)
+	if err := workspaceMgr.Ensure(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to ensure workspace: %v\n", err)
+		os.Exit(1)
+	}
+
+	fmt.Printf("Workspace installed successfully at: %s\n", workspaceDir)
+	fmt.Println("\nWorkspace files:")
+	files, err := workspaceMgr.ListFiles()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to list files: %v\n", err)
+		return
+	}
+	for _, f := range files {
+		fmt.Printf("  - %s\n", f)
+	}
+
+	memoryFiles, err := workspaceMgr.ListMemoryFiles()
+	if err == nil && len(memoryFiles) > 0 {
+		fmt.Println("\nMemory files:")
+		for _, f := range memoryFiles {
+			fmt.Printf("  - memory/%s\n", f)
+		}
+	}
+
+	fmt.Println("\nYou can now customize these files to define your agent's personality and behavior.")
 }

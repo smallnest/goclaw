@@ -6,12 +6,18 @@ import (
 
 // Config 是主配置结构
 type Config struct {
+	Workspace WorkspaceConfig `mapstructure:"workspace" json:"workspace"`
 	Agents    AgentsConfig    `mapstructure:"agents" json:"agents"`
 	Channels  ChannelsConfig  `mapstructure:"channels" json:"channels"`
 	Providers ProvidersConfig `mapstructure:"providers" json:"providers"`
 	Gateway   GatewayConfig   `mapstructure:"gateway" json:"gateway"`
 	Tools     ToolsConfig     `mapstructure:"tools" json:"tools"`
 	Approvals ApprovalsConfig `mapstructure:"approvals" json:"approvals"`
+}
+
+// WorkspaceConfig Workspace 配置
+type WorkspaceConfig struct {
+	Path string `mapstructure:"path" json:"path"` // Workspace 目录路径，空则使用默认路径
 }
 
 // AgentsConfig Agent 配置

@@ -1,4 +1,7 @@
 {
+  "workspace": {
+    "path": ""
+  },
   "agents": {
     "defaults": {
       "model": "deepseek-chat",

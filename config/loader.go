@@ -126,6 +126,20 @@ func GetDefaultConfigPath() (string, error) {
 	return filepath.Join(home, ".goclaw", "config.json"), nil
 }
 
+// GetWorkspacePath 获取 workspace 目录路径
+func GetWorkspacePath(cfg *Config) (string, error) {
+	if cfg.Workspace.Path != "" {
+		// 使用配置中的自定义路径
+		return cfg.Workspace.Path, nil
+	}
+	// 使用默认路径
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("failed to get home directory: %w", err)
+	}
+	return filepath.Join(home, ".goclaw", "workspace"), nil
+}
+
 // Validate 验证配置
 func Validate(cfg *Config) error {
 	if err := validateAgents(cfg); err != nil {
