@@ -1,4 +1,4 @@
-# goclaw
+# goclaw (🐾 狗爪)
 
 Go 语言版本的 OpenClaw - 一个功能强大的 AI Agent 框架。
 
