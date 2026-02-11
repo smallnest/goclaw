@@ -193,17 +193,17 @@ func (rm *RetryManager) GetTotalAttempts() int {
 
 // CompactStrategy 上下文压缩策略
 type CompactStrategy struct {
-	MaxHistorySize     int
-	MaxHistoryTurns    int
-	CompactThreshold   int
+	MaxHistorySize   int
+	MaxHistoryTurns  int
+	CompactThreshold int
 }
 
 // DefaultCompactStrategy 默认压缩策略
 func DefaultCompactStrategy() *CompactStrategy {
 	return &CompactStrategy{
-		MaxHistorySize:   10000,  // 最多保留的字符数
-		MaxHistoryTurns:  20,     // 最多保留的轮次数
-		CompactThreshold: 30,     // 历史消息数超过此值时压缩
+		MaxHistorySize:   10000, // 最多保留的字符数
+		MaxHistoryTurns:  20,    // 最多保留的轮次数
+		CompactThreshold: 30,    // 历史消息数超过此值时压缩
 	}
 }
 

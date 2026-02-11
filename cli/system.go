@@ -55,7 +55,7 @@ func init() {
 	// system event flags
 	systemEventCmd.Flags().StringVar(&systemEventText, "text", "", "Event text (required)")
 	systemEventCmd.Flags().StringVar(&systemEventMode, "mode", "normal", "Event mode")
-	systemEventCmd.MarkFlagRequired("text")
+	_ = systemEventCmd.MarkFlagRequired("text")
 }
 
 // runSystemEvent handles the system event command
@@ -315,8 +315,9 @@ func publishViaGateway(cfg *config.Config, msg *bus.InboundMessage) error {
 	return err
 }
 
-// Helper function to get gateway status
-func getGatewayStatus(cfg *config.Config) (map[string]interface{}, error) {
+// _getGatewayStatus Helper function to get gateway status (未使用，保留供将来使用)
+// nolint:unused
+func _getGatewayStatus(cfg *config.Config) (map[string]interface{}, error) {
 	result, err := callGatewayRPC(cfg, "health", map[string]interface{}{})
 	if err != nil {
 		return nil, err
@@ -330,8 +331,9 @@ func getGatewayStatus(cfg *config.Config) (map[string]interface{}, error) {
 	return data, nil
 }
 
-// Helper function to list gateway sessions
-func listGatewaySessions(cfg *config.Config) ([]map[string]interface{}, error) {
+// _listGatewaySessions Helper function to list gateway sessions (未使用，保留供将来使用)
+// nolint:unused
+func _listGatewaySessions(cfg *config.Config) ([]map[string]interface{}, error) {
 	result, err := callGatewayRPC(cfg, "sessions.list", map[string]interface{}{})
 	if err != nil {
 		return nil, err
@@ -351,8 +353,9 @@ func listGatewaySessions(cfg *config.Config) ([]map[string]interface{}, error) {
 	return nil, fmt.Errorf("invalid response format")
 }
 
-// Helper function to get channel status
-func getChannelStatus(cfg *config.Config, channelName string) (map[string]interface{}, error) {
+// _getChannelStatus Helper function to get channel status (未使用，保留供将来使用)
+// nolint:unused
+func _getChannelStatus(cfg *config.Config, channelName string) (map[string]interface{}, error) {
 	result, err := callGatewayRPC(cfg, "channels.status", map[string]interface{}{
 		"channel": channelName,
 	})

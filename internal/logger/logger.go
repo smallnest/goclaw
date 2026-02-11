@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	log *zap.Logger
+	log   *zap.Logger
 	sugar *zap.SugaredLogger
 )
 
@@ -31,9 +31,9 @@ func Init(level string, development bool) error {
 
 	// 配置
 	config := zap.Config{
-		Level:            zap.NewAtomicLevelAt(zapLevel),
-		Development:      development,
-		Encoding:         "console",
+		Level:       zap.NewAtomicLevelAt(zapLevel),
+		Development: development,
+		Encoding:    "console",
 		EncoderConfig: zapcore.EncoderConfig{
 			TimeKey:        "T",
 			LevelKey:       "L",

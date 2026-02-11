@@ -83,13 +83,12 @@ func NewRotationProviderFromConfig(cfg *config.Config) (Provider, error) {
 
 	// 如果只有一个配置，返回第一个提供商
 	if len(cfg.Providers.Profiles) == 1 {
-		for _, p := range cfg.Providers.Profiles {
-			prov, err := createProviderByType(p.Provider, p.APIKey, p.BaseURL, cfg.Agents.Defaults.Model, cfg.Agents.Defaults.MaxTokens)
-			if err != nil {
-				return nil, err
-			}
-			return prov, nil
+		p := cfg.Providers.Profiles[0]
+		prov, err := createProviderByType(p.Provider, p.APIKey, p.BaseURL, cfg.Agents.Defaults.Model, cfg.Agents.Defaults.MaxTokens)
+		if err != nil {
+			return nil, err
 		}
+		return prov, nil
 	}
 
 	return rotation, nil

@@ -26,11 +26,8 @@ const (
 
 // ContextBuilder 上下文构建器
 type ContextBuilder struct {
-	memory       *MemoryStore
-	workspace    string
-	agentID      string
-	defaultModel string
-	provider     string
+	memory    *MemoryStore
+	workspace string
 }
 
 // NewContextBuilder 创建上下文构建器
@@ -114,20 +111,20 @@ func (b *ContextBuilder) buildIdentityAndTools() string {
 
 	// 定义核心工具摘要
 	coreToolSummaries := map[string]string{
-		"smart_search":          "Intelligent search with automatic fallback (always use for search requests)",
-		"browser_navigate":      "Navigate to a URL",
-		"browser_screenshot":    "Take page screenshots",
-		"browser_get_text":      "Get page text content",
-		"browser_click":         "Click elements on the page",
-		"browser_fill_input":    "Fill input fields",
+		"smart_search":           "Intelligent search with automatic fallback (always use for search requests)",
+		"browser_navigate":       "Navigate to a URL",
+		"browser_screenshot":     "Take page screenshots",
+		"browser_get_text":       "Get page text content",
+		"browser_click":          "Click elements on the page",
+		"browser_fill_input":     "Fill input fields",
 		"browser_execute_script": "Execute JavaScript",
-		"read_file":             "Read file contents",
-		"write_file":            "Create or overwrite files",
-		"list_files":            "List directory contents",
-		"run_shell":             "Run shell commands (supports timeout and error handling)",
-		"web_search":            "Search the web using API",
-		"web_fetch":             "Fetch web pages",
-		"use_skill":             "Select and load a skill for specialized tasks",
+		"read_file":              "Read file contents",
+		"write_file":             "Create or overwrite files",
+		"list_files":             "List directory contents",
+		"run_shell":              "Run shell commands (supports timeout and error handling)",
+		"web_search":             "Search the web using API",
+		"web_fetch":              "Fetch web pages",
+		"use_skill":              "Select and load a skill for specialized tasks",
 	}
 
 	// 构建工具列表

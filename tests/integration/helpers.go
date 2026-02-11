@@ -41,7 +41,7 @@ func SetupTestGateway(t *testing.T) (*gateway.Server, *bus.MessageBus, *session.
 	time.Sleep(200 * time.Millisecond)
 
 	cleanup := func() {
-		server.Stop()
+		_ = server.Stop()
 		cancel()
 	}
 

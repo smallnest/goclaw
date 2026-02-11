@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	healthJSON   bool
+	healthJSON    bool
 	healthTimeout int
 	healthVerbose bool
 )

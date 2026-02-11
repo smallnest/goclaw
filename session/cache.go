@@ -43,12 +43,12 @@ type Cache struct {
 
 // CacheStats contains cache statistics
 type CacheStats struct {
-	Hits     int64
-	Misses   int64
-	Evictions int64
+	Hits        int64
+	Misses      int64
+	Evictions   int64
 	Expirations int64
-	Size     int
-	MaxSize  int
+	Size        int
+	MaxSize     int
 }
 
 // NewCache creates a new session cache

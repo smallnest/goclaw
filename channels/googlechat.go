@@ -123,14 +123,14 @@ func (c *GoogleChatChannel) HandleWebhook(ctx context.Context, event *chat.Depre
 
 	// 构建入站消息
 	msg := &bus.InboundMessage{
-		Channel:   c.Name(),
-		SenderID:  senderID,
-		ChatID:    event.Space.Name,
-		Content:   event.Message.Text,
+		Channel:  c.Name(),
+		SenderID: senderID,
+		ChatID:   event.Space.Name,
+		Content:  event.Message.Text,
 		Metadata: map[string]interface{}{
-			"message_id":  event.Message.Name,
-			"user_name":   event.User.DisplayName,
-			"space_name":  event.Space.DisplayName,
+			"message_id": event.Message.Name,
+			"user_name":  event.User.DisplayName,
+			"space_name": event.Space.DisplayName,
 		},
 		Timestamp: time.Now(),
 	}

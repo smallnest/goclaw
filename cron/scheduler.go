@@ -26,15 +26,15 @@ type Scheduler struct {
 
 // Job 定时任务
 type Job struct {
-	ID          string
-	Name        string
-	Schedule    string
-	Task        string
-	TargetChat  string
-	Enabled     bool
-	LastRun     time.Time
-	NextRun     time.Time
-	RunCount    int
+	ID         string
+	Name       string
+	Schedule   string
+	Task       string
+	TargetChat string
+	Enabled    bool
+	LastRun    time.Time
+	NextRun    time.Time
+	RunCount   int
 }
 
 // NewScheduler 创建调度器
@@ -158,13 +158,13 @@ func (s *Scheduler) executeJob(job *Job) error {
 
 	// 构建消息
 	msg := &bus.InboundMessage{
-		Channel:   "cron",
-		SenderID:  job.ID,
-		ChatID:    job.TargetChat,
-		Content:   job.Task,
+		Channel:  "cron",
+		SenderID: job.ID,
+		ChatID:   job.TargetChat,
+		Content:  job.Task,
 		Metadata: map[string]interface{}{
-			"job_id":  job.ID,
-			"job_name": job.Name,
+			"job_id":    job.ID,
+			"job_name":  job.Name,
 			"scheduled": true,
 		},
 		Timestamp: time.Now(),

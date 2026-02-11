@@ -46,9 +46,9 @@ var memorySearchCmd = &cobra.Command{
 }
 
 var (
-	memorySearchLimit  int
+	memorySearchLimit    int
 	memorySearchMinScore float64
-	memorySearchJSON   bool
+	memorySearchJSON     bool
 )
 
 func init() {
@@ -273,12 +273,12 @@ func indexFile(ctx context.Context, manager *memory.MemoryManager, filePath stri
 	items := make([]memory.MemoryItem, 0, len(chunks))
 	for i, chunk := range chunks {
 		items = append(items, memory.MemoryItem{
-			Text: chunk,
+			Text:   chunk,
 			Source: source,
-			Type: memType,
+			Type:   memType,
 			Metadata: memory.MemoryMetadata{
 				FilePath: filePath,
-				Tags: []string{"indexed"},
+				Tags:     []string{"indexed"},
 			},
 		})
 

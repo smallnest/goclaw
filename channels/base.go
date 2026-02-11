@@ -31,17 +31,17 @@ type BaseChannel interface {
 
 // BaseChannelConfig 通道基础配置
 type BaseChannelConfig struct {
-	Enabled   bool     `mapstructure:"enabled" json:"enabled"`
+	Enabled    bool     `mapstructure:"enabled" json:"enabled"`
 	AllowedIDs []string `mapstructure:"allowed_ids" json:"allowed_ids"`
 }
 
 // BaseChannelImpl 通道基础实现
 type BaseChannelImpl struct {
-	name      string
-	config    BaseChannelConfig
-	bus       *bus.MessageBus
-	running   bool
-	stopChan  chan struct{}
+	name     string
+	config   BaseChannelConfig
+	bus      *bus.MessageBus
+	running  bool
+	stopChan chan struct{}
 }
 
 // NewBaseChannelImpl 创建通道基础实现

@@ -8,24 +8,23 @@ import (
 
 // SessionNode represents a node in the session tree
 type SessionNode struct {
-	ID        string                 `json:"id"`
-	Session   *Session               `json:"session"`
-	ParentID  string                 `json:"parent_id,omitempty"`
-	ChildIDs  []string               `json:"child_ids,omitempty"`
-	BranchInfo *BranchInfo           `json:"branch_info,omitempty"`
-	CreatedAt time.Time              `json:"created_at"`
-	mu        sync.RWMutex
+	ID         string      `json:"id"`
+	Session    *Session    `json:"session"`
+	ParentID   string      `json:"parent_id,omitempty"`
+	ChildIDs   []string    `json:"child_ids,omitempty"`
+	BranchInfo *BranchInfo `json:"branch_info,omitempty"`
+	CreatedAt  time.Time   `json:"created_at"`
 }
 
 // BranchInfo contains metadata about a branch
 type BranchInfo struct {
-	Name        string    `json:"name"`         // Human-readable branch name
-	Description string    `json:"description"`  // Branch description
-	IsMain      bool      `json:"is_main"`       // Whether this is the main branch
-	IsMerged    bool      `json:"is_merged"`     // Whether this branch was merged back
-	MergedFrom  []string  `json:"merged_from"`   // List of branch IDs that were merged
+	Name        string    `json:"name"`        // Human-readable branch name
+	Description string    `json:"description"` // Branch description
+	IsMain      bool      `json:"is_main"`     // Whether this is the main branch
+	IsMerged    bool      `json:"is_merged"`   // Whether this branch was merged back
+	MergedFrom  []string  `json:"merged_from"` // List of branch IDs that were merged
 	CreatedAt   time.Time `json:"created_at"`
-	CreatedBy   string    `json:"created_by"`    // What created this branch (user, system, auto)
+	CreatedBy   string    `json:"created_by"` // What created this branch (user, system, auto)
 }
 
 // SessionTree manages a tree structure of sessions with branching
@@ -54,9 +53,9 @@ func NewSessionTree(rootSession *Session) (*SessionTree, error) {
 	}
 
 	rootNode := &SessionNode{
-		ID:        rootID,
-		Session:   rootSession,
-		ChildIDs:  []string{},
+		ID:       rootID,
+		Session:  rootSession,
+		ChildIDs: []string{},
 		BranchInfo: &BranchInfo{
 			Name:      "main",
 			IsMain:    true,
@@ -104,15 +103,15 @@ func (t *SessionTree) CreateBranch(parentID string, branchSession *Session, bran
 	// Create branch node
 	branchID := branchSession.Key
 	branchNode := &SessionNode{
-		ID:      branchID,
-		Session: branchSession,
+		ID:       branchID,
+		Session:  branchSession,
 		ParentID: parentID,
 		ChildIDs: []string{},
 		BranchInfo: &BranchInfo{
-			Name:        branchName,
-			IsMain:      false,
-			CreatedAt:   time.Now(),
-			CreatedBy:   createdBy,
+			Name:      branchName,
+			IsMain:    false,
+			CreatedAt: time.Now(),
+			CreatedBy: createdBy,
 		},
 		CreatedAt: time.Now(),
 	}
@@ -365,11 +364,11 @@ func (t *SessionTree) GetStatistics() *TreeStatistics {
 	defer t.mu.RUnlock()
 
 	stats := &TreeStatistics{
-		TotalNodes:    len(t.nodes),
-		MaxDepth:      t.maxDepth,
-		ActualDepth:   0,
-		BranchCount:   0,
-		MergedCount:   0,
+		TotalNodes:  len(t.nodes),
+		MaxDepth:    t.maxDepth,
+		ActualDepth: 0,
+		BranchCount: 0,
+		MergedCount: 0,
 	}
 
 	// Calculate actual depth and counts
@@ -394,11 +393,11 @@ func (t *SessionTree) GetStatistics() *TreeStatistics {
 
 // TreeStatistics contains statistics about the session tree
 type TreeStatistics struct {
-	TotalNodes  int     `json:"total_nodes"`
-	MaxDepth    int     `json:"max_depth"`
-	ActualDepth int     `json:"actual_depth"`
-	BranchCount int     `json:"branch_count"`
-	MergedCount int     `json:"merged_count"`
+	TotalNodes  int `json:"total_nodes"`
+	MaxDepth    int `json:"max_depth"`
+	ActualDepth int `json:"actual_depth"`
+	BranchCount int `json:"branch_count"`
+	MergedCount int `json:"merged_count"`
 }
 
 // SwitchBranch switches the active branch to a different branch

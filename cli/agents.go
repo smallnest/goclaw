@@ -149,7 +149,7 @@ func runAgentsAdd(cmd *cobra.Command, args []string) {
 	} else if !agentsAddNonInteractive {
 		// Prompt for name if not provided and in interactive mode
 		fmt.Print("Enter agent name: ")
-		fmt.Scanln(&name)
+		_, _ = fmt.Scanln(&name)
 	}
 
 	if name == "" {
@@ -259,7 +259,7 @@ func runAgentsDelete(cmd *cobra.Command, args []string) {
 	if !agentsDeleteForce && !agentsDeleteJSON {
 		fmt.Printf("Are you sure you want to delete agent '%s'? [y/N]: ", name)
 		var confirm string
-		fmt.Scanln(&confirm)
+		_, _ = fmt.Scanln(&confirm)
 		if confirm != "y" && confirm != "Y" {
 			fmt.Println("Deletion cancelled")
 			return

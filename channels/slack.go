@@ -15,16 +15,16 @@ import (
 // SlackChannel Slack 通道
 type SlackChannel struct {
 	*BaseChannelImpl
-	client    *slack.Client
-	token     string
+	client        *slack.Client
+	token         string
 	signingSecret string
 }
 
 // SlackConfig Slack 配置
 type SlackConfig struct {
 	BaseChannelConfig
-	Token          string `mapstructure:"token" json:"token"`
-	SigningSecret  string `mapstructure:"signing_secret" json:"signing_secret"`
+	Token         string `mapstructure:"token" json:"token"`
+	SigningSecret string `mapstructure:"signing_secret" json:"signing_secret"`
 }
 
 // NewSlackChannel 创建 Slack 通道
@@ -133,11 +133,11 @@ func (c *SlackChannel) handleMessage(ctx context.Context, ev *slack.MessageEvent
 
 	// 构建入站消息
 	msg := &bus.InboundMessage{
-		Channel:   c.Name(),
-		SenderID:  senderID,
-		ChatID:    ev.Channel,
-		Content:   ev.Text,
-		Media:     c.extractMedia(ev),
+		Channel:  c.Name(),
+		SenderID: senderID,
+		ChatID:   ev.Channel,
+		Content:  ev.Text,
+		Media:    c.extractMedia(ev),
 		Metadata: map[string]interface{}{
 			"message_id":     ev.Timestamp,
 			"user_name":      user.Name,

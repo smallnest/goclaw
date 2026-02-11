@@ -60,9 +60,9 @@ type WebSocketConfig struct {
 	WriteTimeout   time.Duration
 	MaxMessageSize int64
 	// TLS 配置
-	EnableTLS     bool
-	CertFile      string
-	KeyFile       string
+	EnableTLS bool
+	CertFile  string
+	KeyFile   string
 }
 
 // NewServer 创建网关服务器
@@ -123,7 +123,7 @@ func (s *Server) Start(ctx context.Context) error {
 	// 监听上下文取消
 	go func() {
 		<-ctx.Done()
-		s.Stop()
+		_ = s.Stop()
 	}()
 
 	return nil
@@ -261,8 +261,9 @@ func (s *Server) removeConnection(id string) {
 	delete(s.connections, id)
 }
 
-// getConnection 获取连接
-func (s *Server) getConnection(id string) (*Connection, bool) {
+// _getConnection 获取连接 (未使用，保留供将来使用)
+// nolint:unused
+func (s *Server) _getConnection(id string) (*Connection, bool) {
 	s.connectionsMu.RLock()
 	defer s.connectionsMu.RUnlock()
 	conn, ok := s.connections[id]
@@ -286,7 +287,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{
 		"status": "ok",
 		"time":   time.Now().Unix(),
 	})
@@ -326,7 +327,7 @@ func (s *Server) handleFeishuWebhook(w http.ResponseWriter, r *http.Request) {
 	// 这里简化处理，实际应该由飞书通道解析并发布
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("ok"))
+	_, _ = w.Write([]byte("ok"))
 }
 
 // handleGenericWebhook 通用 webhook 处理器
@@ -368,7 +369,7 @@ func (s *Server) handleGenericWebhook(w http.ResponseWriter, r *http.Request) {
 	)
 
 	w.WriteHeader(http.StatusOK)
-	w.Write([]byte("ok"))
+	_, _ = w.Write([]byte("ok"))
 }
 
 // handleWebSocket WebSocket 连接处理器
@@ -407,7 +408,7 @@ func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request) {
 			"version":    ProtocolVersion,
 		},
 	}
-	connection.SendJSON(welcome)
+	_ = connection.SendJSON(welcome)
 
 	// 启动心跳
 	go connection.heartbeat()
@@ -472,7 +473,7 @@ func (s *Server) handleWebSocketMessages(conn *Connection) {
 				zap.String("session_id", conn.ID),
 				zap.Error(err))
 			errorResp := NewErrorResponse("", ErrorParseError, "Parse error")
-			conn.SendJSON(errorResp)
+			_ = conn.SendJSON(errorResp)
 			continue
 		}
 
@@ -554,7 +555,8 @@ func (s *Server) broadcastOutbound(ctx context.Context) {
 type Connection struct {
 	*websocket.Conn
 	ID           string
-	sessionID    string
+	// nolint:unused
+	_sessionID   string // 保留供将来使用
 	pingInterval time.Duration
 	pongTimeout  time.Duration
 	mu           sync.Mutex
@@ -597,20 +599,17 @@ func (c *Connection) heartbeat() {
 		return c.SetReadDeadline(time.Now().Add(c.pongTimeout))
 	})
 
-	for {
-		select {
-		case <-ticker.C:
-			c.mu.Lock()
-			if err := c.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
-				c.mu.Unlock()
-				return
-			}
-			if err := c.WriteMessage(websocket.PingMessage, nil); err != nil {
-				c.mu.Unlock()
-				return
-			}
+	for range ticker.C {
+		c.mu.Lock()
+		if err := c.SetWriteDeadline(time.Now().Add(10 * time.Second)); err != nil {
 			c.mu.Unlock()
+			return
 		}
+		if err := c.WriteMessage(websocket.PingMessage, nil); err != nil {
+			c.mu.Unlock()
+			return
+		}
+		c.mu.Unlock()
 	}
 }
 
@@ -621,7 +620,7 @@ func (c *Connection) Close() error {
 
 	// 发送关闭帧
 	message := websocket.FormatCloseMessage(websocket.CloseNormalClosure, "")
-	c.WriteMessage(websocket.CloseMessage, message)
+	_ = c.WriteMessage(websocket.CloseMessage, message)
 
 	// 关闭连接
 	return c.Conn.Close()

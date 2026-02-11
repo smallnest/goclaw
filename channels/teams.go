@@ -42,10 +42,10 @@ func NewTeamsChannel(cfg TeamsConfig, bus *bus.MessageBus) (*TeamsChannel, error
 
 	return &TeamsChannel{
 		BaseChannelImpl: NewBaseChannelImpl("teams", cfg.BaseChannelConfig, bus),
-		appID:          cfg.AppID,
-		appPassword:    cfg.AppPassword,
-		tenantID:       cfg.TenantID,
-		webhookURL:     cfg.WebhookURL,
+		appID:           cfg.AppID,
+		appPassword:     cfg.AppPassword,
+		tenantID:        cfg.TenantID,
+		webhookURL:      cfg.WebhookURL,
 		httpClient: &http.Client{
 			Timeout: 30 * time.Second,
 		},
@@ -115,16 +115,16 @@ func (c *TeamsChannel) HandleWebhook(ctx context.Context, webhookMsg *TeamsWebho
 
 	// 构建入站消息
 	msg := &bus.InboundMessage{
-		Channel:   c.Name(),
-		SenderID:  senderID,
-		ChatID:    webhookMsg.Conversation.ID,
-		Content:   webhookMsg.Text,
+		Channel:  c.Name(),
+		SenderID: senderID,
+		ChatID:   webhookMsg.Conversation.ID,
+		Content:  webhookMsg.Text,
 		Metadata: map[string]interface{}{
-			"message_id":    webhookMsg.ID,
-			"sender_name":   webhookMsg.From.Name,
-			"conversation":  webhookMsg.Conversation,
-			"attachments":   webhookMsg.Attachments,
-			"entities":      webhookMsg.Entities,
+			"message_id":   webhookMsg.ID,
+			"sender_name":  webhookMsg.From.Name,
+			"conversation": webhookMsg.Conversation,
+			"attachments":  webhookMsg.Attachments,
+			"entities":     webhookMsg.Entities,
 		},
 		Timestamp: time.Now(),
 	}
@@ -306,7 +306,7 @@ func (c *TeamsChannel) SendAdaptiveCard(msg *bus.OutboundMessage, card map[strin
 
 	// 构建包含自适应卡片的消息
 	messageCard := map[string]interface{}{
-		"type":    "message",
+		"type": "message",
 		"attachments": []map[string]interface{}{
 			{
 				"contentType": "application/vnd.microsoft.card.adaptive",
@@ -334,16 +334,16 @@ func (c *TeamsChannel) Stop() error {
 
 // TeamsWebhookMessage Teams webhook 消息
 type TeamsWebhookMessage struct {
-	Type         string                 `json:"type"`
-	ID           string                 `json:"id"`
-	Timestamp    string                 `json:"timestamp"`
-	ServiceURL   string                 `json:"serviceUrl"`
-	ChannelID    string                 `json:"channelId"`
-	From         TeamsActor             `json:"from"`
-	Conversation TeamsConversation      `json:"conversation"`
-	Text         string                 `json:"text"`
-	Attachments  []TeamsAttachment      `json:"attachments"`
-	Entities     []TeamsEntity          `json:"entities"`
+	Type         string            `json:"type"`
+	ID           string            `json:"id"`
+	Timestamp    string            `json:"timestamp"`
+	ServiceURL   string            `json:"serviceUrl"`
+	ChannelID    string            `json:"channelId"`
+	From         TeamsActor        `json:"from"`
+	Conversation TeamsConversation `json:"conversation"`
+	Text         string            `json:"text"`
+	Attachments  []TeamsAttachment `json:"attachments"`
+	Entities     []TeamsEntity     `json:"entities"`
 }
 
 // TeamsActor Teams 参与者
@@ -366,6 +366,6 @@ type TeamsAttachment struct {
 
 // TeamsEntity Teams 实体
 type TeamsEntity struct {
-	Type   string `json:"type"`
-	Data   map[string]interface{} `json:"data,omitempty"`
+	Type string                 `json:"type"`
+	Data map[string]interface{} `json:"data,omitempty"`
 }

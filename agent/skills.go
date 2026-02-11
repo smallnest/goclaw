@@ -13,12 +13,12 @@ import (
 
 // Skill 技能定义
 type Skill struct {
-	Name        string   `yaml:"name"`
-	Description string   `yaml:"description"`
-	Version     string   `yaml:"version"`
-	Author      string   `yaml:"author"`
-	Homepage    string   `yaml:"homepage"`
-	Always      bool     `yaml:"always"`
+	Name        string `yaml:"name"`
+	Description string `yaml:"description"`
+	Version     string `yaml:"version"`
+	Author      string `yaml:"author"`
+	Homepage    string `yaml:"homepage"`
+	Always      bool   `yaml:"always"`
 	Metadata    struct {
 		OpenClaw struct {
 			Emoji    string `yaml:"emoji"`

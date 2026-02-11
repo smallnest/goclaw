@@ -10,9 +10,9 @@ import (
 type Message struct {
 	Role       string     `json:"role"` // user, assistant, system, tool
 	Content    string     `json:"content"`
-	Images     []string   `json:"images,omitempty"`     // Image URLs or Base64
+	Images     []string   `json:"images,omitempty"`       // Image URLs or Base64
 	ToolCallID string     `json:"tool_call_id,omitempty"` // For tool role
-	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`  // For assistant role
+	ToolCalls  []ToolCall `json:"tool_calls,omitempty"`   // For assistant role
 }
 
 // ToolCall 工具调用
@@ -25,10 +25,10 @@ type ToolCall struct {
 
 // Response LLM 响应
 type Response struct {
-	Content      string      `json:"content"`
-	ToolCalls    []ToolCall  `json:"tool_calls,omitempty"`
-	FinishReason string      `json:"finish_reason"`
-	Usage        Usage       `json:"usage"`
+	Content      string     `json:"content"`
+	ToolCalls    []ToolCall `json:"tool_calls,omitempty"`
+	FinishReason string     `json:"finish_reason"`
+	Usage        Usage      `json:"usage"`
 }
 
 // Usage 使用情况

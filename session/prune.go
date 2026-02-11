@@ -24,12 +24,12 @@ const (
 
 // PruneConfig configures session pruning behavior
 type PruneConfig struct {
-	Strategy          PruneStrategy
-	MaxTotalSessions  int
-	MaxTotalMessages  int
-	MaxTotalTokens    int
-	DefaultMessageTTL time.Duration
-	DMPreserveCount   int // Minimum messages to preserve in DM
+	Strategy           PruneStrategy
+	MaxTotalSessions   int
+	MaxTotalMessages   int
+	MaxTotalTokens     int
+	DefaultMessageTTL  time.Duration
+	DMPreserveCount    int // Minimum messages to preserve in DM
 	GroupPreserveCount int // Minimum messages to preserve in group
 }
 
@@ -56,11 +56,11 @@ type Pruner struct {
 
 // PruneStats contains pruning statistics
 type PruneStats struct {
-	TotalPrunes      int64
-	MessagesPruned   int64
-	SessionsPruned   int64
-	TokensReclaimed  int64
-	LastPruneAt      time.Time
+	TotalPrunes     int64
+	MessagesPruned  int64
+	SessionsPruned  int64
+	TokensReclaimed int64
+	LastPruneAt     time.Time
 }
 
 // NewPruner creates a new session pruner
@@ -110,8 +110,8 @@ func (p *Pruner) pruneLRU() error {
 
 	// Sort by last access time (assumes UpdatedAt reflects this)
 	type sessionInfo struct {
-		key        string
-		updatedAt  time.Time
+		key          string
+		updatedAt    time.Time
 		messageCount int
 	}
 
@@ -213,8 +213,8 @@ func (p *Pruner) pruneSize() error {
 	// Calculate total messages
 	totalMessages := 0
 	type sessionSize struct {
-		key        string
-		size       int
+		key  string
+		size int
 	}
 
 	sessionSizes := make([]sessionSize, len(sessions))

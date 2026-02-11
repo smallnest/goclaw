@@ -52,7 +52,7 @@ func TestConsumeInbound(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		bus.PublishInbound(ctx, msg)
+		_ = bus.PublishInbound(ctx, msg)
 	}()
 
 	// Consume message
@@ -107,7 +107,7 @@ func TestConsumeOutbound(t *testing.T) {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		bus.PublishOutbound(ctx, msg)
+		_ = bus.PublishOutbound(ctx, msg)
 	}()
 
 	// Consume message
@@ -138,7 +138,7 @@ func TestClose(t *testing.T) {
 			Channel: "test",
 			Content: "test",
 		}
-		bus.PublishInbound(ctx, msg)
+		_ = bus.PublishInbound(ctx, msg)
 	}
 
 	// Close the bus
@@ -172,7 +172,7 @@ func TestConcurrentOperations(t *testing.T) {
 					Channel: "test",
 					Content: "test",
 				}
-				bus.PublishInbound(ctx, msg)
+				_ = bus.PublishInbound(ctx, msg)
 			}
 		}(i)
 	}

@@ -155,16 +155,16 @@ func (c *DiscordChannel) handleMessage(s *discordgo.Session, m *discordgo.Messag
 
 	// 构建入站消息
 	msg := &bus.InboundMessage{
-		Channel:   c.Name(),
-		SenderID:  senderID,
-		ChatID:    m.ChannelID,
-		Content:   content,
-		Media:     media,
+		Channel:  c.Name(),
+		SenderID: senderID,
+		ChatID:   m.ChannelID,
+		Content:  content,
+		Media:    media,
 		Metadata: map[string]interface{}{
-			"message_id":  m.ID,
-			"guild_id":    m.GuildID,
-			"author":      m.Author.Username,
-			"discriminator": m.Author.Discriminator,
+			"message_id":       m.ID,
+			"guild_id":         m.GuildID,
+			"author":           m.Author.Username,
+			"discriminator":    m.Author.Discriminator,
 			"mention_everyone": m.MentionEveryone,
 		},
 		Timestamp: time.Now(),
@@ -232,7 +232,7 @@ func (c *DiscordChannel) Send(msg *bus.OutboundMessage) error {
 		for _, media := range msg.Media {
 			if media.Type == "image" && media.URL != "" {
 				discordMsg.Files = append(discordMsg.Files, &discordgo.File{
-					Name:   "image",
+					Name: "image",
 				})
 			}
 		}

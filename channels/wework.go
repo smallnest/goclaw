@@ -59,13 +59,13 @@ func NewWeWorkChannel(cfg config.WeWorkChannelConfig, bus *bus.MessageBus) (*WeW
 
 	return &WeWorkChannel{
 		BaseChannelImpl: NewBaseChannelImpl("wework", baseCfg, bus),
-		corpID:         cfg.CorpID,
-		agentID:        cfg.AgentID,
-		secret:         cfg.Secret,
-		token:          cfg.Token,
-		encodingAESKey: cfg.EncodingAESKey,
-		webhookPort:    port,
-		recvMsg:        cfg.EncodingAESKey != "", // 有加密密钥则使用加密模式
+		corpID:          cfg.CorpID,
+		agentID:         cfg.AgentID,
+		secret:          cfg.Secret,
+		token:           cfg.Token,
+		encodingAESKey:  cfg.EncodingAESKey,
+		webhookPort:     port,
+		recvMsg:         cfg.EncodingAESKey != "", // 有加密密钥则使用加密模式
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
 		},
@@ -105,7 +105,7 @@ func (c *WeWorkChannel) startWebhookServer(ctx context.Context) {
 	}()
 
 	<-ctx.Done()
-	server.Shutdown(ctx)
+	_ = server.Shutdown(ctx)
 }
 
 func (c *WeWorkChannel) handleWebhook(w http.ResponseWriter, r *http.Request) {
@@ -131,9 +131,9 @@ func (c *WeWorkChannel) handleWebhook(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusBadRequest)
 				return
 			}
-			w.Write(decrypted)
+			_, _ = w.Write(decrypted)
 		} else {
-			w.Write([]byte(echostr))
+			_, _ = w.Write([]byte(echostr))
 		}
 		return
 	}
@@ -210,7 +210,7 @@ func (c *WeWorkChannel) handleWebhook(w http.ResponseWriter, r *http.Request) {
 				"agent_id": msg.AgentID,
 			},
 		}
-		c.PublishInbound(context.Background(), inMsg)
+		_ = c.PublishInbound(context.Background(), inMsg)
 	}
 
 	w.WriteHeader(http.StatusOK)

@@ -55,7 +55,7 @@ func TestE2EConversationFlow(t *testing.T) {
 	if err := loop.Start(ctx); err != nil {
 		t.Fatalf("Failed to start agent loop: %v", err)
 	}
-	defer loop.Stop()
+	defer func() { _ = loop.Stop() }()
 
 	// Send inbound message
 	inboundMsg := &bus.InboundMessage{
@@ -128,7 +128,7 @@ func TestE2EAgentLoop(t *testing.T) {
 	if err := loop.Start(testCtx); err != nil {
 		t.Fatalf("Failed to start agent loop: %v", err)
 	}
-	defer loop.Stop()
+	defer func() { _ = loop.Stop() }()
 
 	// Send test message
 	inboundMsg := &bus.InboundMessage{
@@ -139,7 +139,7 @@ func TestE2EAgentLoop(t *testing.T) {
 		Timestamp: time.Now(),
 	}
 
-	messageBus.PublishInbound(testCtx, inboundMsg)
+	_ = messageBus.PublishInbound(testCtx, inboundMsg)
 
 	// Wait for processing
 	time.Sleep(2 * time.Second)

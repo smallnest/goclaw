@@ -13,7 +13,7 @@ import (
 	"github.com/smallnest/dogclaw/goclaw/bus"
 	"github.com/smallnest/dogclaw/goclaw/config"
 	"github.com/smallnest/dogclaw/goclaw/internal/logger"
-	
+
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
 	"go.uber.org/zap"
@@ -42,7 +42,7 @@ func NewFeishuChannel(cfg config.FeishuChannelConfig, bus *bus.MessageBus) (*Fei
 		Enabled:    cfg.Enabled,
 		AllowedIDs: cfg.AllowedIDs,
 	}
-	
+
 	port := cfg.WebhookPort
 	if port == 0 {
 		port = 8765
@@ -90,7 +90,7 @@ func (c *FeishuChannel) startEventServer(ctx context.Context) {
 	}()
 
 	<-ctx.Done()
-	server.Shutdown(ctx)
+	_ = server.Shutdown(ctx)
 }
 
 func (c *FeishuChannel) handleWebhook(w http.ResponseWriter, r *http.Request) {
@@ -124,7 +124,7 @@ func (c *FeishuChannel) handleWebhook(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(fmt.Sprintf(`{"challenge":"%s"}`, challenge)))
+		_, _ = w.Write([]byte(fmt.Sprintf(`{"challenge":"%s"}`, challenge)))
 		return
 	}
 
@@ -143,10 +143,10 @@ func (c *FeishuChannel) handleMessage(event map[string]interface{}) {
 	evt, _ := event["event"].(map[string]interface{})
 	message, _ := evt["message"].(map[string]interface{})
 	sender, _ := evt["sender"].(map[string]interface{})
-	
+
 	senderIDMap, _ := sender["sender_id"].(map[string]interface{})
 	senderID, _ := senderIDMap["user_id"].(string)
-	
+
 	// 检查权限
 	if !c.IsAllowed(senderID) {
 		return
@@ -154,7 +154,7 @@ func (c *FeishuChannel) handleMessage(event map[string]interface{}) {
 
 	contentStr, _ := message["content"].(string)
 	msgType, _ := message["message_type"].(string)
-	
+
 	// 解析内容
 	var contentText string
 	var contentJSON map[string]interface{}
@@ -179,7 +179,7 @@ func (c *FeishuChannel) handleMessage(event map[string]interface{}) {
 	msgID, _ := message["message_id"].(string)
 	chatID, _ := message["chat_id"].(string)
 	chatType, _ := message["chat_type"].(string)
-	
+
 	msg := &bus.InboundMessage{
 		ID:        msgID,
 		Content:   contentText,
@@ -192,32 +192,32 @@ func (c *FeishuChannel) handleMessage(event map[string]interface{}) {
 			"msg_type":  msgType,
 		},
 	}
-	
-	c.PublishInbound(context.Background(), msg)
+
+	_ = c.PublishInbound(context.Background(), msg)
 }
 
 func (c *FeishuChannel) verifySignature(r *http.Request, body []byte) bool {
 	if c.encryptKey == "" {
 		return true
 	}
-	
+
 	timestamp := r.Header.Get("X-Lark-Request-Timestamp")
 	nonce := r.Header.Get("X-Lark-Request-Nonce")
 	signature := r.Header.Get("X-Lark-Signature")
-	
+
 	if timestamp == "" || nonce == "" || signature == "" {
 		return false
 	}
-	
+
 	// 计算签名
 	b := bytes.NewBufferString(timestamp)
 	b.WriteString(nonce)
 	b.WriteString(c.encryptKey)
 	b.Write(body)
-	
+
 	h := sha256.New()
 	h.Write(b.Bytes())
-	
+
 	target := fmt.Sprintf("%x", h.Sum(nil))
 	return target == signature
 }

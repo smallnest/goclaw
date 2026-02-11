@@ -258,8 +258,8 @@ func displayColoredLine(line string) {
 
 // ANSI color codes
 const (
-	ansiReset  = "\033[0m"
-	ansiBold   = "\033[1m"
+	ansiReset = "\033[0m"
+	ansiBold  = "\033[1m"
 
 	ansiGray   = "\033[90m"
 	ansiRed    = "\033[31m"
@@ -269,8 +269,8 @@ const (
 	ansiCyan   = "\033[36m"
 	ansiWhite  = "\033[37m"
 
-	ansiHighRed   = "\033[91m"
-	ansiHighGreen = "\033[92m"
+	ansiHighRed    = "\033[91m"
+	ansiHighGreen  = "\033[92m"
 	ansiHighYellow = "\033[93m"
 )
 
@@ -287,8 +287,11 @@ func colorBlue(s string) string    { return applyColor(ansiBlue, s) }
 func colorCyan(s string) string    { return applyColor(ansiCyan, s) }
 func colorWhite(s string) string   { return applyColor(ansiWhite, s) }
 func colorHiRed(s string) string   { return applyColor(ansiHighRed, s) }
-func colorHiGreen(s string) string { return applyColor(ansiHighGreen, s) }
-func colorHiYellow(s string) string { return applyColor(ansiHighYellow, s) }
+// nolint:unused
+func _colorHiGreen(s string) string { return applyColor(ansiHighGreen, s) }
+
+// nolint:unused
+func _colorHiYellow(s string) string { return applyColor(ansiHighYellow, s) }
 
 // getTimestamp 从日志条目获取时间戳
 func getTimestamp(entry map[string]interface{}) string {

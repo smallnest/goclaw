@@ -27,17 +27,17 @@ import (
 )
 
 var (
-	gatewayPort       int
-	gatewayBind       string
-	gatewayToken      string
-	gatewayAuth       bool
-	gatewayPassword   string
-	gatewayTailscale  bool
-	gatewayDev        bool
-	gatewayReset      bool
-	gatewayForce      bool
-	gatewayVerbose    bool
-	gatewayParams     string
+	gatewayPort      int
+	gatewayBind      string
+	gatewayToken     string
+	gatewayAuth      bool
+	gatewayPassword  string
+	gatewayTailscale bool
+	gatewayDev       bool
+	gatewayReset     bool
+	gatewayForce     bool
+	gatewayVerbose   bool
+	gatewayParams    string
 )
 
 // GatewayCommand returns the gateway command
@@ -149,7 +149,7 @@ func runGateway(cmd *cobra.Command, args []string) {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
-	defer logger.Sync()
+	defer logger.Sync() // nolint:errcheck
 
 	fmt.Println("🚀 Starting goclaw Gateway")
 
@@ -188,15 +188,15 @@ func runGateway(cmd *cobra.Command, args []string) {
 
 	// Configure WebSocket settings
 	wsConfig := &gateway.WebSocketConfig{
-		Host:       gatewayBind,
-		Port:       gatewayPort,
-		Path:       "/ws",
-		EnableAuth: gatewayAuth || gatewayToken != "" || gatewayPassword != "",
-		AuthToken:  gatewayToken,
-		PingInterval: 30 * time.Second,
-		PongTimeout:  60 * time.Second,
-		ReadTimeout:   60 * time.Second,
-		WriteTimeout:  10 * time.Second,
+		Host:           gatewayBind,
+		Port:           gatewayPort,
+		Path:           "/ws",
+		EnableAuth:     gatewayAuth || gatewayToken != "" || gatewayPassword != "",
+		AuthToken:      gatewayToken,
+		PingInterval:   30 * time.Second,
+		PongTimeout:    60 * time.Second,
+		ReadTimeout:    60 * time.Second,
+		WriteTimeout:   10 * time.Second,
 		MaxMessageSize: 10 * 1024 * 1024,
 	}
 
@@ -243,6 +243,7 @@ func runGateway(cmd *cobra.Command, args []string) {
 	}
 
 	fmt.Println("Gateway stopped")
+	defer logger.Sync() // nolint:errcheck
 }
 
 // runGatewayStatus shows gateway status
@@ -264,7 +265,7 @@ func runGatewayStatus(cmd *cobra.Command, args []string) {
 
 	body, _ := io.ReadAll(resp.Body)
 	var health map[string]interface{}
-	json.Unmarshal(body, &health)
+	_ = json.Unmarshal(body, &health)
 
 	fmt.Println("Gateway status: online")
 	if status, ok := health["status"]; ok {
@@ -322,7 +323,7 @@ func runGatewayProbe(cmd *cobra.Command, args []string) {
 				fmt.Printf("Found gateway on port %d\n", port)
 				body, _ := io.ReadAll(resp.Body)
 				var health map[string]interface{}
-				json.Unmarshal(body, &health)
+				_ = json.Unmarshal(body, &health)
 				if version, ok := health["version"]; ok {
 					fmt.Printf("  Version: %v\n", version)
 				}
@@ -439,13 +440,13 @@ func runGatewayRestart(cmd *cobra.Command, args []string) {
 
 // Service name constants
 const (
-	serviceName          = "goclaw-gateway"
-	macOSDomainStyle     = "com.goclaw.gateway"
-	macOSPlistDir        = "Library/LaunchAgents"
-	macOSPlistFile       = "com.goclaw.gateway.plist"
-	linuxServiceDir      = ".config/systemd/user"
-	linuxServiceFile     = "goclaw-gateway.service"
-	windowsServiceName   = "GoClawGateway"
+	serviceName        = "goclaw-gateway"
+	macOSDomainStyle   = "com.goclaw.gateway"
+	macOSPlistDir      = "Library/LaunchAgents"
+	macOSPlistFile     = "com.goclaw.gateway.plist"
+	linuxServiceDir    = ".config/systemd/user"
+	linuxServiceFile   = "goclaw-gateway.service"
+	windowsServiceName = "GoClawGateway"
 )
 
 // macOS service functions
@@ -587,7 +588,7 @@ func uninstallMacOSService() {
 
 	// Stop the service if running
 	fmt.Println("Stopping service...")
-	exec.Command("launchctl", "unload", plistPath).Run()
+	exec.Command("launchctl", "unload", plistPath).Run() // nolint:errcheck
 
 	// Remove the plist file
 	fmt.Println("Removing service configuration...")
@@ -798,10 +799,10 @@ func uninstallLinuxService() {
 
 	// Stop and disable the service
 	fmt.Println("Stopping service...")
-	exec.Command("systemctl", "--user", "stop", serviceName).Run()
+	exec.Command("systemctl", "--user", "stop", serviceName).Run() // nolint:errcheck
 
 	fmt.Println("Disabling service...")
-	exec.Command("systemctl", "--user", "disable", serviceName).Run()
+	exec.Command("systemctl", "--user", "disable", serviceName).Run() // nolint:errcheck
 
 	// Remove the service file
 	fmt.Println("Removing service configuration...")
@@ -812,7 +813,7 @@ func uninstallLinuxService() {
 
 	// Reload systemd daemon
 	fmt.Println("Reloading systemd daemon...")
-	exec.Command("systemctl", "--user", "daemon-reload").Run()
+	exec.Command("systemctl", "--user", "daemon-reload").Run() // nolint:errcheck
 
 	fmt.Println("Gateway service uninstalled successfully")
 }
@@ -928,7 +929,7 @@ func installWindowsService(execPath string) {
 	// Set service description
 	descCmd := exec.Command("sc.exe", "description", windowsServiceName,
 		"GoClaw WebSocket Gateway Service")
-	descCmd.Run()
+	descCmd.Run() // nolint:errcheck
 
 	fmt.Printf("Gateway service installed successfully\n")
 	fmt.Printf("  Service Name: %s\n", windowsServiceName)
@@ -955,7 +956,7 @@ func uninstallWindowsService() {
 
 	// Stop the service if running
 	fmt.Println("Stopping service...")
-	exec.Command("sc.exe", "stop", windowsServiceName).Run()
+	exec.Command("sc.exe", "stop", windowsServiceName).Run() // nolint:errcheck
 
 	// Wait a bit for the service to stop
 	time.Sleep(2 * time.Second)

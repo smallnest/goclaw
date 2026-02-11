@@ -25,7 +25,7 @@ type BrowserSessionManager struct {
 	conn        *rpcc.Conn
 	cmd         *exec.Cmd
 	ready       bool
-	chromePath   string
+	chromePath  string
 	userDataDir string
 	remoteURL   string // 远程 Chrome 实例 URL
 }
@@ -97,7 +97,7 @@ func (b *BrowserSessionManager) Start(timeout time.Duration) error {
 	// 等待 Chrome 启动
 	select {
 	case <-time.After(timeout):
-		b.cmd.Process.Kill()
+		_ = b.cmd.Process.Kill()
 		os.RemoveAll(userDataDir)
 		return fmt.Errorf("Chrome did not start within timeout")
 	case <-time.After(3 * time.Second):
@@ -106,7 +106,7 @@ func (b *BrowserSessionManager) Start(timeout time.Duration) error {
 
 	// 连接到 Chrome
 	if err := b.connect(9222); err != nil {
-		b.cmd.Process.Kill()
+		_ = b.cmd.Process.Kill()
 		os.RemoveAll(userDataDir)
 		return fmt.Errorf("failed to connect to Chrome: %w", err)
 	}

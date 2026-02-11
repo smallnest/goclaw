@@ -58,7 +58,7 @@ func (t *WebTool) WebSearch(ctx context.Context, params map[string]interface{}) 
 	if t.searchEngine == "serper" {
 		return t.searchSerper(ctx, query)
 	}
-	
+
 	if t.searchEngine == "google" {
 		return t.searchGoogle(ctx, query)
 	}
@@ -166,7 +166,7 @@ func (t *WebTool) searchSerper(ctx context.Context, query string) (string, error
 	if err != nil {
 		return "", err
 	}
-	
+
 	// 这里简单返回 JSON，实际应该解析并格式化
 	return string(body), nil
 }

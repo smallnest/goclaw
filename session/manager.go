@@ -11,10 +11,10 @@ import (
 
 // Media 媒体文件
 type Media struct {
-	Type     string `json:"type"`     // image, video, audio, document
-	URL      string `json:"url"`      // 文件URL
+	Type     string `json:"type"`             // image, video, audio, document
+	URL      string `json:"url"`              // 文件URL
 	Base64   string `json:"base64,omitempty"` // Base64编码内容
-	MimeType string `json:"mimetype"` // MIME类型
+	MimeType string `json:"mimetype"`         // MIME类型
 }
 
 // ToolCall 工具调用
@@ -37,10 +37,10 @@ type Message struct {
 
 // Session 会话
 type Session struct {
-	Key       string    `json:"key"`
-	Messages  []Message `json:"messages"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Key       string                 `json:"key"`
+	Messages  []Message              `json:"messages"`
+	CreatedAt time.Time              `json:"created_at"`
+	UpdatedAt time.Time              `json:"updated_at"`
 	Metadata  map[string]interface{} `json:"metadata,omitempty"`
 	mu        sync.RWMutex
 }
@@ -129,7 +129,7 @@ func (m *Manager) GetOrCreate(key string) (*Session, error) {
 	}
 
 	// 添加到缓存
-	m.sessions[key] =	session
+	m.sessions[key] = session
 	return session, nil
 }
 
@@ -152,10 +152,10 @@ func (m *Manager) Save(session *Session) error {
 	// 写入元数据行
 	encoder := json.NewEncoder(file)
 	metadata := map[string]interface{}{
-		"_type":       "metadata",
-		"created_at":  session.CreatedAt,
-		"updated_at":  session.UpdatedAt,
-		"metadata":    session.Metadata,
+		"_type":      "metadata",
+		"created_at": session.CreatedAt,
+		"updated_at": session.UpdatedAt,
+		"metadata":   session.Metadata,
 	}
 	if err := encoder.Encode(metadata); err != nil {
 		return err

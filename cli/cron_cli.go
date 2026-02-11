@@ -132,7 +132,7 @@ func init() {
 	cronAddCmd.Flags().StringVar(&cronAddCron, "cron", "", "Cron expression")
 	cronAddCmd.Flags().StringVar(&cronAddMessage, "message", "", "Message to send")
 	cronAddCmd.Flags().StringVar(&cronAddSystemEvent, "system-event", "", "System event type")
-	cronAddCmd.MarkFlagRequired("name")
+	_ = cronAddCmd.MarkFlagRequired("name")
 
 	// cron runs flags
 	cronRunsCmd.Flags().StringVar(&cronRunsID, "id", "", "Job ID (required)")

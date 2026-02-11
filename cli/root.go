@@ -88,7 +88,7 @@ func runStart(cmd *cobra.Command, args []string) {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	logger.Info("Starting goclaw agent")
 
@@ -222,7 +222,7 @@ func runStart(cmd *cobra.Command, args []string) {
 	if err := gatewayServer.Start(ctx); err != nil {
 		logger.Warn("Failed to start gateway server", zap.Error(err))
 	}
-	defer gatewayServer.Stop()
+	defer func() { _ = gatewayServer.Stop() }()
 
 	// 创建调度器
 	scheduler := cron.NewScheduler(messageBus, provider, sessionMgr)
@@ -258,7 +258,7 @@ func runStart(cmd *cobra.Command, args []string) {
 	if err := channelMgr.Start(ctx); err != nil {
 		logger.Error("Failed to start channels", zap.Error(err))
 	}
-	defer channelMgr.Stop()
+	defer func() { _ = channelMgr.Stop() }()
 
 	// 启动调度器
 	if err := scheduler.Start(ctx); err != nil {

@@ -33,7 +33,7 @@ type StreamingMessageBus struct {
 // NewStreamingMessageBus creates a new streaming message bus
 func NewStreamingMessageBus(bufferSize int) *StreamingMessageBus {
 	return &StreamingMessageBus{
-		MessageBus:   NewMessageBus(bufferSize),
+		MessageBus:    NewMessageBus(bufferSize),
 		streamStreams: make(map[string]chan *StreamMessage),
 	}
 }
@@ -96,17 +96,17 @@ func (b *StreamingMessageBus) CloseStream(chatID string) {
 
 // StreamHandler handles streaming messages
 type StreamHandler struct {
-	bus         *StreamingMessageBus
-	chatID      string
-	stream      chan *StreamMessage
-	content     strings.Builder
-	thinking    strings.Builder
-	final       strings.Builder
-	chunkIndex  int
-	mu          sync.Mutex
-	onChunk     func(*StreamMessage)
-	onComplete  func(string)
-	onError     func(error)
+	bus        *StreamingMessageBus
+	chatID     string
+	stream     chan *StreamMessage
+	content    strings.Builder
+	thinking   strings.Builder
+	final      strings.Builder
+	chunkIndex int
+	mu         sync.Mutex
+	onChunk    func(*StreamMessage)
+	onComplete func(string)
+	onError    func(error)
 }
 
 // NewStreamHandler creates a new stream handler
@@ -168,7 +168,7 @@ func (h *StreamHandler) processChunk(msg *StreamMessage) {
 
 	if msg.Error != "" {
 		if h.onError != nil {
-			h.onError(fmt.Errorf(msg.Error))
+			h.onError(fmt.Errorf("stream error: %s", msg.Error))
 		}
 		return
 	}

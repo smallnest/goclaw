@@ -11,11 +11,11 @@ import (
 
 // OpenAIConfig configures the OpenAI embedding provider
 type OpenAIConfig struct {
-	APIKey      string
-	BaseURL     string
-	Model       string
-	Timeout     time.Duration
-	MaxRetries  int
+	APIKey     string
+	BaseURL    string
+	Model      string
+	Timeout    time.Duration
+	MaxRetries int
 }
 
 // DefaultOpenAIConfig returns default OpenAI configuration

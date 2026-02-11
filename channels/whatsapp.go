@@ -7,7 +7,6 @@ import (
 	"io"
 	"net/http"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/smallnest/dogclaw/goclaw/bus"
@@ -20,7 +19,6 @@ type WhatsAppChannel struct {
 	*BaseChannelImpl
 	bridgeURL string
 	client    *http.Client
-	mu        sync.Mutex
 }
 
 // WhatsAppConfig WhatsApp 配置
@@ -130,11 +128,11 @@ func (c *WhatsAppChannel) handleMessage(ctx context.Context, msg *WhatsAppMessag
 
 	// 构建入站消息
 	inboundMsg := &bus.InboundMessage{
-		ID:        msg.ID,
-		Channel:   c.Name(),
-		SenderID:  msg.From,
-		ChatID:    msg.ChatID,
-		Content:   msg.Text,
+		ID:       msg.ID,
+		Channel:  c.Name(),
+		SenderID: msg.From,
+		ChatID:   msg.ChatID,
+		Content:  msg.Text,
 		Metadata: map[string]interface{}{
 			"message_type": msg.Type,
 			"timestamp":    msg.Timestamp,

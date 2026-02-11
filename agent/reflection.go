@@ -24,12 +24,12 @@ const (
 
 // TaskReflection 任务反思结果
 type TaskReflection struct {
-	Status         TaskStatus   `json:"status"`
-	Confidence     float64      `json:"confidence"`
-	CompletedSteps []string     `json:"completed_steps"`
-	RemainingSteps []string     `json:"remaining_steps"`
-	Reasoning      string       `json:"reasoning"`
-	NextAction     string       `json:"next_action,omitempty"`
+	Status         TaskStatus `json:"status"`
+	Confidence     float64    `json:"confidence"`
+	CompletedSteps []string   `json:"completed_steps"`
+	RemainingSteps []string   `json:"remaining_steps"`
+	Reasoning      string     `json:"reasoning"`
+	NextAction     string     `json:"next_action,omitempty"`
 }
 
 // ReflectionConfig 反思配置
@@ -249,7 +249,7 @@ func (r *Reflector) parseReflectionResponse(content string) (*TaskReflection, er
 		}
 		if end > 0 {
 			numStr := strings.TrimSpace(jsonStr[idx+13 : idx+end])
-			fmt.Sscanf(numStr, "%f", &reflection.Confidence)
+			_, _ = fmt.Sscanf(numStr, "%f", &reflection.Confidence)
 		}
 	}
 

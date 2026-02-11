@@ -99,7 +99,7 @@ func init() {
 
 	// test 命令
 	skillsTestCmd.Flags().StringVar(&skillsTestPrompt, "prompt", "", "Test prompt to use")
-	skillsTestCmd.MarkFlagRequired("prompt")
+	_ = skillsTestCmd.MarkFlagRequired("prompt")
 	skillsCmd.AddCommand(skillsTestCmd)
 
 	// install 命令
@@ -129,7 +129,7 @@ func runSkillsList(cmd *cobra.Command, args []string) {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// 创建工作区
 	workspace := os.Getenv("HOME") + "/.goclaw/workspace"
@@ -202,7 +202,7 @@ func runSkillsValidate(cmd *cobra.Command, args []string) {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// 创建工作区
 	workspace := os.Getenv("HOME") + "/.goclaw/workspace"
@@ -329,7 +329,7 @@ func runSkillsTest(cmd *cobra.Command, args []string) {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// 创建工作区
 	workspace := os.Getenv("HOME") + "/.goclaw/workspace"
@@ -401,7 +401,7 @@ func runSkillsInstall(cmd *cobra.Command, args []string) {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	// 目标目录
 	userSkillsDir := os.Getenv("HOME") + "/.goclaw/skills"
@@ -424,7 +424,7 @@ func runSkillsInstall(cmd *cobra.Command, args []string) {
 			fmt.Printf("⚠️  Skill already exists at %s\n", targetPath)
 			fmt.Print("Overwrite? (y/N): ")
 			var confirm string
-			fmt.Scanln(&confirm)
+			_, _ = fmt.Scanln(&confirm)
 			if strings.ToLower(confirm) != "y" {
 				fmt.Println("Installation cancelled.")
 				return
@@ -469,7 +469,7 @@ func runSkillsInstall(cmd *cobra.Command, args []string) {
 			fmt.Printf("⚠️  Skill already exists at %s\n", targetPath)
 			fmt.Print("Overwrite? (y/N): ")
 			var confirm string
-			fmt.Scanln(&confirm)
+			_, _ = fmt.Scanln(&confirm)
 			if strings.ToLower(confirm) != "y" {
 				fmt.Println("Installation cancelled.")
 				return
@@ -500,7 +500,7 @@ func runSkillsUpdate(cmd *cobra.Command, args []string) {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	userSkillsDir := os.Getenv("HOME") + "/.goclaw/skills"
 	skillPath := filepath.Join(userSkillsDir, skillName)
@@ -534,7 +534,7 @@ func runSkillsUninstall(cmd *cobra.Command, args []string) {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	userSkillsDir := os.Getenv("HOME") + "/.goclaw/skills"
 	skillPath := filepath.Join(userSkillsDir, skillName)
@@ -550,7 +550,7 @@ func runSkillsUninstall(cmd *cobra.Command, args []string) {
 	fmt.Print("Confirm? (y/N): ")
 
 	var confirm string
-	fmt.Scanln(&confirm)
+	_, _ = fmt.Scanln(&confirm)
 	if strings.ToLower(confirm) != "y" {
 		fmt.Println("Uninstallation cancelled.")
 		return
@@ -603,7 +603,7 @@ func runSkillsConfigSet(cmd *cobra.Command, args []string) {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
-	defer logger.Sync()
+	defer func() { _ = logger.Sync() }()
 
 	parts := strings.SplitN(key, ".", 2)
 	if len(parts) < 2 {

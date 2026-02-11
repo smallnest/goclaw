@@ -83,7 +83,7 @@ func (m *SubagentManager) Spawn(ctx context.Context, task, label, originChannel,
 		// 为子代理创建独立的配置
 		cfg := *baseCfg
 		// 子代理使用独立的会话，或者在任务消息中包含上下文
-		
+
 		loop, err := factory(&cfg)
 		if err != nil {
 			logger.Error("Failed to create subagent loop", zap.Error(err))
@@ -102,7 +102,7 @@ func (m *SubagentManager) Spawn(ctx context.Context, task, label, originChannel,
 			Metadata: map[string]interface{}{
 				"task_id":        id,
 				"origin_channel": originChannel,
-				"origin_chat_id":  originChatID,
+				"origin_chat_id": originChatID,
 				"is_subagent":    true,
 			},
 			Timestamp: time.Now(),

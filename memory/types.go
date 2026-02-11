@@ -30,14 +30,14 @@ const (
 
 // VectorEmbedding represents a vector embedding with metadata
 type VectorEmbedding struct {
-	ID        string        `json:"id"`
-	Vector    []float32     `json:"vector"`
-	Dimension int           `json:"dimension"`
-	Text      string        `json:"text"`
-	Source    MemorySource  `json:"source"`
-	Type      MemoryType    `json:"type"`
-	CreatedAt time.Time     `json:"created_at"`
-	UpdatedAt time.Time     `json:"updated_at"`
+	ID        string         `json:"id"`
+	Vector    []float32      `json:"vector"`
+	Dimension int            `json:"dimension"`
+	Text      string         `json:"text"`
+	Source    MemorySource   `json:"source"`
+	Type      MemoryType     `json:"type"`
+	CreatedAt time.Time      `json:"created_at"`
+	UpdatedAt time.Time      `json:"updated_at"`
 	Metadata  MemoryMetadata `json:"metadata"`
 }
 
@@ -62,9 +62,9 @@ type MemoryMetadata struct {
 // SearchResult represents a memory search result with relevance score
 type SearchResult struct {
 	VectorEmbedding
-	Score      float64       `json:"score"`
-	MatchedText string       `json:"matched_text"`
-	Highlight  string        `json:"highlight,omitempty"`
+	Score       float64 `json:"score"`
+	MatchedText string  `json:"matched_text"`
+	Highlight   string  `json:"highlight,omitempty"`
 }
 
 // SearchOptions configures memory search behavior

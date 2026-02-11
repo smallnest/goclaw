@@ -80,8 +80,8 @@ func (r *BrowserCommandRegistry) RegisterCommands(registry *CommandRegistry) {
 
 	// browser open - Open URL
 	registry.Register(&Command{
-		Name:  "browser-open",
-		Usage: "/browser open <url>",
+		Name:        "browser-open",
+		Usage:       "/browser open <url>",
 		Description: "Open URL in browser",
 		ArgsSpec: []ArgSpec{
 			{Name: "url", Description: "URL to open", Type: "enum", EnumValues: []string{"https://", "http://"}},
@@ -91,18 +91,18 @@ func (r *BrowserCommandRegistry) RegisterCommands(registry *CommandRegistry) {
 
 	// browser focus - Focus tab
 	registry.Register(&Command{
-		Name:  "browser-focus",
-		Usage: "/browser focus <targetId>|--list",
+		Name:        "browser-focus",
+		Usage:       "/browser focus <targetId>|--list",
 		Description: "Focus browser tab or list all tabs",
-		Handler: r.browserFocus,
+		Handler:     r.browserFocus,
 	})
 
 	// browser close - Close tab
 	registry.Register(&Command{
-		Name:  "browser-close",
-		Usage: "/browser close [targetId]",
+		Name:        "browser-close",
+		Usage:       "/browser close [targetId]",
 		Description: "Close browser tab (current if no ID specified)",
-		Handler: r.browserClose,
+		Handler:     r.browserClose,
 	})
 
 	// browser profiles - List profiles
@@ -115,10 +115,10 @@ func (r *BrowserCommandRegistry) RegisterCommands(registry *CommandRegistry) {
 
 	// browser screenshot - Take screenshot
 	registry.Register(&Command{
-		Name:  "browser-screenshot",
-		Usage: "/browser screenshot [targetId]",
+		Name:        "browser-screenshot",
+		Usage:       "/browser screenshot [targetId]",
 		Description: "Take screenshot of current tab",
-		Handler: r.browserScreenshot,
+		Handler:     r.browserScreenshot,
 	})
 
 	// browser snapshot - Take snapshot
@@ -132,114 +132,114 @@ func (r *BrowserCommandRegistry) RegisterCommands(registry *CommandRegistry) {
 	// Browser Actions
 	// browser navigate - Navigate to URL
 	registry.Register(&Command{
-		Name:  "browser-navigate",
-		Usage: "/browser navigate <url>",
+		Name:        "browser-navigate",
+		Usage:       "/browser navigate <url>",
 		Description: "Navigate to URL",
-		Handler: r.browserNavigate,
+		Handler:     r.browserNavigate,
 	})
 
 	// browser resize - Resize viewport
 	registry.Register(&Command{
-		Name:  "browser-resize",
-		Usage: "/browser resize <width> <height>",
+		Name:        "browser-resize",
+		Usage:       "/browser resize <width> <height>",
 		Description: "Resize browser viewport",
-		Handler: r.browserResize,
+		Handler:     r.browserResize,
 	})
 
 	// browser click - Click element
 	registry.Register(&Command{
-		Name:  "browser-click",
-		Usage: "/browser click <selector>",
+		Name:        "browser-click",
+		Usage:       "/browser click <selector>",
 		Description: "Click element using CSS selector",
-		Handler: r.browserClick,
+		Handler:     r.browserClick,
 	})
 
 	// browser type - Type text
 	registry.Register(&Command{
-		Name:  "browser-type",
-		Usage: "/browser type <selector> <text>",
+		Name:        "browser-type",
+		Usage:       "/browser type <selector> <text>",
 		Description: "Type text into element",
-		Handler: r.browserType,
+		Handler:     r.browserType,
 	})
 
 	// browser press - Press key
 	registry.Register(&Command{
-		Name:  "browser-press",
-		Usage: "/browser press <key>",
+		Name:        "browser-press",
+		Usage:       "/browser press <key>",
 		Description: "Press keyboard key (Enter, Escape, etc.)",
-		Handler: r.browserPress,
+		Handler:     r.browserPress,
 	})
 
 	// browser hover - Hover element
 	registry.Register(&Command{
-		Name:  "browser-hover",
-		Usage: "/browser hover <selector>",
+		Name:        "browser-hover",
+		Usage:       "/browser hover <selector>",
 		Description: "Hover over element",
-		Handler: r.browserHover,
+		Handler:     r.browserHover,
 	})
 
 	// browser select - Select option
 	registry.Register(&Command{
-		Name:  "browser-select",
-		Usage: "/browser select <selector> <value>",
+		Name:        "browser-select",
+		Usage:       "/browser select <selector> <value>",
 		Description: "Select option from dropdown",
-		Handler: r.browserSelect,
+		Handler:     r.browserSelect,
 	})
 
 	// browser upload - Upload file
 	registry.Register(&Command{
-		Name:  "browser-upload",
-		Usage: "/browser upload <selector> <filepath>",
+		Name:        "browser-upload",
+		Usage:       "/browser upload <selector> <filepath>",
 		Description: "Upload file to input",
-		Handler: r.browserUpload,
+		Handler:     r.browserUpload,
 	})
 
 	// browser fill - Fill form
 	registry.Register(&Command{
-		Name:  "browser-fill",
-		Usage: "/browser fill <field> <value>",
+		Name:        "browser-fill",
+		Usage:       "/browser fill <field> <value>",
 		Description: "Fill form field",
-		Handler: r.browserFill,
+		Handler:     r.browserFill,
 	})
 
 	// browser dialog - Handle dialog
 	registry.Register(&Command{
-		Name:  "browser-dialog",
-		Usage: "/browser dialog <accept|dismiss> [promptText]",
+		Name:        "browser-dialog",
+		Usage:       "/browser dialog <accept|dismiss> [promptText]",
 		Description: "Handle JavaScript dialog",
-		Handler: r.browserDialog,
+		Handler:     r.browserDialog,
 	})
 
 	// browser wait - Wait for condition
 	registry.Register(&Command{
-		Name:  "browser-wait",
-		Usage: "/browser wait <selector|timeout> [timeout]",
+		Name:        "browser-wait",
+		Usage:       "/browser wait <selector|timeout> [timeout]",
 		Description: "Wait for element or timeout",
-		Handler: r.browserWait,
+		Handler:     r.browserWait,
 	})
 
 	// browser evaluate - Evaluate JavaScript
 	registry.Register(&Command{
-		Name:  "browser-evaluate",
-		Usage: "/browser evaluate <javascript>",
+		Name:        "browser-evaluate",
+		Usage:       "/browser evaluate <javascript>",
 		Description: "Evaluate JavaScript code",
-		Handler: r.browserEvaluate,
+		Handler:     r.browserEvaluate,
 	})
 
 	// browser console - Get console logs
 	registry.Register(&Command{
-		Name:  "browser-console",
-		Usage: "/browser console [--errors-only|--warnings-only|--info-only] [--max=N]",
+		Name:        "browser-console",
+		Usage:       "/browser console [--errors-only|--warnings-only|--info-only] [--max=N]",
 		Description: "Get browser console logs with optional filters",
 		Handler:     r.browserConsole,
 	})
 
 	// browser pdf - Save as PDF
 	registry.Register(&Command{
-		Name:  "browser-pdf",
-		Usage: "/browser pdf [filename]",
+		Name:        "browser-pdf",
+		Usage:       "/browser pdf [filename]",
 		Description: "Save page as PDF",
-		Handler: r.browserPDF,
+		Handler:     r.browserPDF,
 	})
 }
 
@@ -349,7 +349,7 @@ func (r *BrowserCommandRegistry) browserOpen(args []string) (string, bool) {
 	domContentLoaded, err := client.Page.DOMContentEventFired(ctx)
 	if err == nil {
 		defer domContentLoaded.Close()
-		domContentLoaded.Recv()
+		_, _ = domContentLoaded.Recv()
 	}
 
 	return fmt.Sprintf("Opened: %s", url), false
@@ -471,7 +471,7 @@ func (r *BrowserCommandRegistry) browserScreenshot(args []string) (string, bool)
 
 	// Save screenshot
 	screenshotDir := filepath.Join(r.homeDir, "goclaw-screenshots")
-	os.MkdirAll(screenshotDir, 0755)
+	_ = os.MkdirAll(screenshotDir, 0755)
 
 	filename := fmt.Sprintf("screenshot_%d.png", time.Now().Unix())
 	screenshotPath := filepath.Join(screenshotDir, filename)
@@ -518,14 +518,14 @@ func (r *BrowserCommandRegistry) browserSnapshot(args []string) (string, bool) {
 
 	// Save snapshot
 	snapshotDir := filepath.Join(r.homeDir, "goclaw-snapshots")
-	os.MkdirAll(snapshotDir, 0755)
+	_ = os.MkdirAll(snapshotDir, 0755)
 
 	timestamp := time.Now().Unix()
 	htmlPath := filepath.Join(snapshotDir, fmt.Sprintf("snapshot_%d.html", timestamp))
 	imgPath := filepath.Join(snapshotDir, fmt.Sprintf("snapshot_%d.png", timestamp))
 
-	os.WriteFile(htmlPath, []byte(html.OuterHTML), 0644)
-	os.WriteFile(imgPath, screenshot.Data, 0644)
+	_ = os.WriteFile(htmlPath, []byte(html.OuterHTML), 0644)
+	_ = os.WriteFile(imgPath, screenshot.Data, 0644)
 
 	return fmt.Sprintf("Snapshot saved:\n  HTML: %s\n  Image: %s", htmlPath, imgPath), false
 }
@@ -608,9 +608,9 @@ func (r *BrowserCommandRegistry) browserClick(args []string) (string, bool) {
 	x := (box.Model.Content[0] + box.Model.Content[4]) / 2
 	y := (box.Model.Content[1] + box.Model.Content[5]) / 2
 
-	client.Input.DispatchMouseEvent(ctx, input.NewDispatchMouseEventArgs(
+	_ = client.Input.DispatchMouseEvent(ctx, input.NewDispatchMouseEventArgs(
 		"mousePressed", float64(x), float64(y)))
-	client.Input.DispatchMouseEvent(ctx, input.NewDispatchMouseEventArgs(
+	_ = client.Input.DispatchMouseEvent(ctx, input.NewDispatchMouseEventArgs(
 		"mouseReleased", float64(x), float64(y)))
 
 	return fmt.Sprintf("Clicked: %s", selector), false
@@ -642,7 +642,7 @@ func (r *BrowserCommandRegistry) browserType(args []string) (string, bool) {
 		return fmt.Sprintf("Failed to find element: %v", err), false
 	}
 
-	client.DOM.Focus(ctx, &dom.FocusArgs{NodeID: &nodeID})
+	_ = client.DOM.Focus(ctx, &dom.FocusArgs{NodeID: &nodeID})
 
 	// Type using JavaScript to set value and trigger events
 	script := fmt.Sprintf(`
@@ -743,7 +743,7 @@ func (r *BrowserCommandRegistry) browserHover(args []string) (string, bool) {
 	x := (box.Model.Content[0] + box.Model.Content[4]) / 2
 	y := (box.Model.Content[1] + box.Model.Content[5]) / 2
 
-	client.Input.DispatchMouseEvent(ctx, input.NewDispatchMouseEventArgs(
+	_ = client.Input.DispatchMouseEvent(ctx, input.NewDispatchMouseEventArgs(
 		"mouseMoved", float64(x), float64(y)))
 
 	return fmt.Sprintf("Hovered over: %s", selector), false
@@ -1126,7 +1126,7 @@ func (r *BrowserCommandRegistry) browserConsole(args []string) (string, bool) {
 				result += " "
 			}
 			// Value is a RawMessage (JSON), need to extract string value
-			if arg.Value != nil && len(arg.Value) > 0 {
+			if len(arg.Value) > 0 {
 				// Try to get the string representation
 				valueStr := string(arg.Value)
 				// Remove quotes if it's a JSON string
@@ -1174,7 +1174,7 @@ func (r *BrowserCommandRegistry) browserPDF(args []string) (string, bool) {
 
 	// Save PDF
 	screenshotDir := filepath.Join(r.homeDir, "goclaw-screenshots")
-	os.MkdirAll(screenshotDir, 0755)
+	_ = os.MkdirAll(screenshotDir, 0755)
 
 	pdfPath := filepath.Join(screenshotDir, filename)
 	if err := os.WriteFile(pdfPath, pdfResult.Data, 0644); err != nil {

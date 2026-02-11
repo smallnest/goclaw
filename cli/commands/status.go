@@ -65,10 +65,10 @@ type GatewayStatus struct {
 
 // SystemStatus represents overall system status
 type SystemStatus struct {
-	Gateway     GatewayStatus    `json:"gateway"`
-	Sessions    []SessionStatus  `json:"sessions"`
-	SessionDir  string           `json:"session_dir"`
-	TotalSize   int64            `json:"total_size_bytes"`
+	Gateway      GatewayStatus   `json:"gateway"`
+	Sessions     []SessionStatus `json:"sessions"`
+	SessionDir   string          `json:"session_dir"`
+	TotalSize    int64           `json:"total_size_bytes"`
 	SessionCount int             `json:"session_count"`
 }
 
@@ -113,7 +113,7 @@ func checkGatewayStatus(timeout int) GatewayStatus {
 			if resp.StatusCode == http.StatusOK {
 				body, _ := io.ReadAll(resp.Body)
 				var health map[string]interface{}
-				json.Unmarshal(body, &health)
+				_ = json.Unmarshal(body, &health)
 
 				result.Online = true
 				result.URL = url
@@ -205,7 +205,7 @@ func outputStatusJSON(status *SystemStatus) {
 
 // outputStatusText outputs status as formatted text
 func outputStatusText(status *SystemStatus) {
-	fmt.Println("=== goclaw Status ===\n")
+	fmt.Println("=== goclaw Status ===")
 
 	// Gateway status
 	fmt.Println("Gateway:")

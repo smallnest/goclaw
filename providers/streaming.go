@@ -9,13 +9,13 @@ import (
 
 // StreamChunk represents a chunk of streaming response
 type StreamChunk struct {
-	Content      string    `json:"content"`
-	Done         bool      `json:"done"`
-	ToolCall     *ToolCall `json:"tool_call,omitempty"`
-	ThinkingTag  string    `json:"thinking,omitempty"`
-	IsThinking   bool      `json:"is_thinking,omitempty"`
-	IsFinal      bool      `json:"is_final,omitempty"`
-	Error        error     `json:"error,omitempty"`
+	Content     string    `json:"content"`
+	Done        bool      `json:"done"`
+	ToolCall    *ToolCall `json:"tool_call,omitempty"`
+	ThinkingTag string    `json:"thinking,omitempty"`
+	IsThinking  bool      `json:"is_thinking,omitempty"`
+	IsFinal     bool      `json:"is_final,omitempty"`
+	Error       error     `json:"error,omitempty"`
 }
 
 // StreamCallback is called for each chunk in a streaming response
@@ -335,14 +335,14 @@ func ConvertToStreaming(chunks []StreamChunk) *Response {
 
 // StreamProcessor processes streaming chunks with custom handlers
 type StreamProcessor struct {
-	onContent    func(content string)
-	onThinking   func(thinking string)
-	onFinal      func(final string)
-	onToolCall   func(toolCall ToolCall)
-	onError      func(err error)
-	onComplete   func()
-	buffer       *StreamBuffer
-	parser       *ThinkingParser
+	onContent  func(content string)
+	onThinking func(thinking string)
+	onFinal    func(final string)
+	onToolCall func(toolCall ToolCall)
+	onError    func(err error)
+	onComplete func()
+	buffer     *StreamBuffer
+	parser     *ThinkingParser
 }
 
 // NewStreamProcessor creates a new stream processor

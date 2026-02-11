@@ -38,7 +38,7 @@ func TestGatewayWebSocketConnection(t *testing.T) {
 	if err := server.Start(ctx); err != nil {
 		t.Fatalf("Failed to start gateway server: %v", err)
 	}
-	defer server.Stop()
+	defer func() { _ = server.Stop() }()
 
 	// Wait for server to be ready
 	time.Sleep(100 * time.Millisecond)
@@ -86,7 +86,7 @@ func TestGatewayRPCMethods(t *testing.T) {
 	if err := server.Start(ctx); err != nil {
 		t.Fatalf("Failed to start gateway server: %v", err)
 	}
-	defer server.Stop()
+	defer func() { _ = server.Stop() }()
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -100,7 +100,7 @@ func TestGatewayRPCMethods(t *testing.T) {
 
 	// Read welcome message
 	var welcome map[string]interface{}
-	conn.ReadJSON(&welcome)
+	_ = conn.ReadJSON(&welcome)
 
 	// Test health check
 	healthReq := map[string]interface{}{
@@ -152,7 +152,7 @@ func TestGatewaySessionMethods(t *testing.T) {
 	if err := server.Start(ctx); err != nil {
 		t.Fatalf("Failed to start server: %v", err)
 	}
-	defer server.Stop()
+	defer func() { _ = server.Stop() }()
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -164,7 +164,7 @@ func TestGatewaySessionMethods(t *testing.T) {
 	defer conn.Close()
 
 	var welcome map[string]interface{}
-	conn.ReadJSON(&welcome)
+	_ = conn.ReadJSON(&welcome)
 
 	// Create a test session
 	testKey := "test:session:123"
@@ -174,7 +174,7 @@ func TestGatewaySessionMethods(t *testing.T) {
 		Content:   "Hello, test!",
 		Timestamp: time.Now(),
 	})
-	sessionMgr.Save(sess)
+	_ = sessionMgr.Save(sess)
 
 	// Test sessions.list
 	listReq := map[string]interface{}{
@@ -221,7 +221,7 @@ func TestGatewayChannelMethods(t *testing.T) {
 	if err := server.Start(ctx); err != nil {
 		t.Fatalf("Failed to start server: %v", err)
 	}
-	defer server.Stop()
+	defer func() { _ = server.Stop() }()
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -233,7 +233,7 @@ func TestGatewayChannelMethods(t *testing.T) {
 	defer conn.Close()
 
 	var welcome map[string]interface{}
-	conn.ReadJSON(&welcome)
+	_ = conn.ReadJSON(&welcome)
 
 	// Test channels.list
 	listReq := map[string]interface{}{
@@ -298,7 +298,7 @@ func TestGatewayAuthentication(t *testing.T) {
 	if err := server.Start(ctx); err != nil {
 		t.Fatalf("Failed to start server: %v", err)
 	}
-	defer server.Stop()
+	defer func() { _ = server.Stop() }()
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -350,7 +350,7 @@ func TestGatewayHeartbeat(t *testing.T) {
 	if err := server.Start(ctx); err != nil {
 		t.Fatalf("Failed to start server: %v", err)
 	}
-	defer server.Stop()
+	defer func() { _ = server.Stop() }()
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -375,7 +375,7 @@ func TestGatewayHeartbeat(t *testing.T) {
 				return
 			}
 			if messageType == websocket.PingMessage {
-				conn.WriteMessage(websocket.PongMessage, p)
+				_ = conn.WriteMessage(websocket.PongMessage, p)
 			}
 		}
 		done <- true
@@ -410,7 +410,7 @@ func TestGatewayBroadcastOutbound(t *testing.T) {
 	if err := server.Start(ctx); err != nil {
 		t.Fatalf("Failed to start server: %v", err)
 	}
-	defer server.Stop()
+	defer func() { _ = server.Stop() }()
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -423,11 +423,11 @@ func TestGatewayBroadcastOutbound(t *testing.T) {
 			t.Fatalf("Failed to create connection %d: %v", i, err)
 		}
 		defer conn.Close()
-		connections = append(connections, conn)
+		_ = append(connections, conn)
 
 		// Read welcome message
 		var welcome map[string]interface{}
-		conn.ReadJSON(&welcome)
+		_ = conn.ReadJSON(&welcome)
 	}
 
 	// Publish an outbound message
@@ -438,7 +438,7 @@ func TestGatewayBroadcastOutbound(t *testing.T) {
 		Timestamp: time.Now(),
 	}
 
-	messageBus.PublishOutbound(ctx, outboundMsg)
+	_ = messageBus.PublishOutbound(ctx, outboundMsg)
 
 	// Give broadcast time to propagate
 	time.Sleep(200 * time.Millisecond)

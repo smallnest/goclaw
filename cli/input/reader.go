@@ -19,9 +19,9 @@ func ReadLineWithHistory(prompt string, history []string) (string, error) {
 		InterruptPrompt: "^C",
 		EOFPrompt:       "exit",
 		// 确保输入输出正确配置
-		UniqueEditLine:  true,
+		UniqueEditLine: true,
 		// 禁用自动完成，避免干扰
-		AutoComplete:    nil,
+		AutoComplete: nil,
 	}
 
 	rl, err := readline.NewEx(cfg)
@@ -33,7 +33,7 @@ func ReadLineWithHistory(prompt string, history []string) (string, error) {
 	// 添加历史记录
 	for _, h := range history {
 		if h != "" {
-			rl.SaveHistory(h)
+			_ = rl.SaveHistory(h)
 		}
 	}
 

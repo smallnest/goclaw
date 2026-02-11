@@ -16,8 +16,8 @@ import (
 // TelegramChannel Telegram 通道
 type TelegramChannel struct {
 	*BaseChannelImpl
-	bot    *telegrambot.BotAPI
-	token  string
+	bot   *telegrambot.BotAPI
+	token string
 }
 
 // TelegramConfig Telegram 配置
@@ -127,13 +127,13 @@ func (c *TelegramChannel) handleUpdate(ctx context.Context, update *telegrambot.
 
 	// 构建入站消息
 	msg := &bus.InboundMessage{
-		Channel:   c.Name(),
-		SenderID:  senderID,
-		ChatID:    strconv.FormatInt(message.Chat.ID, 10),
-		Content:   content,
-		Media:     c.extractMedia(message),
+		Channel:  c.Name(),
+		SenderID: senderID,
+		ChatID:   strconv.FormatInt(message.Chat.ID, 10),
+		Content:  content,
+		Media:    c.extractMedia(message),
 		Metadata: map[string]interface{}{
-			"message_id":  message.MessageID,
+			"message_id": message.MessageID,
 			"from_user":  message.From.UserName,
 			"from_name":  message.From.FirstName,
 			"chat_type":  message.Chat.Type,
@@ -181,7 +181,7 @@ func (c *TelegramChannel) handleCommand(ctx context.Context, message *telegrambo
 func (c *TelegramChannel) extractMedia(message *telegrambot.Message) []bus.Media {
 	var media []bus.Media
 
-	if message.Photo != nil && len(message.Photo) > 0 {
+	if len(message.Photo) > 0 {
 		// 获取最大尺寸的照片
 		_ = message.Photo[len(message.Photo)-1]
 		media = append(media, bus.Media{

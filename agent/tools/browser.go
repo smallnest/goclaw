@@ -21,8 +21,8 @@ import (
 
 // BrowserTool Browser tool using Chrome DevTools Protocol
 type BrowserTool struct {
-	headless bool
-	timeout  time.Duration
+	headless  bool
+	timeout   time.Duration
 	outputDir string // 固定输出目录，截图将保存到这里
 }
 
@@ -41,7 +41,7 @@ func NewBrowserTool(headless bool, timeout int) *BrowserTool {
 
 	return &BrowserTool{
 		headless:  headless,
-		timeout: t,
+		timeout:   t,
 		outputDir: outputDir,
 	}
 }

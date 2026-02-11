@@ -12,12 +12,12 @@ import (
 
 // MessageBus 消息总线
 type MessageBus struct {
-	inbound      chan *InboundMessage
-	outbound     chan *OutboundMessage
-	outSubs      map[string]chan *OutboundMessage
-	outSubsMu    sync.RWMutex
-	mu           sync.RWMutex
-	closed       bool
+	inbound   chan *InboundMessage
+	outbound  chan *OutboundMessage
+	outSubs   map[string]chan *OutboundMessage
+	outSubsMu sync.RWMutex
+	mu        sync.RWMutex
+	closed    bool
 }
 
 // NewMessageBus 创建消息总线

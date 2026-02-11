@@ -9,19 +9,19 @@ import (
 
 // MemoryManager manages memory storage and retrieval
 type MemoryManager struct {
-	store         Store
-	provider      EmbeddingProvider
-	mu            sync.RWMutex
-	cache         map[string]*VectorEmbedding
-	cacheMaxSize  int
-	initialized   bool
+	store        Store
+	provider     EmbeddingProvider
+	mu           sync.RWMutex
+	cache        map[string]*VectorEmbedding
+	cacheMaxSize int
+	initialized  bool
 }
 
 // ManagerConfig configures the memory manager
 type ManagerConfig struct {
-	Store         Store
-	Provider      EmbeddingProvider
-	CacheMaxSize  int
+	Store        Store
+	Provider     EmbeddingProvider
+	CacheMaxSize int
 }
 
 // DefaultManagerConfig returns default manager configuration
@@ -322,11 +322,11 @@ func (m *MemoryManager) GetStats(ctx context.Context) (*MemoryStats, error) {
 	}
 
 	stats := &MemoryStats{
-		TotalCount:    len(all),
-		SourceCounts:  make(map[MemorySource]int),
-		TypeCounts:    make(map[MemoryType]int),
-		CacheSize:     len(m.cache),
-		CacheMaxSize:  m.cacheMaxSize,
+		TotalCount:   len(all),
+		SourceCounts: make(map[MemorySource]int),
+		TypeCounts:   make(map[MemoryType]int),
+		CacheSize:    len(m.cache),
+		CacheMaxSize: m.cacheMaxSize,
 	}
 
 	for _, ve := range all {
@@ -339,11 +339,11 @@ func (m *MemoryManager) GetStats(ctx context.Context) (*MemoryStats, error) {
 
 // MemoryStats contains statistics about the memory store
 type MemoryStats struct {
-	TotalCount   int                      `json:"total_count"`
-	SourceCounts map[MemorySource]int      `json:"source_counts"`
-	TypeCounts   map[MemoryType]int        `json:"type_counts"`
-	CacheSize    int                      `json:"cache_size"`
-	CacheMaxSize int                      `json:"cache_max_size"`
+	TotalCount   int                  `json:"total_count"`
+	SourceCounts map[MemorySource]int `json:"source_counts"`
+	TypeCounts   map[MemoryType]int   `json:"type_counts"`
+	CacheSize    int                  `json:"cache_size"`
+	CacheMaxSize int                  `json:"cache_max_size"`
 }
 
 // ClearCache clears the in-memory cache

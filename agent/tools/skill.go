@@ -7,10 +7,10 @@ import (
 
 // useSkillResult 表示使用技能的结果
 type useSkillResult struct {
-	Success    bool   `json:"success"`
-	SkillName  string `json:"skill_name"`
+	Success      bool   `json:"success"`
+	SkillName    string `json:"skill_name"`
 	SkillContent string `json:"skill_content,omitempty"`
-	Message    string `json:"message"`
+	Message      string `json:"message"`
 }
 
 // NewUseSkillTool 创建使用技能的工具

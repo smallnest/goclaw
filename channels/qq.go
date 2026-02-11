@@ -16,8 +16,8 @@ import (
 	"github.com/tencent-connect/botgo/log"
 	"github.com/tencent-connect/botgo/openapi"
 	"github.com/tencent-connect/botgo/token"
-	"golang.org/x/oauth2"
 	"go.uber.org/zap"
+	"golang.org/x/oauth2"
 )
 
 // QQChannel QQ 官方开放平台 Bot 通道
@@ -45,15 +45,15 @@ type QQChannel struct {
 // filteredLogger 静默 botgo SDK 的日志
 type filteredLogger struct{}
 
-func (f *filteredLogger) Debug(v ...interface{}) {}
-func (f *filteredLogger) Info(v ...interface{}) {}
-func (f *filteredLogger) Warn(v ...interface{}) {}
-func (f *filteredLogger) Error(v ...interface{}) {}
+func (f *filteredLogger) Debug(v ...interface{})                 {}
+func (f *filteredLogger) Info(v ...interface{})                  {}
+func (f *filteredLogger) Warn(v ...interface{})                  {}
+func (f *filteredLogger) Error(v ...interface{})                 {}
 func (f *filteredLogger) Debugf(format string, v ...interface{}) {}
-func (f *filteredLogger) Infof(format string, v ...interface{}) {}
-func (f *filteredLogger) Warnf(format string, v ...interface{}) {}
+func (f *filteredLogger) Infof(format string, v ...interface{})  {}
+func (f *filteredLogger) Warnf(format string, v ...interface{})  {}
 func (f *filteredLogger) Errorf(format string, v ...interface{}) {}
-func (f *filteredLogger) Sync() error { return nil }
+func (f *filteredLogger) Sync() error                            { return nil }
 
 // WSPayload WebSocket 消息负载
 type WSPayload struct {
@@ -315,9 +315,9 @@ func (c *QQChannel) sendResume() error {
 	payload := map[string]interface{}{
 		"op": 6,
 		"d": map[string]interface{}{
-			"token":     fmt.Sprintf("QQBot %s", c.accessToken),
+			"token":      fmt.Sprintf("QQBot %s", c.accessToken),
 			"session_id": c.sessionID,
-			"seq":       c.lastSeq,
+			"seq":        c.lastSeq,
 		},
 	}
 
@@ -496,7 +496,7 @@ func (c *QQChannel) handleC2CMessage(data json.RawMessage) {
 	}
 
 	logger.Info("QQ C2C message", zap.String("sender", senderID), zap.String("content", event.Content))
-	c.PublishInbound(context.Background(), msg)
+	_ = c.PublishInbound(context.Background(), msg)
 }
 
 // handleGroupATMessage 处理群 @消息
@@ -520,15 +520,15 @@ func (c *QQChannel) handleGroupATMessage(data json.RawMessage) {
 		Channel:   c.Name(),
 		Timestamp: time.Now(),
 		Metadata: map[string]interface{}{
-			"chat_type":   "group",
-			"group_id":    event.GroupOpenID,
+			"chat_type":     "group",
+			"group_id":      event.GroupOpenID,
 			"member_openid": senderID,
-			"msg_id":      event.ID,
+			"msg_id":        event.ID,
 		},
 	}
 
 	logger.Info("QQ Group @message", zap.String("group", event.GroupOpenID), zap.String("sender", senderID), zap.String("content", event.Content))
-	c.PublishInbound(context.Background(), msg)
+	_ = c.PublishInbound(context.Background(), msg)
 }
 
 // handleChannelATMessage 处理频道 @消息
@@ -552,15 +552,15 @@ func (c *QQChannel) handleChannelATMessage(data json.RawMessage) {
 		Channel:   c.Name(),
 		Timestamp: time.Now(),
 		Metadata: map[string]interface{}{
-			"chat_type":   "channel",
-			"channel_id":  event.ChannelID,
-			"group_id":    event.GuildID,
-			"msg_id":      event.ID,
+			"chat_type":  "channel",
+			"channel_id": event.ChannelID,
+			"group_id":   event.GuildID,
+			"msg_id":     event.ID,
 		},
 	}
 
 	logger.Info("QQ Channel @message", zap.String("channel", event.ChannelID), zap.String("sender", senderID), zap.String("content", event.Content))
-	c.PublishInbound(context.Background(), msg)
+	_ = c.PublishInbound(context.Background(), msg)
 }
 
 // Send 发送消息

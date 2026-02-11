@@ -36,6 +36,8 @@ func NewAnthropicProvider(apiKey, baseURL, model string, maxTokens int) (*Anthro
 		// but we should check if it's available or use a custom client if needed.
 		// For now, we'll try to use it if it exists.
 		// Actually, let's check langchaingo's anthropic option.
+		_ = baseURL // TODO: implement custom base URL support
+		// nolint:staticcheck,emptybranch
 	}
 
 	llm, err := anthropic.New(opts...)

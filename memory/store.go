@@ -39,10 +39,10 @@ type StoreConfig struct {
 // DefaultStoreConfig returns default store configuration
 func DefaultStoreConfig(dbPath string, provider EmbeddingProvider) StoreConfig {
 	return StoreConfig{
-		DBPath:             dbPath,
-		Provider:           provider,
-		EnableVectorSearch: true,
-		EnableFTS:          true,
+		DBPath:              dbPath,
+		Provider:            provider,
+		EnableVectorSearch:  true,
+		EnableFTS:           true,
 		VectorExtensionPath: "",
 	}
 }
@@ -275,7 +275,7 @@ func (s *SQLiteStore) Add(embedding *VectorEmbedding) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Serialize tags
 	var tagsJSON string
@@ -344,7 +344,7 @@ func (s *SQLiteStore) AddBatch(embeddings []*VectorEmbedding) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	stmt, err := tx.Prepare(`
 		INSERT INTO memories (
@@ -559,7 +559,7 @@ func (s *SQLiteStore) searchVector(query []float32, opts SearchOptions) ([]*Sear
 		}
 
 		if tagsJSON.Valid {
-			json.Unmarshal([]byte(tagsJSON.String), &sr.Metadata.Tags)
+			_ = json.Unmarshal([]byte(tagsJSON.String), &sr.Metadata.Tags)
 		}
 
 		// Convert distance to similarity score (lower distance = higher score)
@@ -675,7 +675,7 @@ func (s *SQLiteStore) Get(id string) (*VectorEmbedding, error) {
 
 	// Unmarshal embedding
 	if embeddingJSON.Valid {
-		json.Unmarshal([]byte(embeddingJSON.String), &ve.Vector)
+		_ = json.Unmarshal([]byte(embeddingJSON.String), &ve.Vector)
 		ve.Dimension = len(ve.Vector)
 	}
 
@@ -688,7 +688,7 @@ func (s *SQLiteStore) Get(id string) (*VectorEmbedding, error) {
 
 	// Unmarshal tags
 	if tagsJSON.Valid {
-		json.Unmarshal([]byte(tagsJSON.String), &ve.Metadata.Tags)
+		_ = json.Unmarshal([]byte(tagsJSON.String), &ve.Metadata.Tags)
 	}
 
 	// Handle last accessed
@@ -711,7 +711,7 @@ func (s *SQLiteStore) Delete(id string) error {
 	if err != nil {
 		return fmt.Errorf("failed to begin transaction: %w", err)
 	}
-	defer tx.Rollback()
+	defer func() { _ = tx.Rollback() }()
 
 	// Delete from memories table
 	if _, err := tx.Exec(`DELETE FROM memories WHERE id = ?`, id); err != nil {
@@ -839,7 +839,7 @@ func (s *SQLiteStore) List(filter func(*VectorEmbedding) bool) ([]*VectorEmbeddi
 		}
 
 		if embeddingJSON.Valid {
-			json.Unmarshal([]byte(embeddingJSON.String), &ve.Vector)
+			_ = json.Unmarshal([]byte(embeddingJSON.String), &ve.Vector)
 			ve.Dimension = len(ve.Vector)
 		}
 
@@ -851,7 +851,7 @@ func (s *SQLiteStore) List(filter func(*VectorEmbedding) bool) ([]*VectorEmbeddi
 		ve.Metadata.AccessCount = int(accessCount.Int64)
 
 		if tagsJSON.Valid {
-			json.Unmarshal([]byte(tagsJSON.String), &ve.Metadata.Tags)
+			_ = json.Unmarshal([]byte(tagsJSON.String), &ve.Metadata.Tags)
 		}
 
 		if lastAccessed.Valid {

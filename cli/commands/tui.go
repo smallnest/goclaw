@@ -70,7 +70,7 @@ func runTUI(cmd *cobra.Command, args []string) {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
-	defer logger.Sync()
+	defer logger.Sync() // nolint:errcheck
 
 	fmt.Println("🐾 goclaw Terminal UI")
 	fmt.Println()
@@ -221,6 +221,7 @@ func runTUI(cmd *cobra.Command, args []string) {
 	fmt.Println()
 
 	// Import the chat command registry for slash commands
+	// nolint:typecheck
 	cmdRegistry := NewCommandRegistry()
 
 	// Simple input loop
@@ -229,7 +230,7 @@ func runTUI(cmd *cobra.Command, args []string) {
 		fmt.Print("➤ ")
 
 		var input string
-		fmt.Scanln(&input)
+		fmt.Scanln(&input) // nolint:errcheck
 
 		if input == "" {
 			continue

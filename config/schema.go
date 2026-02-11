@@ -39,7 +39,7 @@ type ChannelsConfig struct {
 // TelegramChannelConfig Telegram 通道配置
 type TelegramChannelConfig struct {
 	Enabled    bool     `mapstructure:"enabled" json:"enabled"`
-	Token       string   `mapstructure:"token" json:"token"`
+	Token      string   `mapstructure:"token" json:"token"`
 	AllowedIDs []string `mapstructure:"allowed_ids" json:"allowed_ids"`
 }
 
@@ -65,8 +65,8 @@ type FeishuChannelConfig struct {
 type QQChannelConfig struct {
 	Enabled    bool     `mapstructure:"enabled" json:"enabled"`
 	AppID      string   `mapstructure:"app_id" json:"app_id"`           // QQ 机器人 AppID
-	AppSecret  string   `mapstructure:"app_secret" json:"app_secret"`       // AppSecret (ClientSecret)
-	AllowedIDs []string `mapstructure:"allowed_ids" json:"allowed_ids"`    // 允许的用户/群ID列表
+	AppSecret  string   `mapstructure:"app_secret" json:"app_secret"`   // AppSecret (ClientSecret)
+	AllowedIDs []string `mapstructure:"allowed_ids" json:"allowed_ids"` // 允许的用户/群ID列表
 }
 
 // WeWorkChannelConfig 企业微信通道配置
@@ -101,9 +101,9 @@ type ProviderProfileConfig struct {
 
 // FailoverConfig 故障转移配置
 type FailoverConfig struct {
-	Enabled         bool          `mapstructure:"enabled" json:"enabled"`
-	Strategy        string        `mapstructure:"strategy" json:"strategy"` // round_robin, least_used, random
-	DefaultCooldown time.Duration `mapstructure:"default_cooldown" json:"default_cooldown"`
+	Enabled         bool                 `mapstructure:"enabled" json:"enabled"`
+	Strategy        string               `mapstructure:"strategy" json:"strategy"` // round_robin, least_used, random
+	DefaultCooldown time.Duration        `mapstructure:"default_cooldown" json:"default_cooldown"`
 	CircuitBreaker  CircuitBreakerConfig `mapstructure:"circuit_breaker" json:"circuit_breaker"`
 }
 
@@ -115,10 +115,10 @@ type CircuitBreakerConfig struct {
 
 // OpenRouterProviderConfig OpenRouter 配置
 type OpenRouterProviderConfig struct {
-	APIKey     string  `mapstructure:"api_key" json:"api_key"`
-	BaseURL    string  `mapstructure:"base_url" json:"base_url"`
-	Timeout    int     `mapstructure:"timeout" json:"timeout"`
-	MaxRetries int     `mapstructure:"max_retries" json:"max_retries"`
+	APIKey     string `mapstructure:"api_key" json:"api_key"`
+	BaseURL    string `mapstructure:"base_url" json:"base_url"`
+	Timeout    int    `mapstructure:"timeout" json:"timeout"`
+	MaxRetries int    `mapstructure:"max_retries" json:"max_retries"`
 }
 
 // OpenAIProviderConfig OpenAI 配置
@@ -137,11 +137,11 @@ type AnthropicProviderConfig struct {
 
 // GatewayConfig 网关配置
 type GatewayConfig struct {
-	Host         string            `mapstructure:"host" json:"host"`
-	Port         int               `mapstructure:"port" json:"port"`
-	ReadTimeout  time.Duration     `mapstructure:"read_timeout" json:"read_timeout"`
-	WriteTimeout time.Duration     `mapstructure:"write_timeout" json:"write_timeout"`
-	WebSocket    WebSocketConfig   `mapstructure:"websocket" json:"websocket"`
+	Host         string          `mapstructure:"host" json:"host"`
+	Port         int             `mapstructure:"port" json:"port"`
+	ReadTimeout  time.Duration   `mapstructure:"read_timeout" json:"read_timeout"`
+	WriteTimeout time.Duration   `mapstructure:"write_timeout" json:"write_timeout"`
+	WebSocket    WebSocketConfig `mapstructure:"websocket" json:"websocket"`
 }
 
 // WebSocketConfig WebSocket 配置
@@ -173,12 +173,12 @@ type FileSystemToolConfig struct {
 
 // ShellToolConfig Shell 工具配置
 type ShellToolConfig struct {
-	Enabled       bool           `mapstructure:"enabled" json:"enabled"`
-	AllowedCmds   []string       `mapstructure:"allowed_cmds" json:"allowed_cmds"`
-	DeniedCmds    []string       `mapstructure:"denied_cmds" json:"denied_cmds"`
-	Timeout       int            `mapstructure:"timeout" json:"timeout"`
-	WorkingDir    string         `mapstructure:"working_dir" json:"working_dir"`
-	Sandbox       SandboxConfig  `mapstructure:"sandbox" json:"sandbox"`
+	Enabled     bool          `mapstructure:"enabled" json:"enabled"`
+	AllowedCmds []string      `mapstructure:"allowed_cmds" json:"allowed_cmds"`
+	DeniedCmds  []string      `mapstructure:"denied_cmds" json:"denied_cmds"`
+	Timeout     int           `mapstructure:"timeout" json:"timeout"`
+	WorkingDir  string        `mapstructure:"working_dir" json:"working_dir"`
+	Sandbox     SandboxConfig `mapstructure:"sandbox" json:"sandbox"`
 }
 
 // SandboxConfig Docker 沙箱配置

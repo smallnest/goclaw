@@ -49,7 +49,7 @@ func init() {
 	agentCmd.Flags().BoolVar(&agentJSON, "json", false, "Output in JSON format")
 	agentCmd.Flags().IntVar(&agentTimeout, "timeout", 120, "Timeout in seconds")
 
-	agentCmd.MarkFlagRequired("message")
+	_ = agentCmd.MarkFlagRequired("message")
 }
 
 // runAgent executes a single agent turn
@@ -66,7 +66,7 @@ func runAgent(cmd *cobra.Command, args []string) {
 			fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 			os.Exit(1)
 		}
-		defer logger.Sync()
+		defer func() { _ = logger.Sync() }()
 	}
 
 	// Load configuration

@@ -14,9 +14,9 @@ type SubagentManager interface {
 
 // SpawnTool 子代理工具
 type SpawnTool struct {
-	subagentMgr  SubagentManager
-	currentChan  string
-	currentChat  string
+	subagentMgr SubagentManager
+	currentChan string
+	currentChat string
 }
 
 // NewSpawnTool 创建子代理工具

@@ -35,7 +35,7 @@ type ArgSpec struct {
 type CommandRegistry struct {
 	commands map[string]*Command
 	homeDir  string
-	menuMode  bool // 是否在菜单选择模式
+	menuMode bool // 是否在菜单选择模式
 }
 
 // NewCommandRegistry 创建命令注册表
@@ -122,8 +122,8 @@ func (r *CommandRegistry) registerBuiltInCommands() {
 
 	// /read - 读取文件
 	r.Register(&Command{
-		Name:  "read",
-		Usage: "/read <file>",
+		Name:        "read",
+		Usage:       "/read <file>",
 		Description: "Read and display file contents",
 		ArgsSpec: []ArgSpec{
 			{Name: "file", Description: "File path to read", Type: "file"},
@@ -142,8 +142,8 @@ func (r *CommandRegistry) registerBuiltInCommands() {
 
 	// /cd - 切换目录
 	r.Register(&Command{
-		Name:  "cd",
-		Usage: "/cd [directory]",
+		Name:        "cd",
+		Usage:       "/cd [directory]",
 		Description: "Change current working directory (no args = home)",
 		ArgsSpec: []ArgSpec{
 			{Name: "directory", Description: "Directory to change to", Type: "directory"},
@@ -174,8 +174,8 @@ func (r *CommandRegistry) registerBuiltInCommands() {
 
 	// /ls - 列出文件
 	r.Register(&Command{
-		Name:  "ls",
-		Usage: "/ls [directory]",
+		Name:        "ls",
+		Usage:       "/ls [directory]",
 		Description: "List directory contents",
 		ArgsSpec: []ArgSpec{
 			{Name: "directory", Description: "Directory to list (default: current)", Type: "directory"},
@@ -472,10 +472,10 @@ func (r *CommandRegistry) SelectCommand() string {
 
 	// 创建选择器
 	prompt := promptui.Select{
-		Label:     "Select a command",
-		Items:     items,
-		Size:      10, // 显示10个选项
-		HideHelp:  true,
+		Label:        "Select a command",
+		Items:        items,
+		Size:         10, // 显示10个选项
+		HideHelp:     true,
 		HideSelected: true,
 	}
 
