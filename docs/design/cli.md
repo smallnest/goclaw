@@ -138,7 +138,7 @@ goclaw gateway run
 goclaw gateway run --port 8080
 
 # 绑定地址
-goclaw gateway run --bind 0.0.0.0 --port 18789
+goclaw gateway run --bind 0.0.0.0 --port 28789
 
 # 使用 Tailscale
 goclaw gateway run --tailscale
@@ -605,7 +605,7 @@ export ANTHROPIC_API_KEY="your-key"
 export OPENAI_API_KEY="your-key"
 
 # 设置 Gateway URL
-export GOCRAW_GATEWAY_URL="ws://localhost:18789"
+export GOCRAW_GATEWAY_URL="ws://localhost:28789"
 export GOCRAW_GATEWAY_TOKEN="your-token"
 ```
 

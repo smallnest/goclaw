@@ -480,7 +480,7 @@ func (r *CommandRegistry) handleStatus(args []string) string {
 func (r *CommandRegistry) checkGatewayStatus(timeout int) GatewayStatus {
 	result := GatewayStatus{Online: false}
 
-	ports := []int{18789, 18790, 18890}
+	ports := []int{28789, 28790, 28791}
 	client := &http.Client{
 		Timeout: time.Duration(timeout) * time.Second,
 	}

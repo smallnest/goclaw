@@ -245,7 +245,7 @@ func callGatewayRPC(cfg *config.Config, method string, params map[string]interfa
 	}
 	port := cfg.Gateway.Port
 	if port == 0 {
-		port = 18789
+		port = 28789
 	}
 
 	url := fmt.Sprintf("http://%s:%d/rpc", host, port)

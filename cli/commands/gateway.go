@@ -54,7 +54,7 @@ func GatewayCommand() *cobra.Command {
 		Short: "Run WebSocket Gateway",
 		Run:   runGateway,
 	}
-	runCmd.Flags().IntVarP(&gatewayPort, "port", "p", 18789, "Gateway port")
+	runCmd.Flags().IntVarP(&gatewayPort, "port", "p", 28789, "Gateway port")
 	runCmd.Flags().StringVarP(&gatewayBind, "bind", "b", "0.0.0.0", "Bind address")
 	runCmd.Flags().StringVarP(&gatewayToken, "token", "t", "", "Authentication token")
 	runCmd.Flags().BoolVar(&gatewayAuth, "auth", false, "Enable authentication")
@@ -92,7 +92,7 @@ func GatewayCommand() *cobra.Command {
 		Short: "Install gateway as service",
 		Run:   runGatewayInstall,
 	}
-	installCmd.Flags().IntVarP(&gatewayPort, "port", "p", 18789, "Gateway port")
+	installCmd.Flags().IntVarP(&gatewayPort, "port", "p", 28789, "Gateway port")
 
 	// Gateway uninstall command
 	uninstallCmd := &cobra.Command{
@@ -184,27 +184,31 @@ func runGateway(cmd *cobra.Command, args []string) {
 	}
 
 	// Create gateway server
+	// NewServer reads from cfg.Gateway.WebSocket, so we only override if CLI flags are explicitly provided
 	gatewayServer := gateway.NewServer(&cfg.Gateway, messageBus, channelMgr, sessionMgr)
 
-	// Configure WebSocket settings
-	wsConfig := &gateway.WebSocketConfig{
-		Host:           gatewayBind,
-		Port:           gatewayPort,
-		Path:           "/ws",
-		EnableAuth:     gatewayAuth || gatewayToken != "" || gatewayPassword != "",
-		AuthToken:      gatewayToken,
-		PingInterval:   30 * time.Second,
-		PongTimeout:    60 * time.Second,
-		ReadTimeout:    60 * time.Second,
-		WriteTimeout:   10 * time.Second,
-		MaxMessageSize: 10 * 1024 * 1024,
-	}
+	// Only override WebSocket config if CLI flags are explicitly provided
+	// If no CLI flags are set, use config file settings (already loaded by NewServer)
+	if gatewayPort != 0 || gatewayBind != "" || gatewayAuth || gatewayToken != "" || gatewayPassword != "" {
+		wsConfig := &gateway.WebSocketConfig{
+			Host:           gatewayBind,
+			Port:           gatewayPort,
+			Path:           "/ws",
+			EnableAuth:     gatewayAuth || gatewayToken != "" || gatewayPassword != "",
+			AuthToken:      gatewayToken,
+			PingInterval:   30 * time.Second,
+			PongTimeout:    60 * time.Second,
+			ReadTimeout:    60 * time.Second,
+			WriteTimeout:   10 * time.Second,
+			MaxMessageSize: 10 * 1024 * 1024,
+		}
 
-	if gatewayPassword != "" {
-		wsConfig.AuthToken = gatewayPassword
-	}
+		if gatewayPassword != "" {
+			wsConfig.AuthToken = gatewayPassword
+		}
 
-	gatewayServer.SetWebSocketConfig(wsConfig)
+		gatewayServer.SetWebSocketConfig(wsConfig)
+	}
 
 	// Create context for graceful shutdown
 	ctx, cancel := context.WithCancel(context.Background())
@@ -224,9 +228,25 @@ func runGateway(cmd *cobra.Command, args []string) {
 		logger.Fatal("Failed to start gateway", zap.Error(err))
 	}
 
-	fmt.Printf("Gateway listening on %s:%d\n", gatewayBind, gatewayPort)
-	fmt.Printf("WebSocket: ws://%s:%d/ws\n", gatewayBind, gatewayPort)
-	fmt.Printf("Health: http://%s:%d/health\n", gatewayBind, gatewayPort)
+	// Determine actual host and port to display
+	displayHost := gatewayBind
+	displayPort := gatewayPort
+	if displayHost == "" {
+		displayHost = cfg.Gateway.WebSocket.Host
+		if displayHost == "" {
+			displayHost = "0.0.0.0"
+		}
+	}
+	if displayPort == 0 {
+		displayPort = cfg.Gateway.WebSocket.Port
+		if displayPort == 0 {
+			displayPort = 28789
+		}
+	}
+
+	fmt.Printf("Gateway listening on %s:%d\n", displayHost, displayPort)
+	fmt.Printf("WebSocket: ws://%s:%d/ws\n", displayHost, displayPort)
+	fmt.Printf("Health: http://%s:%d/health\n", displayHost, displayPort)
 
 	if gatewayAuth || gatewayToken != "" || gatewayPassword != "" {
 		fmt.Println("Authentication: enabled")
@@ -251,7 +271,7 @@ func runGatewayStatus(cmd *cobra.Command, args []string) {
 	// Try to connect to local gateway
 	url := fmt.Sprintf("http://localhost:%d/health", gatewayPort)
 	if gatewayPort == 0 {
-		url = "http://localhost:18789/health"
+		url = "http://localhost:28789/health"
 	}
 
 	client := &http.Client{Timeout: 5 * time.Second}
@@ -283,7 +303,7 @@ func runGatewayStatus(cmd *cobra.Command, args []string) {
 func runGatewayHealth(cmd *cobra.Command, args []string) {
 	url := fmt.Sprintf("http://localhost:%d/health", gatewayPort)
 	if gatewayPort == 0 {
-		url = "http://localhost:18789/health"
+		url = "http://localhost:28789/health"
 	}
 
 	client := &http.Client{Timeout: 5 * time.Second}
@@ -306,7 +326,7 @@ func runGatewayHealth(cmd *cobra.Command, args []string) {
 
 // runGatewayProbe probes gateway connectivity
 func runGatewayProbe(cmd *cobra.Command, args []string) {
-	ports := []int{18789, 18790, 18791}
+	ports := []int{28789, 28790, 28791}
 	if gatewayPort != 0 {
 		ports = []int{gatewayPort}
 	}
@@ -1026,7 +1046,7 @@ func restartWindowsService() {
 func checkGatewayRunning() bool {
 	url := fmt.Sprintf("http://localhost:%d/health", gatewayPort)
 	if gatewayPort == 0 {
-		url = "http://localhost:18789/health"
+		url = "http://localhost:28789/health"
 	}
 
 	client := &http.Client{Timeout: 2 * time.Second}

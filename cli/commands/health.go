@@ -36,7 +36,7 @@ func HealthCommand() *cobra.Command {
 // runHealth checks the health of the gateway
 func runHealth(cmd *cobra.Command, args []string) {
 	// Try default ports
-	ports := []int{18789, 18790, 18890}
+	ports := []int{28789, 28790, 28791}
 	if len(args) > 0 {
 		// Use provided port
 		var port int

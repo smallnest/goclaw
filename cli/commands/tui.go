@@ -44,7 +44,7 @@ func TUICommand() *cobra.Command {
 		Run:   runTUI,
 	}
 
-	cmd.Flags().StringVar(&tuiURL, "url", "", "Gateway URL (default: ws://localhost:18789)")
+	cmd.Flags().StringVar(&tuiURL, "url", "", "Gateway URL (default: ws://localhost:28789)")
 	cmd.Flags().StringVar(&tuiToken, "token", "", "Authentication token")
 	cmd.Flags().StringVar(&tuiPassword, "password", "", "Password for authentication")
 	cmd.Flags().StringVar(&tuiSession, "session", "", "Session ID to resume")

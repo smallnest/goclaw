@@ -5,8 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 
+	"github.com/smallnest/goclaw/internal/logger"
 	"github.com/tmc/langchaingo/llms"
 	"github.com/tmc/langchaingo/llms/openai"
+	"go.uber.org/zap"
 )
 
 // OpenRouterProvider OpenRouter 提供商
@@ -70,11 +72,46 @@ func (p *OpenRouterProvider) Chat(ctx context.Context, messages []Message, tools
 			role = llms.ChatMessageTypeAI
 		case "system":
 			role = llms.ChatMessageTypeSystem
+		case "tool":
+			role = llms.ChatMessageTypeTool
 		default:
 			role = llms.ChatMessageTypeHuman
 		}
 
-		langchainMessages[i] = llms.TextParts(role, msg.Content)
+		// Handle tool result messages
+		if msg.Role == "tool" {
+			langchainMessages[i] = llms.MessageContent{
+				Role: role,
+				Parts: []llms.ContentPart{
+					llms.ToolCallResponse{
+						ToolCallID: msg.ToolCallID,
+						Content:    msg.Content,
+					},
+				},
+			}
+		} else if msg.Role == "assistant" && len(msg.ToolCalls) > 0 {
+			// Handle assistant messages with tool calls
+			parts := []llms.ContentPart{
+				llms.TextPart(msg.Content),
+			}
+			for _, tc := range msg.ToolCalls {
+				args, _ := json.Marshal(tc.Params)
+				parts = append(parts, llms.ToolCall{
+					ID:   tc.ID,
+					Type: "function",
+					FunctionCall: &llms.FunctionCall{
+						Name:      tc.Name,
+						Arguments: string(args),
+					},
+				})
+			}
+			langchainMessages[i] = llms.MessageContent{
+				Role:  role,
+				Parts: parts,
+			}
+		} else {
+			langchainMessages[i] = llms.TextParts(role, msg.Content)
+		}
 	}
 
 	// 调用 LLM
@@ -110,10 +147,17 @@ func (p *OpenRouterProvider) Chat(ctx context.Context, messages []Message, tools
 	// 解析工具调用
 	var toolCalls []ToolCall
 	if len(completion.Choices) > 0 {
+		if len(completion.Choices[0].ToolCalls) > 0 {
+			logger.Debug("Found tool calls from LLM",
+				zap.Int("count", len(completion.Choices[0].ToolCalls)))
+		}
 		for _, tc := range completion.Choices[0].ToolCalls {
 			var params map[string]interface{}
 			if err := json.Unmarshal([]byte(tc.FunctionCall.Arguments), &params); err != nil {
-				fmt.Printf("failed to unmarshal tool arguments: %v\n", err)
+				logger.Error("Failed to unmarshal tool arguments",
+					zap.String("tool", tc.FunctionCall.Name),
+					zap.String("id", tc.ID),
+					zap.Error(err))
 				continue
 			}
 			toolCalls = append(toolCalls, ToolCall{

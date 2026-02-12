@@ -312,10 +312,10 @@ func (m *Manager) SetupFromConfig(cfg *config.Config) error {
 			for accountID, accountCfg := range cfg.Channels.Feishu.Accounts {
 				if accountCfg.Enabled && accountCfg.AppID != "" {
 					fsCfg := config.FeishuChannelConfig{
-						Enabled:           accountCfg.Enabled,
-						AppID:             accountCfg.AppID,
-						AppSecret:         accountCfg.AppSecret,
-						AllowedIDs:        accountCfg.AllowedIDs,
+						Enabled:    accountCfg.Enabled,
+						AppID:      accountCfg.AppID,
+						AppSecret:  accountCfg.AppSecret,
+						AllowedIDs: accountCfg.AllowedIDs,
 					}
 					channel, err := NewFeishuChannel(fsCfg, m.bus)
 					if err != nil {
@@ -397,11 +397,11 @@ func (m *Manager) SetupFromConfig(cfg *config.Config) error {
 			for accountID, accountCfg := range cfg.Channels.WeWork.Accounts {
 				if accountCfg.Enabled && accountCfg.CorpID != "" {
 					wwCfg := config.WeWorkChannelConfig{
-						Enabled:        accountCfg.Enabled,
-						CorpID:         accountCfg.CorpID,
-						AgentID:        accountCfg.AgentID,
-						Secret:         accountCfg.AppSecret,
-						AllowedIDs:     accountCfg.AllowedIDs,
+						Enabled:    accountCfg.Enabled,
+						CorpID:     accountCfg.CorpID,
+						AgentID:    accountCfg.AgentID,
+						Secret:     accountCfg.AppSecret,
+						AllowedIDs: accountCfg.AllowedIDs,
 					}
 					channel, err := NewWeWorkChannel(wwCfg, m.bus)
 					if err != nil {
@@ -438,10 +438,10 @@ func (m *Manager) SetupFromConfig(cfg *config.Config) error {
 			for accountID, accountCfg := range cfg.Channels.DingTalk.Accounts {
 				if accountCfg.Enabled && accountCfg.ClientID != "" {
 					dtCfg := config.DingTalkChannelConfig{
-						Enabled:       accountCfg.Enabled,
-						ClientID:      accountCfg.ClientID,
-						ClientSecret:  accountCfg.ClientSecret,
-						AllowedIDs:    accountCfg.AllowedIDs,
+						Enabled:      accountCfg.Enabled,
+						ClientID:     accountCfg.ClientID,
+						ClientSecret: accountCfg.ClientSecret,
+						AllowedIDs:   accountCfg.AllowedIDs,
 					}
 					channel, err := NewDingTalkChannel(dtCfg, m.bus)
 					if err != nil {
@@ -466,6 +466,64 @@ func (m *Manager) SetupFromConfig(cfg *config.Config) error {
 			} else {
 				if err := m.Register(channel); err != nil {
 					logger.Error("Failed to register DingTalk channel", zap.Error(err))
+				}
+			}
+		}
+	}
+
+	// 如流通道
+	if cfg.Channels.Infoflow.Enabled {
+		if len(cfg.Channels.Infoflow.Accounts) > 0 {
+			// 多账号配置
+			for accountID, accountCfg := range cfg.Channels.Infoflow.Accounts {
+				if accountCfg.Enabled && accountCfg.WebhookURL != "" {
+					ifCfg := InfoflowConfig{
+						BaseChannelConfig: BaseChannelConfig{
+							Enabled:    accountCfg.Enabled,
+							AccountID:  accountID,
+							Name:       accountCfg.Name,
+							AllowedIDs: accountCfg.AllowedIDs,
+						},
+						WebhookURL:  accountCfg.WebhookURL,
+						Token:       accountCfg.Token,
+						AESKey:      accountCfg.AESKey,
+						WebhookPort: accountCfg.WebhookPort,
+					}
+
+					channel, err := NewInfoflowChannel(accountID, ifCfg, m.bus)
+					if err != nil {
+						logger.Error("Failed to create Infoflow channel",
+							zap.String("account_id", accountID),
+							zap.Error(err))
+					} else {
+						channelName := buildChannelName("infoflow", accountID)
+						if err := m.RegisterWithName(channel, channelName); err != nil {
+							logger.Error("Failed to register Infoflow channel",
+								zap.String("account_id", accountID),
+								zap.Error(err))
+						}
+					}
+				}
+			}
+		} else if cfg.Channels.Infoflow.WebhookURL != "" {
+			// 单账号配置（向后兼容）
+			ifCfg := InfoflowConfig{
+				BaseChannelConfig: BaseChannelConfig{
+					Enabled:    cfg.Channels.Infoflow.Enabled,
+					AccountID:  "default",
+					AllowedIDs: cfg.Channels.Infoflow.AllowedIDs,
+				},
+				WebhookURL:  cfg.Channels.Infoflow.WebhookURL,
+				Token:       cfg.Channels.Infoflow.Token,
+				AESKey:      cfg.Channels.Infoflow.AESKey,
+				WebhookPort: cfg.Channels.Infoflow.WebhookPort,
+			}
+			channel, err := NewInfoflowChannel("default", ifCfg, m.bus)
+			if err != nil {
+				logger.Error("Failed to create Infoflow channel", zap.Error(err))
+			} else {
+				if err := m.Register(channel); err != nil {
+					logger.Error("Failed to register Infoflow channel", zap.Error(err))
 				}
 			}
 		}

@@ -121,6 +121,7 @@ func getAllKnownChannels() []ChannelInfo {
 		{Name: "discord", Enabled: false},
 		{Name: "teams", Enabled: false},
 		{Name: "googlechat", Enabled: false},
+		{Name: "infoflow", Enabled: false},
 	}
 }
 
@@ -131,7 +132,7 @@ func getChannelsFromGateway(timeout int) []ChannelInfo {
 	}
 
 	// Try different WebSocket gateway ports
-	ports := []int{18789, 18790, 18890}
+	ports := []int{28789, 28790, 28791}
 	var channels []ChannelInfo
 
 	for _, port := range ports {
@@ -177,7 +178,7 @@ func getChannelStatusFromGateway(channelName string, timeout int) map[string]int
 	}
 
 	// Try different WebSocket gateway ports
-	ports := []int{18789, 18790, 18890}
+	ports := []int{28789, 28790, 28791}
 
 	for _, port := range ports {
 		// If channel name is specified, get specific channel status
@@ -373,7 +374,7 @@ func checkGatewayOnline(timeout int) bool {
 		Timeout: time.Duration(timeout) * time.Second,
 	}
 
-	ports := []int{18789, 18790, 18890}
+	ports := []int{28789, 28790, 28791}
 
 	for _, port := range ports {
 		url := fmt.Sprintf("http://localhost:%d/health", port)

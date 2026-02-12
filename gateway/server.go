@@ -67,17 +67,48 @@ type WebSocketConfig struct {
 
 // NewServer 创建网关服务器
 func NewServer(cfg *config.GatewayConfig, messageBus *bus.MessageBus, channelMgr *channels.Manager, sessionMgr *session.Manager) *Server {
+	// 从配置文件获取 WebSocket 设置，如果未配置则使用默认值
+	wsPort := cfg.WebSocket.Port
+	if wsPort == 0 {
+		wsPort = 28789 // 默认端口
+	}
+	wsHost := cfg.WebSocket.Host
+	if wsHost == "" {
+		wsHost = "0.0.0.0" // 默认监听地址
+	}
+	wsPath := cfg.WebSocket.Path
+	if wsPath == "" {
+		wsPath = "/ws" // 默认路径
+	}
+	pingInterval := cfg.WebSocket.PingInterval
+	if pingInterval == 0 {
+		pingInterval = 30 * time.Second
+	}
+	pongTimeout := cfg.WebSocket.PongTimeout
+	if pongTimeout == 0 {
+		pongTimeout = 60 * time.Second
+	}
+	readTimeout := cfg.WebSocket.ReadTimeout
+	if readTimeout == 0 {
+		readTimeout = 60 * time.Second
+	}
+	writeTimeout := cfg.WebSocket.WriteTimeout
+	if writeTimeout == 0 {
+		writeTimeout = 10 * time.Second
+	}
+
 	return &Server{
 		config: cfg,
 		wsConfig: &WebSocketConfig{
-			Host:           "0.0.0.0",
-			Port:           18789,
-			Path:           "/ws",
-			EnableAuth:     false,
-			PingInterval:   30 * time.Second,
-			PongTimeout:    60 * time.Second,
-			ReadTimeout:    60 * time.Second,
-			WriteTimeout:   10 * time.Second,
+			Host:           wsHost,
+			Port:           wsPort,
+			Path:           wsPath,
+			EnableAuth:     cfg.WebSocket.EnableAuth,
+			AuthToken:      cfg.WebSocket.AuthToken,
+			PingInterval:   pingInterval,
+			PongTimeout:    pongTimeout,
+			ReadTimeout:    readTimeout,
+			WriteTimeout:   writeTimeout,
 			MaxMessageSize: 10 * 1024 * 1024, // 10MB
 		},
 		bus:         messageBus,

@@ -122,7 +122,7 @@ When a profile fails:
     "write_timeout": "30s",
     "websocket": {
       "host": "0.0.0.0",
-      "port": 18789,
+      "port": 28789,
       "path": "/ws",
       "enable_auth": false
     }

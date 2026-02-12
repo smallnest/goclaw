@@ -1,6 +1,6 @@
 module github.com/smallnest/goclaw
 
-go 1.25
+go 1.25.5
 
 require (
 	github.com/bwmarrin/discordgo v0.29.0
@@ -16,6 +16,7 @@ require (
 	github.com/manifoldco/promptui v0.9.0
 	github.com/open-dingtalk/dingtalk-stream-sdk-go v0.9.1
 	github.com/slack-go/slack v0.17.3
+	github.com/smallnest/infoflow v0.0.0
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.19.0
 	github.com/tencent-connect/botgo v0.2.1
@@ -99,3 +100,5 @@ require (
 	modernc.org/memory v1.5.0 // indirect
 	modernc.org/sqlite v1.23.1 // indirect
 )
+
+replace github.com/smallnest/infoflow => ../infoflow

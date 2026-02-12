@@ -451,15 +451,20 @@ func (m *AgentManager) handleInboundMessage(ctx context.Context, msg *bus.Inboun
 	// 获取 Agent 的 orchestrator
 	orchestrator := agent.GetOrchestrator()
 
+	// 加载历史消息并添加当前消息
+	history := sess.GetHistory(-1) // -1 表示加载所有历史消息
+	historyAgentMsgs := sessionMessagesToAgentMessages(history)
+	allMessages := append(historyAgentMsgs, agentMsg)
+
 	// 执行 Agent
-	finalMessages, err := orchestrator.Run(ctx, []AgentMessage{agentMsg})
+	finalMessages, err := orchestrator.Run(ctx, allMessages)
 	if err != nil {
 		logger.Error("Agent execution failed", zap.Error(err))
 		return err
 	}
 
-	// 更新会话
-	m.updateSession(sess, finalMessages)
+	// 更新会话（只保存新产生的消息）
+	m.updateSession(sess, finalMessages, len(history))
 
 	// 发布响应
 	if len(finalMessages) > 0 {
@@ -473,8 +478,14 @@ func (m *AgentManager) handleInboundMessage(ctx context.Context, msg *bus.Inboun
 }
 
 // updateSession 更新会话
-func (m *AgentManager) updateSession(sess *session.Session, messages []AgentMessage) {
-	for _, msg := range messages {
+func (m *AgentManager) updateSession(sess *session.Session, messages []AgentMessage, historyLen int) {
+	// 只保存新产生的消息（不包括历史消息）
+	newMessages := messages
+	if historyLen >= 0 && len(messages) > historyLen {
+		newMessages = messages[historyLen:]
+	}
+
+	for _, msg := range newMessages {
 		sessMsg := session.Message{
 			Role:      string(msg.Role),
 			Content:   extractTextContent(msg),
@@ -519,6 +530,46 @@ func (m *AgentManager) publishToBus(ctx context.Context, channel, chatID string,
 	if err := m.bus.PublishOutbound(ctx, outbound); err != nil {
 		logger.Error("Failed to publish outbound", zap.Error(err))
 	}
+}
+
+// sessionMessagesToAgentMessages 将 session 消息转换为 Agent 消息
+func sessionMessagesToAgentMessages(sessMsgs []session.Message) []AgentMessage {
+	result := make([]AgentMessage, 0, len(sessMsgs))
+	for _, sessMsg := range sessMsgs {
+		agentMsg := AgentMessage{
+			Role:      MessageRole(sessMsg.Role),
+			Content:   []ContentBlock{TextContent{Text: sessMsg.Content}},
+			Timestamp: sessMsg.Timestamp.UnixMilli(),
+		}
+
+		// Handle tool calls in assistant messages
+		if sessMsg.Role == "assistant" && len(sessMsg.ToolCalls) > 0 {
+			// Clear the text content if there are tool calls
+			agentMsg.Content = []ContentBlock{}
+			for _, tc := range sessMsg.ToolCalls {
+				agentMsg.Content = append(agentMsg.Content, ToolCallContent{
+					ID:        tc.ID,
+					Name:      tc.Name,
+					Arguments: tc.Params,
+				})
+			}
+		}
+
+		// Handle tool result messages
+		if sessMsg.Role == "tool" {
+			agentMsg.Role = RoleToolResult
+			// Set tool_call_id in metadata
+			if sessMsg.ToolCallID != "" {
+				if agentMsg.Metadata == nil {
+					agentMsg.Metadata = make(map[string]any)
+				}
+				agentMsg.Metadata["tool_call_id"] = sessMsg.ToolCallID
+			}
+		}
+
+		result = append(result, agentMsg)
+	}
+	return result
 }
 
 // GetAgent 获取 Agent

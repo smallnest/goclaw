@@ -47,6 +47,25 @@
       "client_id": "",
       "secret": "",
       "allowed_ids": []
+    },
+    "infoflow": {
+      "enabled": false,
+      "webhook_url": "",
+      "token": "",
+      "aes_key": "",
+      "webhook_port": 18766,
+      "allowed_ids": [],
+      "accounts": {
+        "bot1": {
+          "enabled": false,
+          "name": "Infoflow Bot 1",
+          "webhook_url": "",
+          "token": "",
+          "aes_key": "",
+          "webhook_port": 18766,
+          "allowed_ids": []
+        }
+      }
     }
   },
   "providers": {
@@ -71,7 +90,18 @@
     "host": "localhost",
     "port": 8080,
     "read_timeout": 30,
-    "write_timeout": 30
+    "write_timeout": 30,
+    "websocket": {
+      "host": "0.0.0.0",
+      "port": 28789,
+      "path": "/ws",
+      "enable_auth": false,
+      "auth_token": "",
+      "ping_interval": "30s",
+      "pong_timeout": "60s",
+      "read_timeout": "60s",
+      "write_timeout": "10s"
+    }
   },
   "tools": {
     "filesystem": {

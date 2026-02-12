@@ -98,6 +98,7 @@ type ChannelsConfig struct {
 	DingTalk DingTalkChannelConfig `mapstructure:"dingtalk" json:"dingtalk"`
 	QQ       QQChannelConfig       `mapstructure:"qq" json:"qq"`
 	WeWork   WeWorkChannelConfig   `mapstructure:"wework" json:"wework"`
+	Infoflow InfoflowChannelConfig `mapstructure:"infoflow" json:"infoflow"`
 }
 
 // ChannelAccountConfig 通道账号配置（支持多账号）
@@ -112,6 +113,11 @@ type ChannelAccountConfig struct {
 	ClientID   string   `mapstructure:"client_id" json:"client_id"` // 钉钉 client_id
 	ClientSecret string `mapstructure:"client_secret" json:"client_secret"` // 钉钉 client_secret
 	BridgeURL  string   `mapstructure:"bridge_url" json:"bridge_url"` // WhatsApp bridge url
+	WebhookURL string   `mapstructure:"webhook_url" json:"webhook_url"` // Infoflow/Feishu webhook url
+	AESKey     string   `mapstructure:"aes_key" json:"aes_key"`       // Infoflow AES key
+	EncryptKey string   `mapstructure:"encrypt_key" json:"encrypt_key"` // Feishu encrypt key
+	VerificationToken string `mapstructure:"verification_token" json:"verification_token"` // Feishu verification token
+	WebhookPort int      `mapstructure:"webhook_port" json:"webhook_port"` // Infoflow/Feishu webhook port
 	AllowedIDs []string `mapstructure:"allowed_ids" json:"allowed_ids"`
 }
 
@@ -181,6 +187,18 @@ type DingTalkChannelConfig struct {
 	Enabled    bool     `mapstructure:"enabled" json:"enabled"`
 	ClientID   string   `mapstructure:"client_id" json:"client_id"`
 	ClientSecret string `mapstructure:"secret" json:"secret"`
+	AllowedIDs []string `mapstructure:"allowed_ids" json:"allowed_ids"`
+	// 多账号配置（新格式）
+	Accounts   map[string]ChannelAccountConfig `mapstructure:"accounts" json:"accounts"`
+}
+
+// InfoflowChannelConfig 如流通道配置
+type InfoflowChannelConfig struct {
+	Enabled    bool     `mapstructure:"enabled" json:"enabled"`
+	WebhookURL string   `mapstructure:"webhook_url" json:"webhook_url"`
+	Token      string   `mapstructure:"token" json:"token"`
+	AESKey     string   `mapstructure:"aes_key" json:"aes_key"`
+	WebhookPort int      `mapstructure:"webhook_port" json:"webhook_port"`
 	AllowedIDs []string `mapstructure:"allowed_ids" json:"allowed_ids"`
 	// 多账号配置（新格式）
 	Accounts   map[string]ChannelAccountConfig `mapstructure:"accounts" json:"accounts"`

@@ -478,6 +478,13 @@ func defaultConvertToLLM(messages []AgentMessage) ([]providers.Message, error) {
 			providerMsg.ToolCalls = toolCalls
 		}
 
+		// Handle tool_call_id for tool result messages
+		if msg.Role == RoleToolResult {
+			if toolCallID, ok := msg.Metadata["tool_call_id"].(string); ok {
+				providerMsg.ToolCallID = toolCallID
+			}
+		}
+
 		result = append(result, providerMsg)
 	}
 
