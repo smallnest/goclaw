@@ -109,12 +109,12 @@ func runAgent(cmd *cobra.Command, args []string) {
 	contextBuilder := agent.NewContextBuilder(memoryStore, workspace)
 
 	// Create tool registry
-	toolRegistry := tools.NewRegistry()
+	toolRegistry := agent.NewToolRegistry()
 
 	// Register file system tool
 	fsTool := tools.NewFileSystemTool(cfg.Tools.FileSystem.AllowedPaths, cfg.Tools.FileSystem.DeniedPaths, workspace)
 	for _, tool := range fsTool.GetTools() {
-		if err := toolRegistry.Register(tool); err != nil && agentVerbose {
+		if err := toolRegistry.RegisterExisting(tool); err != nil && agentVerbose {
 			fmt.Fprintf(os.Stderr, "Warning: Failed to register tool %s: %v\n", tool.Name(), err)
 		}
 	}
@@ -129,7 +129,7 @@ func runAgent(cmd *cobra.Command, args []string) {
 		cfg.Tools.Shell.Sandbox,
 	)
 	for _, tool := range shellTool.GetTools() {
-		if err := toolRegistry.Register(tool); err != nil && agentVerbose {
+		if err := toolRegistry.RegisterExisting(tool); err != nil && agentVerbose {
 			fmt.Fprintf(os.Stderr, "Warning: Failed to register tool %s: %v\n", tool.Name(), err)
 		}
 	}
@@ -141,7 +141,7 @@ func runAgent(cmd *cobra.Command, args []string) {
 		cfg.Tools.Web.Timeout,
 	)
 	for _, tool := range webTool.GetTools() {
-		if err := toolRegistry.Register(tool); err != nil && agentVerbose {
+		if err := toolRegistry.RegisterExisting(tool); err != nil && agentVerbose {
 			fmt.Fprintf(os.Stderr, "Warning: Failed to register tool %s: %v\n", tool.Name(), err)
 		}
 	}
@@ -151,7 +151,7 @@ func runAgent(cmd *cobra.Command, args []string) {
 	if cfg.Tools.Browser.Timeout > 0 {
 		browserTimeout = cfg.Tools.Browser.Timeout
 	}
-	if err := toolRegistry.Register(tools.NewSmartSearch(webTool, true, browserTimeout).GetTool()); err != nil && agentVerbose {
+	if err := toolRegistry.RegisterExisting(tools.NewSmartSearch(webTool, true, browserTimeout).GetTool()); err != nil && agentVerbose {
 		fmt.Fprintf(os.Stderr, "Warning: Failed to register smart_search: %v\n", err)
 	}
 
@@ -162,14 +162,14 @@ func runAgent(cmd *cobra.Command, args []string) {
 			cfg.Tools.Browser.Timeout,
 		)
 		for _, tool := range browserTool.GetTools() {
-			if err := toolRegistry.Register(tool); err != nil && agentVerbose {
+			if err := toolRegistry.RegisterExisting(tool); err != nil && agentVerbose {
 				fmt.Fprintf(os.Stderr, "Warning: Failed to register browser tool %s: %v\n", tool.Name(), err)
 			}
 		}
 	}
 
 	// Register use_skill tool
-	if err := toolRegistry.Register(tools.NewUseSkillTool()); err != nil && agentVerbose {
+	if err := toolRegistry.RegisterExisting(tools.NewUseSkillTool()); err != nil && agentVerbose {
 		fmt.Fprintf(os.Stderr, "Warning: Failed to register use_skill: %v\n", err)
 	}
 
@@ -186,9 +186,6 @@ func runAgent(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 	defer provider.Close()
-
-	// Create subagent manager
-	subagentMgr := agent.NewSubagentManager()
 
 	// Create context with timeout
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(agentTimeout)*time.Second)
@@ -214,27 +211,18 @@ func runAgent(cmd *cobra.Command, args []string) {
 		Timestamp: time.Now(),
 	})
 
-	// Create agent loop config
-	loopCfg := &agent.Config{
+	// Create new agent
+	agentInstance, err := agent.NewAgent(&agent.NewAgentConfig{
 		Bus:          messageBus,
 		Provider:     provider,
 		SessionMgr:   sessionMgr,
-		Memory:       memoryStore,
-		Context:      contextBuilder,
 		Tools:        toolRegistry,
-		SkillsLoader: skillsLoader,
-		Subagents:    subagentMgr,
+		Context:      contextBuilder,
 		Workspace:    workspace,
 		MaxIteration: cfg.Agents.Defaults.MaxIterations,
-	}
-
-	// Initialize subagent manager
-	subagentMgr.Setup(loopCfg, agent.NewLoop)
-
-	// Create agent loop
-	loop, err := agent.NewLoop(loopCfg)
+	})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create agent loop: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to create agent: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -261,14 +249,10 @@ func runAgent(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	// Wait for response from outbound queue
-	var response string
-	var responseReceived bool
-
-	// Start the agent loop to process the message
+	// Start the agent to process the message
 	go func() {
-		if err := loop.Start(ctx); err != nil && err != context.Canceled && err != context.DeadlineExceeded {
-			logger.Error("Agent loop error", zap.Error(err))
+		if err := agentInstance.Start(ctx); err != nil && err != context.Canceled && err != context.DeadlineExceeded {
+			logger.Error("Agent error", zap.Error(err))
 		}
 	}()
 
@@ -288,27 +272,11 @@ func runAgent(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	response = outbound.Content
-	responseReceived = true
+	response := outbound.Content
 
-	// Stop the loop
-	if err := loop.Stop(); err != nil && agentVerbose {
-		fmt.Fprintf(os.Stderr, "Warning: Failed to stop loop: %v\n", err)
-	}
-
-	if !responseReceived {
-		errMsg := "No response received from agent"
-		if agentJSON {
-			errorResult := map[string]interface{}{
-				"error":   errMsg,
-				"success": false,
-			}
-			data, _ := json.MarshalIndent(errorResult, "", "  ")
-			fmt.Println(string(data))
-		} else {
-			fmt.Fprintf(os.Stderr, "Error: %s\n", errMsg)
-		}
-		os.Exit(1)
+	// Stop the agent
+	if err := agentInstance.Stop(); err != nil && agentVerbose {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to stop agent: %v\n", err)
 	}
 
 	// Add assistant response to session

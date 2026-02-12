@@ -168,15 +168,12 @@ func runTUI(cmd *cobra.Command, args []string) {
 		logger.Warn("Failed to discover skills", zap.Error(err))
 	}
 
-	// Get or create session
+	// Always create a new session (unless explicitly specified)
 	var sess *session.Session
 	sessionKey := tuiSession
 	if sessionKey == "" {
-		// Try to find the most recently updated tui session
-		sessionKey = findMostRecentTUISession(sessionMgr)
-		if sessionKey == "" {
-			sessionKey = "tui:" + strconv.FormatInt(time.Now().Unix(), 10)
-		}
+		// Always create a fresh session with timestamp
+		sessionKey = "tui:" + strconv.FormatInt(time.Now().Unix(), 10)
 	}
 
 	sess, err = sessionMgr.GetOrCreate(sessionKey)
@@ -185,7 +182,7 @@ func runTUI(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	fmt.Printf("Session: %s\n", sessionKey)
+	fmt.Printf("New Session: %s\n", sessionKey)
 	fmt.Printf("History limit: %d\n", tuiHistoryLimit)
 	fmt.Printf("Timeout: %d ms\n", tuiTimeoutMs)
 	fmt.Println()

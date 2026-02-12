@@ -12,7 +12,7 @@ import (
 	"github.com/smallnest/goclaw/bus"
 	"github.com/smallnest/goclaw/channels"
 	"github.com/smallnest/goclaw/cli/commands"
-	"github.com/smallnest/goclaw/cli/commands"
+	"github.com/smallnest/goclaw/config"
 	"github.com/smallnest/goclaw/cron"
 	"github.com/smallnest/goclaw/gateway"
 	"github.com/smallnest/goclaw/internal/logger"
@@ -147,7 +147,7 @@ func runStart(cmd *cobra.Command, args []string) {
 	contextBuilder := agent.NewContextBuilder(memoryStore, workspaceDir)
 
 	// 创建工具注册表
-	toolRegistry := tools.NewRegistry()
+	toolRegistry := agent.NewToolRegistry()
 
 	// 创建技能加载器
 	skillsLoader := agent.NewSkillsLoader(workspaceDir, []string{})
@@ -163,13 +163,13 @@ func runStart(cmd *cobra.Command, args []string) {
 	// 注册文件系统工具
 	fsTool := tools.NewFileSystemTool(cfg.Tools.FileSystem.AllowedPaths, cfg.Tools.FileSystem.DeniedPaths, workspaceDir)
 	for _, tool := range fsTool.GetTools() {
-		if err := toolRegistry.Register(tool); err != nil {
+		if err := toolRegistry.RegisterExisting(tool); err != nil {
 			logger.Warn("Failed to register tool", zap.String("tool", tool.Name()))
 		}
 	}
 
 	// 注册 use_skill 工具（用于两阶段技能加载）
-	if err := toolRegistry.Register(tools.NewUseSkillTool()); err != nil {
+	if err := toolRegistry.RegisterExisting(tools.NewUseSkillTool()); err != nil {
 		logger.Warn("Failed to register use_skill tool", zap.Error(err))
 	}
 
@@ -183,7 +183,7 @@ func runStart(cmd *cobra.Command, args []string) {
 		cfg.Tools.Shell.Sandbox,
 	)
 	for _, tool := range shellTool.GetTools() {
-		if err := toolRegistry.Register(tool); err != nil {
+		if err := toolRegistry.RegisterExisting(tool); err != nil {
 			logger.Warn("Failed to register tool", zap.String("tool", tool.Name()))
 		}
 	}
@@ -195,7 +195,7 @@ func runStart(cmd *cobra.Command, args []string) {
 		cfg.Tools.Web.Timeout,
 	)
 	for _, tool := range webTool.GetTools() {
-		if err := toolRegistry.Register(tool); err != nil {
+		if err := toolRegistry.RegisterExisting(tool); err != nil {
 			logger.Warn("Failed to register tool", zap.String("tool", tool.Name()))
 		}
 	}
@@ -205,7 +205,7 @@ func runStart(cmd *cobra.Command, args []string) {
 	if cfg.Tools.Browser.Timeout > 0 {
 		browserTimeout = cfg.Tools.Browser.Timeout
 	}
-	if err := toolRegistry.Register(tools.NewSmartSearch(webTool, true, browserTimeout).GetTool()); err != nil {
+	if err := toolRegistry.RegisterExisting(tools.NewSmartSearch(webTool, true, browserTimeout).GetTool()); err != nil {
 		logger.Warn("Failed to register smart_search tool", zap.Error(err))
 	}
 
@@ -216,7 +216,7 @@ func runStart(cmd *cobra.Command, args []string) {
 			cfg.Tools.Browser.Timeout,
 		)
 		for _, tool := range browserTool.GetTools() {
-			if err := toolRegistry.Register(tool); err != nil {
+			if err := toolRegistry.RegisterExisting(tool); err != nil {
 				logger.Warn("Failed to register tool", zap.String("tool", tool.Name()))
 			}
 		}
@@ -229,9 +229,6 @@ func runStart(cmd *cobra.Command, args []string) {
 		logger.Fatal("Failed to create LLM provider", zap.Error(err))
 	}
 	defer provider.Close()
-
-	// 创建子代理管理器
-	subagentMgr := agent.NewSubagentManager()
 
 	// 创建上下文
 	ctx, cancel := context.WithCancel(context.Background())
@@ -253,27 +250,18 @@ func runStart(cmd *cobra.Command, args []string) {
 	// 创建调度器
 	scheduler := cron.NewScheduler(messageBus, provider, sessionMgr)
 
-	// 创建 Agent 循环配置
-	loopCfg := &agent.Config{
+	// 创建 Agent
+	agentInstance, err := agent.NewAgent(&agent.NewAgentConfig{
 		Bus:          messageBus,
 		Provider:     provider,
 		SessionMgr:   sessionMgr,
-		Memory:       memoryStore,
-		Context:      contextBuilder,
 		Tools:        toolRegistry,
-		SkillsLoader: skillsLoader,
-		Subagents:    subagentMgr,
+		Context:      contextBuilder,
 		Workspace:    workspaceDir,
 		MaxIteration: cfg.Agents.Defaults.MaxIterations,
-	}
-
-	// 初始化子代理管理器
-	subagentMgr.Setup(loopCfg, agent.NewLoop)
-
-	// 创建 Agent 循环
-	loop, err := agent.NewLoop(loopCfg)
+	})
 	if err != nil {
-		logger.Fatal("Failed to create agent loop", zap.Error(err))
+		logger.Fatal("Failed to create agent", zap.Error(err))
 	}
 
 	// 处理信号
@@ -310,8 +298,8 @@ func runStart(cmd *cobra.Command, args []string) {
 
 	// 启动 Agent
 	go func() {
-		if err := loop.Start(ctx); err != nil {
-			logger.Error("Agent loop error", zap.Error(err))
+		if err := agentInstance.Start(ctx); err != nil {
+			logger.Error("Agent error", zap.Error(err))
 		}
 	}()
 
@@ -320,8 +308,8 @@ func runStart(cmd *cobra.Command, args []string) {
 	logger.Info("Received shutdown signal")
 
 	// 停止 Agent
-	if err := loop.Stop(); err != nil {
-		logger.Error("Failed to stop agent loop", zap.Error(err))
+	if err := agentInstance.Stop(); err != nil {
+		logger.Error("Failed to stop agent", zap.Error(err))
 	}
 
 	logger.Info("goclaw agent stopped")

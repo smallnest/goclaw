@@ -5,6 +5,38 @@ import (
 	"encoding/json"
 )
 
+// ContentBlock represents a block of content in a message
+type ContentBlock interface {
+	ContentType() string
+}
+
+// TextContent represents text content
+type TextContent struct {
+	Text string `json:"text"`
+}
+
+func (t TextContent) ContentType() string {
+	return "text"
+}
+
+// ImageContent represents image content
+type ImageContent struct {
+	URL     string `json:"url,omitempty"`
+	Data     string `json:"data,omitempty"` // base64
+	MimeType string `json:"mimeType,omitempty"`
+}
+
+func (i ImageContent) ContentType() string {
+	return "image"
+}
+
+// ToolResult represents the result of a tool execution
+type ToolResult struct {
+	Content []ContentBlock `json:"content"`
+	Details map[string]any  `json:"details"`
+	Error   error           `json:"error,omitempty"`
+}
+
 // Tool 工具接口
 type Tool interface {
 	// Name 工具名称
@@ -65,6 +97,28 @@ func (t *BaseTool) Parameters() map[string]interface{} {
 // Execute 执行工具
 func (t *BaseTool) Execute(ctx context.Context, params map[string]interface{}) (string, error) {
 	return t.executeFunc(ctx, params)
+}
+
+// ExecuteWithStreaming executes the tool with streaming support (new agent compatibility)
+func (t *BaseTool) ExecuteWithStreaming(ctx context.Context, params map[string]interface{}, onUpdate func(ToolResult)) (ToolResult, error) {
+	resultStr, err := t.executeFunc(ctx, params)
+
+	result := ToolResult{
+		Content: []ContentBlock{TextContent{Text: resultStr}},
+		Details: map[string]any{},
+	}
+
+	if err != nil {
+		result.Error = err
+		result.Details = map[string]any{"error": err.Error()}
+	}
+
+	// Call update callback if provided
+	if onUpdate != nil {
+		onUpdate(result)
+	}
+
+	return result, nil
 }
 
 // ToSchema 转换为 OpenAI 函数格式

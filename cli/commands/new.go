@@ -2,16 +2,12 @@ package commands
 
 import (
 	"fmt"
-	"os"
-	"path/filepath"
-
-	"github.com/smallnest/goclaw/cli/commands"
-	"github.com/smallnest/goclaw/session"
+	"time"
 )
 
 // Register 注册 new 命令
-func Register(registry *commands.CommandRegistry) {
-	registry.Register(&commands.Command{
+func Register(registry *CommandRegistry) {
+	registry.Register(&Command{
 		Name:        "new",
 		Usage:       "/new [session_name]",
 		Description: "Create a new chat session with optional name",
@@ -22,7 +18,7 @@ func Register(registry *commands.CommandRegistry) {
 }
 
 // handleNew 处理 new 命令
-func handleNew(registry *commands.CommandRegistry, args []string) (string, bool) {
+func handleNew(registry *CommandRegistry, args []string) (string, bool) {
 	sessionMgr := registry.GetSessionManager()
 	if sessionMgr == nil {
 		return "Error: Session manager not available", true
@@ -39,16 +35,14 @@ func handleNew(registry *commands.CommandRegistry, args []string) (string, bool)
 	}
 
 	// 创建新会话
-	session, err := sessionMgr.Create(sessionName)
+	sessionKey := "cli:" + sessionName
+	_, err := sessionMgr.GetOrCreate(sessionKey)
 	if err != nil {
 		return fmt.Sprintf("Failed to create session: %v", err), true
 	}
 
-	return fmt.Sprintf("✅ Created new session: %s\nSession file: %s",
-		sessionName,
-		sessionMgr.GetSessionPath(sessionName),
-		false
-	}
+	return fmt.Sprintf("✅ Created new session: %s\nUse this session for future messages.", sessionName), false
+}
 
 // generateSessionName 生成会话名称
 func generateSessionName() string {
