@@ -27,6 +27,8 @@ require (
 	gopkg.in/yaml.v3 v3.0.1
 )
 
+require github.com/gogo/protobuf v1.3.2 // indirect
+
 require (
 	github.com/chzyer/readline v1.5.1 // indirect
 	github.com/smallnest/infoflow v0.0.0-20260212143807-d8d344cf5633
