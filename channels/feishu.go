@@ -51,7 +51,6 @@ func NewFeishuChannel(cfg config.FeishuChannelConfig, msgBus *bus.MessageBus) (*
 	if port == 0 {
 		port = 8765
 	}
-	fmt.Println("___+++++_", cfg.UseWebSocket)
 	return &FeishuChannel{
 		BaseChannelImpl:   NewBaseChannelImpl("feishu", "default", baseCfg, msgBus),
 		appID:             cfg.AppID,
@@ -160,7 +159,6 @@ func (c *FeishuChannel) reconnectWebSocket(ctx context.Context) {
 }
 
 func (c *FeishuChannel) handleP2Message(event *larkim.P2MessageReceiveV1) {
-	fmt.Println("+++++++++++++++++++++++++", event)
 	senderID := ""
 	if event.Event.Sender != nil && event.Event.Sender.SenderId != nil {
 		senderID = *event.Event.Sender.SenderId.UserId
@@ -352,7 +350,7 @@ func (c *FeishuChannel) verifySignature(r *http.Request, body []byte) bool {
 }
 
 func (c *FeishuChannel) Send(msg *bus.OutboundMessage) error {
-	logger.Debug("Feishu sending message",
+	logger.Info("Feishu sending message",
 		zap.String("chat_id", msg.ChatID),
 		zap.String("content", msg.Content),
 		zap.Bool("use_websocket", c.useWebSocket),
@@ -363,24 +361,32 @@ func (c *FeishuChannel) Send(msg *bus.OutboundMessage) error {
 		receiveIDType = larkim.ReceiveIdTypeOpenId
 	}
 
-	/*contentMap := map[string]string{"text": msg.Content}
-	contentBytes, _ := json.Marshal(contentMap)
-	content := string(contentBytes)*/
-	content := larkim.NewTextMsgBuilder().
-		TextLine(msg.Content).
-		Build()
-	logger.Debug("Feishu message details",
-		zap.String("receive_id", msg.ChatID),
-		zap.String("receive_id_type", string(receiveIDType)),
-		zap.String("content", content),
-	)
+	return c.sendCardMessage(msg, receiveIDType)
+}
+
+func (c *FeishuChannel) sendCardMessage(msg *bus.OutboundMessage, receiveIDType string) error {
+	cardContent := fmt.Sprintf(`{
+		"header": {
+			"title": {
+				"tag": "plain_text",
+				"content": "Message"
+			},
+			"template": "blue"
+		},
+		"elements": [
+			{
+				"tag": "markdown",
+				"content": %s
+			}
+		]
+	}`, jsonEscape(msg.Content))
 
 	req := larkim.NewCreateMessageReqBuilder().
 		ReceiveIdType(receiveIDType).
 		Body(larkim.NewCreateMessageReqBodyBuilder().
 			ReceiveId(msg.ChatID).
-			MsgType(larkim.MsgTypeText).
-			Content(content).
+			MsgType(larkim.MsgTypeInteractive).
+			Content(cardContent).
 			Build()).
 		Build()
 
@@ -402,6 +408,10 @@ func (c *FeishuChannel) Send(msg *bus.OutboundMessage) error {
 	return nil
 }
 
+func jsonEscape(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
+}
 func (c *FeishuChannel) Stop() error {
 	close(c.stopWS)
 	return c.BaseChannelImpl.Stop()
