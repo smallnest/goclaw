@@ -94,6 +94,52 @@ func (r *CommandRegistry) SetSkillsGetter(getter func() ([]*SkillInfo, error)) {
 	r.skillsGetter = getter
 }
 
+// SetTUIAgent 设置 TUIAgent（用于从工具和技能信息获取数据）
+func (r *CommandRegistry) SetTUIAgent(agent *TUIAgent) {
+	r.toolGetter = func() (map[string]interface{}, error) {
+		// 从 agent 获取工具信息
+		tools := agent.GetState().Tools
+		result := make(map[string]interface{})
+		for _, t := range tools {
+			result[t.Name()] = map[string]interface{}{
+				"name":        t.Name(),
+				"description": t.Description(),
+				"parameters": t.Parameters(),
+			}
+		}
+		return result, nil
+	}
+
+	r.skillsGetter = func() ([]*SkillInfo, error) {
+		// 从 skillsLoader 获取技能信息
+		agentSkills := agent.skillsLoader.List()
+		result := make([]*SkillInfo, 0, len(agentSkills))
+		for _, skill := range agentSkills {
+			skillInfo := &SkillInfo{
+				Name:        skill.Name,
+				Description: skill.Description,
+				Version:     skill.Version,
+				Author:      skill.Author,
+				Homepage:    skill.Homepage,
+				Always:      skill.Always,
+				Emoji:       skill.Metadata.OpenClaw.Emoji,
+			}
+			// 转换缺失依赖信息
+			if skill.MissingDeps != nil {
+				skillInfo.MissingDeps = &MissingDepsInfo{
+					Bins:       skill.MissingDeps.Bins,
+					AnyBins:    skill.MissingDeps.AnyBins,
+					Env:        skill.MissingDeps.Env,
+					PythonPkgs: skill.MissingDeps.PythonPkgs,
+					NodePkgs:   skill.MissingDeps.NodePkgs,
+				}
+			}
+			result = append(result, skillInfo)
+		}
+		return result, nil
+	}
+}
+
 // GetSessionManager 获取会话管理器
 func (r *CommandRegistry) GetSessionManager() *session.Manager {
 	return r.sessionMgr

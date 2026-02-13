@@ -23,6 +23,90 @@ import (
 	"go.uber.org/zap"
 )
 
+// TUIAgent wraps Agent for TUI with additional functionality
+type TUIAgent struct {
+	*agent.Agent
+	sessionMgr    *session.Manager
+	sessionKey    string
+	skillsLoader  *agent.SkillsLoader
+	maxIterations int
+	cmdRegistry   *CommandRegistry
+}
+
+// NewTUIAgent creates a new TUI agent
+func NewTUIAgent(
+	messageBus *bus.MessageBus,
+	sessionMgr *session.Manager,
+	provider providers.Provider,
+	contextBuilder *agent.ContextBuilder,
+	workspace string,
+	maxIterations int,
+	skillsLoader *agent.SkillsLoader,
+) (*TUIAgent, error) {
+	toolRegistry := agent.NewToolRegistry()
+
+	// Register file system tool
+	fsTool := tools.NewFileSystemTool([]string{}, []string{}, workspace)
+	for _, tool := range fsTool.GetTools() {
+		_ = toolRegistry.RegisterExisting(tool)
+	}
+
+	// Register use_skill tool
+	_ = toolRegistry.RegisterExisting(tools.NewUseSkillTool())
+
+	// Register shell tool
+	shellTool := tools.NewShellTool(
+		true, // enabled
+		[]string{}, // allowedCmds
+		[]string{}, // deniedCmds
+		120, // timeout
+		workspace, // workingDir
+		config.SandboxConfig{}, // sandbox
+	)
+	for _, tool := range shellTool.GetTools() {
+		_ = toolRegistry.RegisterExisting(tool)
+	}
+
+	// Register web tool
+	webTool := tools.NewWebTool("", "", 30)
+	for _, tool := range webTool.GetTools() {
+		_ = toolRegistry.RegisterExisting(tool)
+	}
+
+	// Register smart search
+	_ = toolRegistry.RegisterExisting(tools.NewSmartSearch(webTool, true, 30).GetTool())
+
+	// Register browser tool
+	browserTool := tools.NewBrowserTool(true, 30)
+	for _, tool := range browserTool.GetTools() {
+		_ = toolRegistry.RegisterExisting(tool)
+	}
+
+	// Create Agent
+	newAgent, err := agent.NewAgent(&agent.NewAgentConfig{
+		Bus:          messageBus,
+		Provider:     provider,
+		SessionMgr:   sessionMgr,
+		Tools:        toolRegistry,
+		Context:      contextBuilder,
+		Workspace:    workspace,
+		MaxIteration: maxIterations,
+		SkillsLoader: skillsLoader,
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return &TUIAgent{
+		Agent:         newAgent,
+		sessionMgr:    sessionMgr,
+		sessionKey:    "",
+		skillsLoader:  skillsLoader,
+		maxIterations: maxIterations,
+		cmdRegistry:   &CommandRegistry{},
+	}, nil
+}
+
 var (
 	tuiURL          string
 	tuiToken        string
@@ -107,59 +191,6 @@ func runTUI(cmd *cobra.Command, args []string) {
 	// Create context builder
 	contextBuilder := agent.NewContextBuilder(memoryStore, workspace)
 
-	// Create tool registry
-	toolRegistry := tools.NewRegistry()
-
-	// Register file system tool
-	fsTool := tools.NewFileSystemTool(cfg.Tools.FileSystem.AllowedPaths, cfg.Tools.FileSystem.DeniedPaths, workspace)
-	for _, tool := range fsTool.GetTools() {
-		_ = toolRegistry.Register(tool)
-	}
-
-	// Register use_skill tool
-	_ = toolRegistry.Register(tools.NewUseSkillTool())
-
-	// Register shell tool
-	shellTool := tools.NewShellTool(
-		cfg.Tools.Shell.Enabled,
-		cfg.Tools.Shell.AllowedCmds,
-		cfg.Tools.Shell.DeniedCmds,
-		cfg.Tools.Shell.Timeout,
-		cfg.Tools.Shell.WorkingDir,
-		cfg.Tools.Shell.Sandbox,
-	)
-	for _, tool := range shellTool.GetTools() {
-		_ = toolRegistry.Register(tool)
-	}
-
-	// Register web tool
-	webTool := tools.NewWebTool(
-		cfg.Tools.Web.SearchAPIKey,
-		cfg.Tools.Web.SearchEngine,
-		cfg.Tools.Web.Timeout,
-	)
-	for _, tool := range webTool.GetTools() {
-		_ = toolRegistry.Register(tool)
-	}
-
-	// Register smart search
-	browserTimeout := 30
-	if cfg.Tools.Browser.Timeout > 0 {
-		browserTimeout = cfg.Tools.Browser.Timeout
-	}
-	_ = toolRegistry.Register(tools.NewSmartSearch(webTool, true, browserTimeout).GetTool())
-
-	// Register browser tool
-	if cfg.Tools.Browser.Enabled {
-		browserTool := tools.NewBrowserTool(
-			cfg.Tools.Browser.Headless,
-			cfg.Tools.Browser.Timeout,
-		)
-		for _, tool := range browserTool.GetTools() {
-			_ = toolRegistry.Register(tool)
-		}
-	}
-
 	// Create LLM provider
 	provider, err := providers.NewProvider(cfg)
 	if err != nil {
@@ -168,7 +199,7 @@ func runTUI(cmd *cobra.Command, args []string) {
 	}
 	defer provider.Close()
 
-	// Create skills loader（统一使用 ~/.goclaw/skills 目录）
+	// Create skills loader
 	goclawDir := os.Getenv("HOME") + "/.goclaw"
 	skillsDir := goclawDir + "/skills"
 	skillsLoader := agent.NewSkillsLoader(goclawDir, []string{skillsDir})
@@ -181,15 +212,37 @@ func runTUI(cmd *cobra.Command, args []string) {
 		}
 	}
 
+	// Create TUI agent
+	maxIterations := cfg.Agents.Defaults.MaxIterations
+	if maxIterations == 0 {
+		maxIterations = 15
+	}
+
+	tuiAgent, err := NewTUIAgent(messageBus, sessionMgr, provider, contextBuilder, workspace, maxIterations, skillsLoader)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create TUI agent: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Start agent (starts event dispatcher)
+	agentCtx, agentCancel := context.WithCancel(context.Background())
+	if err := tuiAgent.Start(agentCtx); err != nil {
+		logger.Error("Failed to start agent", zap.Error(err))
+	}
+	defer func() {
+		agentCancel()
+		tuiAgent.Stop()
+	}()
+
 	// Always create a new session (unless explicitly specified)
-	var sess *session.Session
 	sessionKey := tuiSession
 	if sessionKey == "" {
 		// Always create a fresh session with timestamp
 		sessionKey = "tui:" + strconv.FormatInt(time.Now().Unix(), 10)
 	}
+	tuiAgent.sessionKey = sessionKey
 
-	sess, err = sessionMgr.GetOrCreate(sessionKey)
+	sess, err := sessionMgr.GetOrCreate(sessionKey)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create session: %v\n", err)
 		os.Exit(1)
@@ -207,70 +260,23 @@ func runTUI(cmd *cobra.Command, args []string) {
 	// Create command registry for slash commands
 	cmdRegistry := NewCommandRegistry()
 	cmdRegistry.SetSessionManager(sessionMgr)
-	cmdRegistry.SetToolGetter(func() (map[string]interface{}, error) {
-		// 从 toolRegistry 获取工具信息
-		existingTools := toolRegistry.List()
-		result := make(map[string]interface{})
-		for _, tool := range existingTools {
-			result[tool.Name()] = map[string]interface{}{
-				"name":        tool.Name(),
-				"description": tool.Description(),
-				"parameters": tool.Parameters(),
-			}
-		}
-		return result, nil
-	})
+	cmdRegistry.SetTUIAgent(tuiAgent)
 
-	cmdRegistry.SetSkillsGetter(func() ([]*SkillInfo, error) {
-		// 从 skillsLoader 获取技能信息
-		agentSkills := skillsLoader.List()
-		result := make([]*SkillInfo, 0, len(agentSkills))
-		for _, skill := range agentSkills {
-			skillInfo := &SkillInfo{
-				Name:        skill.Name,
-				Description: skill.Description,
-				Version:     skill.Version,
-				Author:      skill.Author,
-				Homepage:    skill.Homepage,
-				Always:      skill.Always,
-				Emoji:       skill.Metadata.OpenClaw.Emoji,
-			}
-			// 转换缺失依赖信息
-			if skill.MissingDeps != nil {
-				skillInfo.MissingDeps = &MissingDepsInfo{
-					Bins:       skill.MissingDeps.Bins,
-					AnyBins:    skill.MissingDeps.AnyBins,
-					Env:        skill.MissingDeps.Env,
-					PythonPkgs: skill.MissingDeps.PythonPkgs,
-					NodePkgs:   skill.MissingDeps.NodePkgs,
-				}
-			}
-			result = append(result, skillInfo)
-		}
-		return result, nil
-	})
+	tuiAgent.cmdRegistry = cmdRegistry
+
+	// Get orchestrator for running messages
+	orchestrator := tuiAgent.GetOrchestrator()
 
 	// Handle message flag
 	if tuiMessage != "" {
 		fmt.Printf("Sending message: %s\n", tuiMessage)
-		sess.AddMessage(session.Message{
-			Role:    "user",
-			Content: tuiMessage,
-		})
-
 		timeout := time.Duration(tuiTimeoutMs) * time.Millisecond
 		msgCtx, msgCancel := context.WithTimeout(ctx, timeout)
 		defer msgCancel()
 
-		response, err := runAgentIteration(msgCtx, sess, provider, contextBuilder, toolRegistry, skillsLoader, cfg.Agents.Defaults.MaxIterations, cmdRegistry)
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		} else {
+		response := processTUIDialogue(msgCtx, sess, orchestrator, tuiHistoryLimit)
+		if response != "" {
 			fmt.Println("\n" + response + "\n")
-			sess.AddMessage(session.Message{
-				Role:    "assistant",
-				Content: response,
-			})
 			_ = sessionMgr.Save(sess)
 		}
 
@@ -341,27 +347,89 @@ func runTUI(cmd *cobra.Command, args []string) {
 			Content: line,
 		})
 
-		// Run agent
+		// Run agent with orchestrator
 		timeout := time.Duration(tuiTimeoutMs) * time.Millisecond
 		msgCtx, msgCancel := context.WithTimeout(ctx, timeout)
+		defer msgCancel()
 
-		response, err := runAgentIteration(msgCtx, sess, provider, contextBuilder, toolRegistry, skillsLoader, cfg.Agents.Defaults.MaxIterations, cmdRegistry)
-		msgCancel()
+		response := processTUIDialogue(msgCtx, sess, orchestrator, tuiHistoryLimit)
 
-		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
-		} else {
+		if response != "" {
 			fmt.Println("\n" + response + "\n")
-			sess.AddMessage(session.Message{
-				Role:    "assistant",
-				Content: response,
-			})
 			_ = sessionMgr.Save(sess)
 		}
 
 		// Force readline to refresh terminal state
 		rl.Refresh()
 	}
+}
+
+// processTUIDialogue 处理 TUI 对话（使用 Orchestrator）
+func processTUIDialogue(
+	ctx context.Context,
+	sess *session.Session,
+	orchestrator *agent.Orchestrator,
+	historyLimit int,
+) string {
+	// Load history messages
+	history := sess.GetHistory(historyLimit)
+	if historyLimit < 0 || historyLimit > 1000 {
+		history = sess.GetHistory(-1) // unlimited
+	}
+
+	// Convert session messages to agent messages
+	agentMsgs := sessionMessagesToAgentMessages(history)
+
+	// Run orchestrator
+	finalMessages, err := orchestrator.Run(ctx, agentMsgs)
+	if err != nil {
+		return fmt.Sprintf("Error: %v", err)
+	}
+
+	// Update session with new messages
+	// Only save new messages (not the history)
+	historyLen := len(history)
+	if len(finalMessages) > historyLen {
+		newMessages := finalMessages[historyLen:]
+		for _, msg := range newMessages {
+			sessMsg := session.Message{
+				Role:      string(msg.Role),
+				Content:   extractAgentMessageText(msg),
+				Timestamp: time.Unix(msg.Timestamp/1000, 0),
+			}
+
+			// Handle tool calls in assistant messages
+			if msg.Role == "assistant" {
+				for _, block := range msg.Content {
+					if tc, ok := block.(agent.ToolCallContent); ok {
+						sessMsg.ToolCalls = []session.ToolCall{
+							{ID: tc.ID, Name: tc.Name, Params: convertToMapParams(tc.Arguments)},
+						}
+					}
+				}
+			}
+
+			// Handle tool result messages
+			if msg.Role == "tool" || msg.Role == agent.RoleToolResult {
+				if id, ok := msg.Metadata["tool_call_id"].(string); ok {
+					sessMsg.ToolCallID = id
+					sessMsg.Role = "tool"
+				}
+			}
+
+			sess.AddMessage(sessMsg)
+		}
+	}
+
+	// Extract final assistant response
+	if len(finalMessages) > 0 {
+		lastMsg := finalMessages[len(finalMessages)-1]
+		if lastMsg.Role == "assistant" {
+			return extractAgentMessageText(lastMsg)
+		}
+	}
+
+	return ""
 }
 
 // runAgentIteration runs a single agent iteration (copied from chat.go)
@@ -782,4 +850,59 @@ func getAvailableToolNames(toolRegistry *tools.Registry) []string {
 		names = append(names, t.Name())
 	}
 	return names
+}
+
+// sessionMessagesToAgentMessages converts session messages to agent messages
+func sessionMessagesToAgentMessages(history []session.Message) []agent.AgentMessage {
+	result := make([]agent.AgentMessage, 0, len(history))
+	for _, sessMsg := range history {
+		agentMsg := agent.AgentMessage{
+			Role:      agent.MessageRole(sessMsg.Role),
+			Content:   []agent.ContentBlock{agent.TextContent{Text: sessMsg.Content}},
+			Timestamp: sessMsg.Timestamp.UnixMilli(),
+		}
+
+		// Handle tool calls in assistant messages
+		if sessMsg.Role == "assistant" && len(sessMsg.ToolCalls) > 0 {
+			agentMsg.Content = []agent.ContentBlock{}
+			for _, tc := range sessMsg.ToolCalls {
+				agentMsg.Content = append(agentMsg.Content, agent.ToolCallContent{
+					ID:        tc.ID,
+					Name:      tc.Name,
+					Arguments: map[string]any(tc.Params),
+				})
+			}
+		}
+
+		// Handle tool result messages
+		if sessMsg.Role == "tool" {
+			agentMsg.Role = "tool"
+			if agentMsg.Metadata == nil {
+				agentMsg.Metadata = make(map[string]any)
+			}
+			agentMsg.Metadata["tool_call_id"] = sessMsg.ToolCallID
+		}
+
+		result = append(result, agentMsg)
+	}
+	return result
+}
+
+// extractAgentMessageText extracts text content from an agent message
+func extractAgentMessageText(msg agent.AgentMessage) string {
+	for _, block := range msg.Content {
+		if text, ok := block.(agent.TextContent); ok {
+			return text.Text
+		}
+	}
+	return ""
+}
+
+// convertToMapParams converts map[string]any to session ToolCall Params type
+func convertToMapParams(params map[string]any) map[string]interface{} {
+	result := make(map[string]interface{})
+	for k, v := range params {
+		result[k] = v
+	}
+	return result
 }
