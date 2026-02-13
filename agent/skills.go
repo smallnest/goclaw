@@ -219,7 +219,7 @@ func (l *SkillsLoader) checkBlockingRequirements(skill *Skill) bool {
 func (l *SkillsLoader) parseSkillMetadata(content string, skill *Skill) error {
 	// 首先尝试使用新的 frontmatter 解析器
 	frontmatter := skills.ParseFrontmatter(content)
-	if frontmatter != nil && len(frontmatter) > 0 {
+	if len(frontmatter) > 0 {
 		// 从 frontmatter 中解析基本字段
 		if name := frontmatter["name"]; name != "" {
 			skill.Name = name
@@ -529,7 +529,7 @@ func (l *SkillsLoader) confirmInstall(skillName string, install *SkillInstall) b
 		fmt.Print("Install now? [Y/n]: ")
 
 		var response string
-		fmt.Scanln(&response)
+		_, _ = fmt.Scanln(&response)
 		return strings.ToLower(response) == "y" || response == ""
 	}
 
@@ -560,9 +560,9 @@ func (l *SkillsLoader) refreshPath() error {
 	if homeDir != "" {
 		shellPaths = append(shellPaths,
 			homeDir+"/.npm-global/bin",           // npm
-			homeDir+"/.local/share/pnpm",       // pnpm
-			homeDir+"/.yarn/bin",              // yarn
-			homeDir+"/.bun/bin",               // bun
+			homeDir+"/.local/share/pnpm",         // pnpm
+			homeDir+"/.yarn/bin",                 // yarn
+			homeDir+"/.bun/bin",                  // bun
 			"/opt/homebrew/lib/node_modules/bin", // npm (brew-installed node)
 		)
 	}

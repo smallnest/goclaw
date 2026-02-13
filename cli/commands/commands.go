@@ -981,29 +981,24 @@ func (r *CommandRegistry) searchSkills(query string) string {
 
 	for _, skill := range skills {
 		score := 0.0
-		matches := []string{}
 
 		// 检查名称匹配
 		if strings.Contains(strings.ToLower(skill.Name), query) {
 			if strings.EqualFold(skill.Name, query) {
 				score += 1.0
-				matches = append(matches, "name (exact)")
 			} else {
 				score += 0.8
-				matches = append(matches, "name")
 			}
 		}
 
 		// 检查描述匹配
 		if strings.Contains(strings.ToLower(skill.Description), query) {
 			score += 0.6
-			matches = append(matches, "description")
 		}
 
 		// 检查作者匹配
 		if strings.Contains(strings.ToLower(skill.Author), query) {
 			score += 0.4
-			matches = append(matches, "author")
 		}
 
 		if score > 0 {

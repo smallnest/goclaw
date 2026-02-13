@@ -196,7 +196,7 @@ func (r *SubagentRegistry) ReleaseRun(runID string) {
 		r.sweeperStop = nil
 	}
 
-	r.saveToDisk()
+	_ = r.saveToDisk()
 }
 
 // DeleteChildSession 删除子会话
@@ -316,7 +316,7 @@ func (r *SubagentRegistry) sweep() {
 			zap.String("run_id", runID))
 	}
 
-	r.saveToDisk()
+	_ = r.saveToDisk()
 
 	// 如果没有运行记录了，停止清理器
 	if len(r.runs) == 0 && r.sweeperStop != nil {
@@ -338,7 +338,7 @@ func (r *SubagentRegistry) Cleanup(runID string, cleanup string, didAnnounce boo
 	if !didAnnounce {
 		// 允许重试
 		record.CleanupHandled = false
-		r.saveToDisk()
+		_ = r.saveToDisk()
 		return
 	}
 
@@ -353,7 +353,7 @@ func (r *SubagentRegistry) Cleanup(runID string, cleanup string, didAnnounce boo
 		record.CleanupCompletedAt = &now
 	}
 
-	r.saveToDisk()
+	_ = r.saveToDisk()
 }
 
 // BeginCleanup 开始清理流程
@@ -375,7 +375,7 @@ func (r *SubagentRegistry) BeginCleanup(runID string) bool {
 	}
 
 	record.CleanupHandled = true
-	r.saveToDisk()
+	_ = r.saveToDisk()
 	return true
 }
 

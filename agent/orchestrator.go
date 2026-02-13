@@ -138,7 +138,7 @@ func (o *Orchestrator) runLoop(ctx context.Context, state *AgentState) ([]AgentM
 		// Agent would stop here. Check for follow-up messages.
 		followUpMessages := o.fetchFollowUpMessages()
 		if len(followUpMessages) > 0 {
-			pendingMessages = followUpMessages
+			pendingMessages = append(pendingMessages, followUpMessages...)
 			continue
 		}
 
@@ -183,8 +183,7 @@ func (o *Orchestrator) streamAssistantResponse(ctx context.Context, state *Agent
 	}
 
 	// Prepare tool definitions
-	var toolDefs []providers.ToolDefinition
-	toolDefs = convertToToolDefinitions(state.Tools)
+	toolDefs := convertToToolDefinitions(state.Tools)
 
 	// Emit message start
 	o.emit(NewEvent(EventMessageStart))

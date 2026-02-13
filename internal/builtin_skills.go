@@ -148,6 +148,8 @@ func EnsureConfig() (bool, error) {
 }
 
 // copyBuiltinSkills 复制内置技能到目标目录
+//
+//nolint:unused
 func copyBuiltinSkills(targetDir string) error {
 	// 遍历 builtin_skills 目录
 	entries, err := builtinSkillsFS.ReadDir("builtin_skills")

@@ -196,6 +196,8 @@ func (t *WebTool) WebFetch(ctx context.Context, params map[string]interface{}) (
 
 	// 设置 User-Agent
 	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; goclaw/1.0)")
+	// 设置 Accept header 优先获取 markdown 格式
+	req.Header.Set("Accept", "text/markdown, text/html")
 
 	// 发送请求
 	resp, err := t.client.Do(req)

@@ -112,8 +112,8 @@ func (n *NodeInstaller) buildCommand(pkg string) []string {
 }
 
 // isInstalled checks if a package is installed globally
-func (n *NodeInstaller) isInstalled(ctx context.Context, manager, pkg string) bool {
-	manager = n.resolveManager()
+func (n *NodeInstaller) isInstalled(ctx context.Context, _, pkg string) bool {
+	manager := n.resolveManager()
 
 	var argv []string
 	switch manager {

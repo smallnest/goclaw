@@ -3,6 +3,7 @@ package providers
 import (
 	"context"
 	"fmt"
+	"sort"
 	"sync"
 	"time"
 
@@ -152,6 +153,11 @@ func (p *RotationProvider) selectRoundRobin(available []*ProviderProfile) *Provi
 	if len(available) == 0 {
 		return nil
 	}
+
+	// Sort by name to ensure consistent ordering
+	sort.Slice(available, func(i, j int) bool {
+		return available[i].Name < available[j].Name
+	})
 
 	profile := available[p.currentIndex%len(available)]
 	p.currentIndex++

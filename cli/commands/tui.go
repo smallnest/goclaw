@@ -232,7 +232,7 @@ func runTUI(cmd *cobra.Command, args []string) {
 	}
 	defer func() {
 		agentCancel()
-		tuiAgent.Stop()
+		_ = tuiAgent.Stop()
 	}()
 
 	// Always create a new session (unless explicitly specified)
@@ -441,6 +441,8 @@ func processTUIDialogue(
 }
 
 // runAgentIteration runs a single agent iteration (copied from chat.go)
+//
+//nolint:unused
 func runAgentIteration(
 	ctx context.Context,
 	sess *session.Session,
@@ -635,6 +637,8 @@ func runAgentIteration(
 }
 
 // getLoadedSkills from session
+//
+//nolint:unused
 func getLoadedSkills(sess *session.Session) []string {
 	if sess.Metadata == nil {
 		return []string{}
@@ -646,6 +650,8 @@ func getLoadedSkills(sess *session.Session) []string {
 }
 
 // setLoadedSkills in session
+//
+//nolint:unused
 func setLoadedSkills(sess *session.Session, skills []string) {
 	if sess.Metadata == nil {
 		sess.Metadata = make(map[string]interface{})
@@ -669,6 +675,8 @@ func getUserInputHistory(sess *session.Session) []string {
 }
 
 // findMostRecentTUISession finds the most recently updated tui session
+//
+//nolint:unused
 func findMostRecentTUISession(mgr *session.Manager) string {
 	keys, err := mgr.List()
 	if err != nil {
@@ -762,6 +770,8 @@ func (ft *FailureTracker) GetFailedToolNames() []string {
 }
 
 // formatToolError 格式化工具错误，提供替代建议
+//
+//nolint:unused
 func formatToolError(toolName string, params map[string]interface{}, err error, availableTools []string) string {
 	errorMsg := err.Error()
 
@@ -824,6 +834,8 @@ func formatToolError(toolName string, params map[string]interface{}, err error, 
 }
 
 // shouldUseErrorGuidance 判断是否需要添加错误处理指导
+//
+//nolint:unused
 func shouldUseErrorGuidance(history []session.Message) bool {
 	// 检查最近的消息中是否有工具失败
 	if len(history) == 0 {
@@ -847,6 +859,8 @@ func shouldUseErrorGuidance(history []session.Message) bool {
 }
 
 // getAvailableToolNames 获取可用的工具名称列表
+//
+//nolint:unused
 func getAvailableToolNames(toolRegistry *tools.Registry) []string {
 	if toolRegistry == nil {
 		return []string{}

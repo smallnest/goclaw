@@ -187,6 +187,8 @@ func InstallSkill(ctx context.Context, req InstallRequest) (*InstallResult, erro
 	if ctx == nil {
 		ctx = context.Background()
 	}
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
 
 	// Load skill entries
 	entries, err := LoadSkillEntries(req.WorkspaceDir, LoadSkillsOptions{

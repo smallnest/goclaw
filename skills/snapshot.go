@@ -130,7 +130,7 @@ func filterSkillEntries(
 		// Check if skill should be included
 		if shouldIncludeSkill(entry, opts) {
 			// Apply skill filter if provided
-			if opts.SkillFilter != nil && len(opts.SkillFilter) > 0 {
+			if len(opts.SkillFilter) > 0 {
 				found := false
 				for _, filterName := range opts.SkillFilter {
 					if filterName == entry.Skill.Name {

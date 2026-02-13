@@ -61,11 +61,7 @@ func (c *DefaultEligibilityChecker) ShouldInclude(skill *SkillEntry, config Skil
 
 	// Check config paths
 	missingConfig := c.CheckConfigPaths(skill)
-	if len(missingConfig) > 0 {
-		return false
-	}
-
-	return true
+	return len(missingConfig) == 0
 }
 
 // CheckOSCompatibility checks if the skill is compatible with the current OS.
