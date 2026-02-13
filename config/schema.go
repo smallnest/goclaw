@@ -148,6 +148,7 @@ type WhatsAppChannelConfig struct {
 // FeishuChannelConfig 飞书通道配置
 type FeishuChannelConfig struct {
 	Enabled           bool     `mapstructure:"enabled" json:"enabled"`
+	UseWebSocket      bool     `mapstructure:"use_websocket" json:"use_websocket"`
 	AppID             string   `mapstructure:"app_id" json:"app_id"`
 	AppSecret         string   `mapstructure:"app_secret" json:"app_secret"`
 	EncryptKey        string   `mapstructure:"encrypt_key" json:"encrypt_key"`

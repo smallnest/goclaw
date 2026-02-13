@@ -15,11 +15,13 @@ import (
 	"github.com/smallnest/goclaw/internal/logger"
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
+	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
+	"github.com/larksuite/oapi-sdk-go/v3/event/dispatcher"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
+	larkws "github.com/larksuite/oapi-sdk-go/v3/ws"
 	"go.uber.org/zap"
 )
 
-// FeishuChannel 飞书通道
 type FeishuChannel struct {
 	*BaseChannelImpl
 	appID             string
@@ -27,11 +29,13 @@ type FeishuChannel struct {
 	encryptKey        string
 	verificationToken string
 	webhookPort       int
+	useWebSocket      bool
 	client            *lark.Client
+	wsClient          *larkws.Client
+	stopWS            chan struct{}
 }
 
-// NewFeishuChannel 创建飞书通道
-func NewFeishuChannel(cfg config.FeishuChannelConfig, bus *bus.MessageBus) (*FeishuChannel, error) {
+func NewFeishuChannel(cfg config.FeishuChannelConfig, msgBus *bus.MessageBus) (*FeishuChannel, error) {
 	if cfg.AppID == "" || cfg.AppSecret == "" {
 		return nil, fmt.Errorf("feishu app_id and app_secret are required")
 	}
@@ -47,28 +51,31 @@ func NewFeishuChannel(cfg config.FeishuChannelConfig, bus *bus.MessageBus) (*Fei
 	if port == 0 {
 		port = 8765
 	}
-
 	return &FeishuChannel{
-		BaseChannelImpl:   NewBaseChannelImpl("feishu", "default", baseCfg, bus),
+		BaseChannelImpl:   NewBaseChannelImpl("feishu", "default", baseCfg, msgBus),
 		appID:             cfg.AppID,
 		appSecret:         cfg.AppSecret,
 		encryptKey:        cfg.EncryptKey,
 		verificationToken: cfg.VerificationToken,
 		webhookPort:       port,
+		useWebSocket:      cfg.UseWebSocket,
 		client:            client,
+		stopWS:            make(chan struct{}),
 	}, nil
 }
 
-// Start 启动飞书通道
 func (c *FeishuChannel) Start(ctx context.Context) error {
 	if err := c.BaseChannelImpl.Start(ctx); err != nil {
 		return err
 	}
 
-	logger.Info("Starting Feishu channel", zap.String("app_id", c.appID))
+	logger.Info("Starting Feishu channel", zap.String("app_id", c.appID), zap.Bool("use_websocket", c.useWebSocket))
 
-	// 启动 HTTP 服务器监听事件
-	go c.startEventServer(ctx)
+	if c.useWebSocket {
+		go c.startWebSocket(ctx)
+	} else {
+		go c.startEventServer(ctx)
+	}
 
 	return nil
 }
@@ -93,6 +100,133 @@ func (c *FeishuChannel) startEventServer(ctx context.Context) {
 	_ = server.Shutdown(ctx)
 }
 
+func (c *FeishuChannel) startWebSocket(ctx context.Context) {
+	eventHandler := dispatcher.NewEventDispatcher("", "").
+		OnP2MessageReceiveV1(func(ctx context.Context, event *larkim.P2MessageReceiveV1) error {
+			logger.Debug("Received message via WebSocket", zap.String("sender", *event.Event.Sender.SenderId.UserId))
+			c.handleP2Message(event)
+			return nil
+		})
+
+	c.wsClient = larkws.NewClient(c.appID, c.appSecret,
+		larkws.WithEventHandler(eventHandler),
+		larkws.WithLogLevel(larkcore.LogLevelDebug),
+	)
+
+	err := c.wsClient.Start(ctx)
+	if err != nil {
+		logger.Error("WebSocket client start failed", zap.Error(err))
+		go c.reconnectWebSocket(ctx)
+		return
+	}
+
+	logger.Info("Feishu WebSocket client started")
+
+	<-ctx.Done()
+}
+
+func (c *FeishuChannel) reconnectWebSocket(ctx context.Context) {
+	for {
+		select {
+		case <-c.stopWS:
+			return
+		case <-ctx.Done():
+			return
+		case <-time.After(5 * time.Second):
+		}
+
+		logger.Info("Reconnecting WebSocket...")
+
+		eventHandler := dispatcher.NewEventDispatcher("", "").
+			OnP2MessageReceiveV1(func(ctx context.Context, event *larkim.P2MessageReceiveV1) error {
+				c.handleP2Message(event)
+				return nil
+			})
+
+		c.wsClient = larkws.NewClient(c.appID, c.appSecret,
+			larkws.WithEventHandler(eventHandler),
+		)
+
+		err := c.wsClient.Start(ctx)
+		if err != nil {
+			logger.Error("WebSocket reconnection failed", zap.Error(err))
+			continue
+		}
+
+		logger.Info("WebSocket reconnected")
+		return
+	}
+}
+
+func (c *FeishuChannel) handleP2Message(event *larkim.P2MessageReceiveV1) {
+	senderID := ""
+	if event.Event.Sender != nil && event.Event.Sender.SenderId != nil {
+		senderID = *event.Event.Sender.SenderId.UserId
+	}
+
+	if !c.IsAllowed(senderID) {
+		return
+	}
+
+	msgType := ""
+	if event.Event.Message != nil {
+		msgType = *event.Event.Message.MessageType
+	}
+
+	contentText := ""
+	if event.Event.Message != nil && event.Event.Message.Content != nil {
+		content := *event.Event.Message.Content
+		var contentJSON map[string]interface{}
+		if err := json.Unmarshal([]byte(content), &contentJSON); err == nil {
+			if text, ok := contentJSON["text"].(string); ok {
+				contentText = text
+			} else if imageKey, ok := contentJSON["image_key"].(string); ok {
+				contentText = fmt.Sprintf("[Image: %s]", imageKey)
+			} else if fileKey, ok := contentJSON["file_key"].(string); ok {
+				contentText = fmt.Sprintf("[File: %s]", fileKey)
+			} else {
+				contentText = content
+			}
+		} else {
+			contentText = content
+		}
+	}
+
+	if msgType != "text" {
+		contentText = fmt.Sprintf("[%s] %s", msgType, contentText)
+	}
+
+	msgID := ""
+	chatID := ""
+	chatType := ""
+	if event.Event.Message != nil {
+		if event.Event.Message.MessageId != nil {
+			msgID = *event.Event.Message.MessageId
+		}
+		if event.Event.Message.ChatId != nil {
+			chatID = *event.Event.Message.ChatId
+		}
+		if event.Event.Message.ChatType != nil {
+			chatType = *event.Event.Message.ChatType
+		}
+	}
+
+	msg := &bus.InboundMessage{
+		ID:        msgID,
+		Content:   contentText,
+		SenderID:  senderID,
+		ChatID:    chatID,
+		Channel:   c.Name(),
+		Timestamp: time.Now(),
+		Metadata: map[string]interface{}{
+			"chat_type": chatType,
+			"msg_type":  msgType,
+		},
+	}
+	logger.Debug("PublishInbound", zap.String("id", msg.ID))
+	_ = c.PublishInbound(context.Background(), msg)
+}
+
 func (c *FeishuChannel) handleWebhook(w http.ResponseWriter, r *http.Request) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
@@ -101,7 +235,6 @@ func (c *FeishuChannel) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 验证签名
 	if !c.verifySignature(r, body) {
 		logger.Warn("Invalid signature")
 		w.WriteHeader(http.StatusUnauthorized)
@@ -115,9 +248,7 @@ func (c *FeishuChannel) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// URL 验证
 	if challenge, ok := event["challenge"].(string); ok {
-		// 检查 token
 		if token, ok := event["token"].(string); ok && token != c.verificationToken {
 			logger.Warn("Invalid verification token")
 			w.WriteHeader(http.StatusForbidden)
@@ -128,7 +259,6 @@ func (c *FeishuChannel) handleWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 处理事件
 	header, _ := event["header"].(map[string]interface{})
 	eventType, _ := header["event_type"].(string)
 
@@ -147,7 +277,6 @@ func (c *FeishuChannel) handleMessage(event map[string]interface{}) {
 	senderIDMap, _ := sender["sender_id"].(map[string]interface{})
 	senderID, _ := senderIDMap["user_id"].(string)
 
-	// 检查权限
 	if !c.IsAllowed(senderID) {
 		return
 	}
@@ -155,7 +284,6 @@ func (c *FeishuChannel) handleMessage(event map[string]interface{}) {
 	contentStr, _ := message["content"].(string)
 	msgType, _ := message["message_type"].(string)
 
-	// 解析内容
 	var contentText string
 	var contentJSON map[string]interface{}
 	if err := json.Unmarshal([]byte(contentStr), &contentJSON); err == nil {
@@ -209,7 +337,6 @@ func (c *FeishuChannel) verifySignature(r *http.Request, body []byte) bool {
 		return false
 	}
 
-	// 计算签名
 	b := bytes.NewBufferString(timestamp)
 	b.WriteString(nonce)
 	b.WriteString(c.encryptKey)
@@ -222,34 +349,70 @@ func (c *FeishuChannel) verifySignature(r *http.Request, body []byte) bool {
 	return target == signature
 }
 
-// Send 发送消息
 func (c *FeishuChannel) Send(msg *bus.OutboundMessage) error {
-	// 构建 content JSON 对象，使用 json.Marshal 正确转义特殊字符
-	contentMap := map[string]string{"text": msg.Content}
-	contentBytes, err := json.Marshal(contentMap)
-	if err != nil {
-		return fmt.Errorf("failed to marshal content: %w", err)
+	logger.Info("Feishu sending message",
+		zap.String("chat_id", msg.ChatID),
+		zap.String("content", msg.Content),
+		zap.Bool("use_websocket", c.useWebSocket),
+	)
+
+	receiveIDType := larkim.ReceiveIdTypeChatId
+	if len(msg.ChatID) > 3 && msg.ChatID[:3] == "ou_" {
+		receiveIDType = larkim.ReceiveIdTypeOpenId
 	}
 
-	// 构建请求
+	return c.sendCardMessage(msg, receiveIDType)
+}
+
+func (c *FeishuChannel) sendCardMessage(msg *bus.OutboundMessage, receiveIDType string) error {
+	cardContent := fmt.Sprintf(`{
+		"header": {
+			"title": {
+				"tag": "plain_text",
+				"content": "Message"
+			},
+			"template": "blue"
+		},
+		"elements": [
+			{
+				"tag": "markdown",
+				"content": %s
+			}
+		]
+	}`, jsonEscape(msg.Content))
+
 	req := larkim.NewCreateMessageReqBuilder().
-		ReceiveIdType(larkim.ReceiveIdTypeChatId).
+		ReceiveIdType(receiveIDType).
 		Body(larkim.NewCreateMessageReqBodyBuilder().
 			ReceiveId(msg.ChatID).
-			MsgType(larkim.MsgTypeText).
-			Content(string(contentBytes)).
+			MsgType(larkim.MsgTypeInteractive).
+			Content(cardContent).
 			Build()).
 		Build()
 
-	// 发送消息
 	resp, err := c.client.Im.Message.Create(context.Background(), req)
 	if err != nil {
+		logger.Error("Feishu send message error", zap.Error(err), zap.String("chat_id", msg.ChatID))
 		return err
 	}
 
 	if !resp.Success() {
+		logger.Error("Feishu API error",
+			zap.Int("code", int(resp.Code)),
+			zap.String("msg", resp.Msg),
+			zap.String("chat_id", msg.ChatID),
+		)
 		return fmt.Errorf("feishu api error: %d %s", resp.Code, resp.Msg)
 	}
 
 	return nil
+}
+
+func jsonEscape(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
+}
+func (c *FeishuChannel) Stop() error {
+	close(c.stopWS)
+	return c.BaseChannelImpl.Stop()
 }
