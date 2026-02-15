@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/url"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -598,18 +599,7 @@ func (s *SmartSearch) GetTool() Tool {
 
 // urlEncode URL encoding
 func urlEncode(s string) string {
-	var result strings.Builder
-	for _, c := range s {
-		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
-			c == '-' || c == '_' || c == '.' || c == '~' {
-			result.WriteRune(c)
-		} else if c == ' ' {
-			result.WriteString("+")
-		} else {
-			result.WriteString(fmt.Sprintf("%%%02X", c))
-		}
-	}
-	return result.String()
+	return url.QueryEscape(s)
 }
 
 // htmlToTextForSearch Convert HTML to plain text (for search result extraction)
