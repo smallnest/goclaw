@@ -245,37 +245,66 @@ func (c *FeishuChannel) extractMessageContent(msg *larkim.EventMessage) string {
 
 // Send 发送消息
 func (c *FeishuChannel) Send(msg *bus.OutboundMessage) error {
-	// 构建 content JSON 对象
-	contentMap := map[string]string{"text": msg.Content}
-	contentBytes, err := json.Marshal(contentMap)
-	if err != nil {
-		return fmt.Errorf("failed to marshal content: %w", err)
+	logger.Info("Feishu sending message",
+		zap.String("chat_id", msg.ChatID),
+		zap.String("content", msg.Content))
+
+	// 判断接收者类型
+	receiveIDType := larkim.ReceiveIdTypeChatId
+	if len(msg.ChatID) > 3 && msg.ChatID[:3] == "ou_" {
+		receiveIDType = larkim.ReceiveIdTypeOpenId
 	}
 
-	// 构建消息请求
-	resp, err := c.httpClient.Im.Message.Create(context.Background(),
-		larkim.NewCreateMessageReqBuilder().
-			ReceiveIdType(larkim.ReceiveIdTypeChatId).
-			Body(larkim.NewCreateMessageReqBodyBuilder().
-				ReceiveId(msg.ChatID).
-				MsgType(larkim.MsgTypeText).
-				Content(string(contentBytes)).
-				Build()).
-			Build())
+	return c.sendCardMessage(msg, receiveIDType)
+}
 
+// sendCardMessage 发送卡片消息（使用 markdown 格式）
+func (c *FeishuChannel) sendCardMessage(msg *bus.OutboundMessage, receiveIDType string) error {
+	// 构建交互式卡片，使用 markdown 元素渲染内容
+	cardContent := fmt.Sprintf(`{
+		"elements": [
+			{
+				"tag": "markdown",
+				"content": %s
+			}
+		]
+	}`, jsonEscape(msg.Content))
+
+	req := larkim.NewCreateMessageReqBuilder().
+		ReceiveIdType(receiveIDType).
+		Body(larkim.NewCreateMessageReqBodyBuilder().
+			ReceiveId(msg.ChatID).
+			MsgType(larkim.MsgTypeInteractive).
+			Content(cardContent).
+			Build()).
+		Build()
+
+	resp, err := c.httpClient.Im.Message.Create(context.Background(), req)
 	if err != nil {
-		return fmt.Errorf("failed to create message request: %w", err)
+		logger.Error("Feishu send message error", zap.Error(err), zap.String("chat_id", msg.ChatID))
+		return err
 	}
 
 	if !resp.Success() {
+		logger.Error("Feishu API error",
+			zap.Int("code", int(resp.Code)),
+			zap.String("msg", resp.Msg),
+			zap.String("chat_id", msg.ChatID),
+		)
 		return fmt.Errorf("feishu api error: %d %s", resp.Code, resp.Msg)
 	}
 
-	logger.Debug("Sent Feishu message",
+	logger.Debug("Sent Feishu card message",
 		zap.String("chat_id", msg.ChatID),
 		zap.Int("content_length", len(msg.Content)))
 
 	return nil
+}
+
+// jsonEscape 转义 JSON 字符串
+func jsonEscape(s string) string {
+	b, _ := json.Marshal(s)
+	return string(b)
 }
 
 // Stop 停止飞书通道
