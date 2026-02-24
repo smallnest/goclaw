@@ -1,33 +1,34 @@
 package channels
 
 import (
-	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"io"
-	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/smallnest/goclaw/bus"
 	"github.com/smallnest/goclaw/config"
 	"github.com/smallnest/goclaw/internal/logger"
-
 	lark "github.com/larksuite/oapi-sdk-go/v3"
+	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
+	"github.com/larksuite/oapi-sdk-go/v3/event/dispatcher"
+	larkws "github.com/larksuite/oapi-sdk-go/v3/ws"
 	"go.uber.org/zap"
 )
 
-// FeishuChannel 飞书通道
+// FeishuChannel 飞书通道 - WebSocket 模式
 type FeishuChannel struct {
 	*BaseChannelImpl
 	appID             string
 	appSecret         string
+	domain            string
 	encryptKey        string
 	verificationToken string
-	webhookPort       int
-	client            *lark.Client
+	wsClient          *larkws.Client
+	eventDispatcher   *dispatcher.EventDispatcher
+	httpClient        *lark.Client
 }
 
 // NewFeishuChannel 创建飞书通道
@@ -36,26 +37,27 @@ func NewFeishuChannel(cfg config.FeishuChannelConfig, bus *bus.MessageBus) (*Fei
 		return nil, fmt.Errorf("feishu app_id and app_secret are required")
 	}
 
-	client := lark.NewClient(cfg.AppID, cfg.AppSecret)
+	// 创建 HTTP client for sending messages
+	client := lark.NewClient(
+		cfg.AppID,
+		cfg.AppSecret,
+		lark.WithAppType(larkcore.AppTypeSelfBuilt),
+		lark.WithOpenBaseUrl(resolveDomain(cfg.Domain)),
+	)
 
 	baseCfg := BaseChannelConfig{
 		Enabled:    cfg.Enabled,
 		AllowedIDs: cfg.AllowedIDs,
 	}
 
-	port := cfg.WebhookPort
-	if port == 0 {
-		port = 8765
-	}
-
 	return &FeishuChannel{
 		BaseChannelImpl:   NewBaseChannelImpl("feishu", "default", baseCfg, bus),
 		appID:             cfg.AppID,
 		appSecret:         cfg.AppSecret,
+		domain:            cfg.Domain,
 		encryptKey:        cfg.EncryptKey,
 		verificationToken: cfg.VerificationToken,
-		webhookPort:       port,
-		client:            client,
+		httpClient:        client,
 	}, nil
 }
 
@@ -65,191 +67,231 @@ func (c *FeishuChannel) Start(ctx context.Context) error {
 		return err
 	}
 
-	logger.Info("Starting Feishu channel", zap.String("app_id", c.appID))
+	logger.Info("Starting Feishu channel (WebSocket mode)",
+		zap.String("app_id", c.appID),
+		zap.String("domain", c.domain))
 
-	// 启动 HTTP 服务器监听事件
-	go c.startEventServer(ctx)
+	// 创建事件分发器
+	c.eventDispatcher = dispatcher.NewEventDispatcher(
+		c.verificationToken,
+		c.encryptKey,
+	)
+
+	// 注册事件处理器
+	c.registerEventHandlers(ctx)
+
+	// 创建 WebSocket 客户端
+	c.wsClient = larkws.NewClient(
+		c.appID,
+		c.appSecret,
+		larkws.WithEventHandler(c.eventDispatcher),
+		larkws.WithDomain(resolveDomain(c.domain)),
+		larkws.WithLogLevel(larkcore.LogLevelInfo),
+	)
+
+	// 启动 WebSocket 连接
+	go c.startWebSocket(ctx)
 
 	return nil
 }
 
-func (c *FeishuChannel) startEventServer(ctx context.Context) {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/feishu/webhook", c.handleWebhook)
-
-	server := &http.Server{
-		Addr:    fmt.Sprintf(":%d", c.webhookPort),
-		Handler: mux,
+// resolveDomain 解析域名
+func resolveDomain(domain string) string {
+	if domain == "lark" {
+		return lark.LarkBaseUrl
 	}
-
-	go func() {
-		logger.Info("Feishu webhook server started", zap.String("addr", server.Addr))
-		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			logger.Error("Feishu webhook server error", zap.Error(err))
-		}
-	}()
-
-	<-ctx.Done()
-	_ = server.Shutdown(ctx)
+	return lark.FeishuBaseUrl
 }
 
-func (c *FeishuChannel) handleWebhook(w http.ResponseWriter, r *http.Request) {
-	body, err := io.ReadAll(r.Body)
-	if err != nil {
-		logger.Error("Failed to read body", zap.Error(err))
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
+// registerEventHandlers 注册事件处理器
+func (c *FeishuChannel) registerEventHandlers(ctx context.Context) {
+	// 处理接收消息事件
+	c.eventDispatcher.OnP2MessageReceiveV1(func(ctx context.Context, event *larkim.P2MessageReceiveV1) error {
+		c.handleMessageReceived(ctx, event)
+		return nil
+	})
 
-	// 验证签名
-	if !c.verifySignature(r, body) {
-		logger.Warn("Invalid signature")
-		w.WriteHeader(http.StatusUnauthorized)
-		return
-	}
+	// 处理机器人被添加到群聊事件
+	c.eventDispatcher.OnP2ChatMemberBotAddedV1(func(ctx context.Context, event *larkim.P2ChatMemberBotAddedV1) error {
+		logger.Info("Feishu bot added to chat",
+			zap.String("chat_id", *event.Event.ChatId))
+		return nil
+	})
 
-	var event map[string]interface{}
-	if err := json.Unmarshal(body, &event); err != nil {
-		logger.Error("Failed to unmarshal JSON", zap.Error(err))
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-
-	// URL 验证
-	if challenge, ok := event["challenge"].(string); ok {
-		// 检查 token
-		if token, ok := event["token"].(string); ok && token != c.verificationToken {
-			logger.Warn("Invalid verification token")
-			w.WriteHeader(http.StatusForbidden)
-			return
-		}
-		w.Header().Set("Content-Type", "application/json")
-		_, _ = w.Write([]byte(fmt.Sprintf(`{"challenge":"%s"}`, challenge)))
-		return
-	}
-
-	// 处理事件
-	header, _ := event["header"].(map[string]interface{})
-	eventType, _ := header["event_type"].(string)
-
-	if eventType == "im.message.receive_v1" {
-		c.handleMessage(event)
-	}
-
-	w.WriteHeader(http.StatusOK)
+	// 处理机器人被移出群聊事件
+	c.eventDispatcher.OnP2ChatMemberBotDeletedV1(func(ctx context.Context, event *larkim.P2ChatMemberBotDeletedV1) error {
+		logger.Info("Feishu bot removed from chat",
+			zap.String("chat_id", *event.Event.ChatId))
+		return nil
+	})
 }
 
-func (c *FeishuChannel) handleMessage(event map[string]interface{}) {
-	evt, _ := event["event"].(map[string]interface{})
-	message, _ := evt["message"].(map[string]interface{})
-	sender, _ := evt["sender"].(map[string]interface{})
+// startWebSocket 启动 WebSocket 连接
+func (c *FeishuChannel) startWebSocket(ctx context.Context) {
+	logger.Info("Starting Feishu WebSocket connection")
 
-	senderIDMap, _ := sender["sender_id"].(map[string]interface{})
-	senderID, _ := senderIDMap["user_id"].(string)
+	// Start blocks forever, so run it in the goroutine
+	// The wsClient will handle reconnection automatically
+	if err := c.wsClient.Start(ctx); err != nil {
+		logger.Error("Feishu WebSocket error", zap.Error(err))
+	}
 
-	// 检查权限
-	if !c.IsAllowed(senderID) {
+	logger.Info("Feishu WebSocket connection stopped")
+}
+
+// handleMessageReceived 处理接收到的消息
+func (c *FeishuChannel) handleMessageReceived(ctx context.Context, event *larkim.P2MessageReceiveV1) {
+	if event.Event == nil || event.Event.Sender == nil || event.Event.Message == nil {
+		logger.Debug("Feishu message event has nil fields")
 		return
 	}
 
-	contentStr, _ := message["content"].(string)
-	msgType, _ := message["message_type"].(string)
+	senderID := ""
+	if event.Event.Sender.SenderId != nil {
+		if event.Event.Sender.SenderId.OpenId != nil {
+			senderID = *event.Event.Sender.SenderId.OpenId
+		} else if event.Event.Sender.SenderId.UserId != nil {
+			senderID = *event.Event.Sender.SenderId.UserId
+		}
+	}
 
-	// 解析内容
-	var contentText string
-	var contentJSON map[string]interface{}
-	if err := json.Unmarshal([]byte(contentStr), &contentJSON); err == nil {
-		if text, ok := contentJSON["text"].(string); ok {
-			contentText = text
-		} else if imageKey, ok := contentJSON["image_key"].(string); ok {
-			contentText = fmt.Sprintf("[Image: %s]", imageKey)
-		} else if fileKey, ok := contentJSON["file_key"].(string); ok {
-			contentText = fmt.Sprintf("[File: %s]", fileKey)
+	chatID := ""
+	if event.Event.Message.ChatId != nil {
+		chatID = *event.Event.Message.ChatId
+	}
+
+	messageID := ""
+	if event.Event.Message.MessageId != nil {
+		messageID = *event.Event.Message.MessageId
+	}
+
+	logger.Debug("Feishu message received",
+		zap.String("chat_id", chatID),
+		zap.String("message_id", messageID),
+		zap.String("sender_id", senderID))
+
+	// 检查发送者权限
+	if senderID != "" && !c.IsAllowed(senderID) {
+		logger.Debug("Feishu message filtered (not allowed)",
+			zap.String("sender_id", senderID))
+		return
+	}
+
+	// 解析消息内容
+	content := c.extractMessageContent(event.Event.Message)
+	if content == "" {
+		logger.Debug("Feishu message has no extractable text content")
+		return
+	}
+
+	// 解析时间戳
+	var timestamp time.Time
+	if event.Event.Message.CreateTime != nil {
+		if ms, err := strconv.ParseInt(*event.Event.Message.CreateTime, 10, 64); err == nil {
+			timestamp = time.UnixMilli(ms)
 		} else {
-			contentText = contentStr
+			timestamp = time.Now()
 		}
 	} else {
-		contentText = contentStr
+		timestamp = time.Now()
 	}
 
-	if msgType != "text" {
-		contentText = fmt.Sprintf("[%s] %s", msgType, contentText)
-	}
-
-	msgID, _ := message["message_id"].(string)
-	chatID, _ := message["chat_id"].(string)
-	chatType, _ := message["chat_type"].(string)
-
-	msg := &bus.InboundMessage{
-		ID:        msgID,
-		Content:   contentText,
+	// 发布到消息总线
+	inbound := &bus.InboundMessage{
+		ID:        messageID,
+		Content:   content,
 		SenderID:  senderID,
 		ChatID:    chatID,
 		Channel:   c.Name(),
-		Timestamp: time.Now(),
+		AccountID: "default",
+		Timestamp: timestamp,
 		Metadata: map[string]interface{}{
-			"chat_type": chatType,
-			"msg_type":  msgType,
+			"msg_type": getStringPtr(event.Event.Message.MessageType),
 		},
 	}
 
-	_ = c.PublishInbound(context.Background(), msg)
+	if err := c.PublishInbound(ctx, inbound); err != nil {
+		logger.Error("Failed to publish inbound message",
+			zap.String("message_id", messageID),
+			zap.Error(err))
+		return
+	}
+
+	logger.Debug("Processed Feishu message",
+		zap.String("message_id", messageID),
+		zap.String("chat_id", chatID),
+		zap.String("sender_id", senderID))
 }
 
-func (c *FeishuChannel) verifySignature(r *http.Request, body []byte) bool {
-	if c.encryptKey == "" {
-		return true
+// extractMessageContent 从消息中提取文本内容
+func (c *FeishuChannel) extractMessageContent(msg *larkim.EventMessage) string {
+	if msg.MessageType == nil || *msg.MessageType != "text" {
+		return ""
 	}
 
-	timestamp := r.Header.Get("X-Lark-Request-Timestamp")
-	nonce := r.Header.Get("X-Lark-Request-Nonce")
-	signature := r.Header.Get("X-Lark-Signature")
-
-	if timestamp == "" || nonce == "" || signature == "" {
-		return false
+	if msg.Content == nil {
+		return ""
 	}
 
-	// 计算签名
-	b := bytes.NewBufferString(timestamp)
-	b.WriteString(nonce)
-	b.WriteString(c.encryptKey)
-	b.Write(body)
+	// 解析 content JSON
+	var content map[string]string
+	if err := json.Unmarshal([]byte(*msg.Content), &content); err != nil {
+		logger.Error("Failed to parse message content", zap.Error(err))
+		return ""
+	}
 
-	h := sha256.New()
-	h.Write(b.Bytes())
-
-	target := fmt.Sprintf("%x", h.Sum(nil))
-	return target == signature
+	return content["text"]
 }
 
 // Send 发送消息
 func (c *FeishuChannel) Send(msg *bus.OutboundMessage) error {
-	// 构建 content JSON 对象，使用 json.Marshal 正确转义特殊字符
+	// 构建 content JSON 对象
 	contentMap := map[string]string{"text": msg.Content}
 	contentBytes, err := json.Marshal(contentMap)
 	if err != nil {
 		return fmt.Errorf("failed to marshal content: %w", err)
 	}
 
-	// 构建请求
-	req := larkim.NewCreateMessageReqBuilder().
-		ReceiveIdType(larkim.ReceiveIdTypeChatId).
-		Body(larkim.NewCreateMessageReqBodyBuilder().
-			ReceiveId(msg.ChatID).
-			MsgType(larkim.MsgTypeText).
-			Content(string(contentBytes)).
-			Build()).
-		Build()
+	// 构建消息请求
+	resp, err := c.httpClient.Im.Message.Create(context.Background(),
+		larkim.NewCreateMessageReqBuilder().
+			ReceiveIdType(larkim.ReceiveIdTypeChatId).
+			Body(larkim.NewCreateMessageReqBodyBuilder().
+				ReceiveId(msg.ChatID).
+				MsgType(larkim.MsgTypeText).
+				Content(string(contentBytes)).
+				Build()).
+			Build())
 
-	// 发送消息
-	resp, err := c.client.Im.Message.Create(context.Background(), req)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create message request: %w", err)
 	}
 
 	if !resp.Success() {
 		return fmt.Errorf("feishu api error: %d %s", resp.Code, resp.Msg)
 	}
 
+	logger.Debug("Sent Feishu message",
+		zap.String("chat_id", msg.ChatID),
+		zap.Int("content_length", len(msg.Content)))
+
 	return nil
+}
+
+// Stop 停止飞书通道
+func (c *FeishuChannel) Stop() error {
+	logger.Info("Stopping Feishu channel")
+
+	// WebSocket 客户端没有 explicit Stop 方法
+	// 当 context 被 cancel 时，Start 方法会自动返回
+
+	return c.BaseChannelImpl.Stop()
+}
+
+// Helper function
+func getStringPtr(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
 }

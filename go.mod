@@ -6,7 +6,6 @@ require (
 	github.com/bwmarrin/discordgo v0.29.0
 	github.com/docker/docker v28.5.2+incompatible
 	github.com/ergochat/readline v0.1.3
-	github.com/fsnotify/fsnotify v1.7.0
 	github.com/glebarez/sqlite v1.11.0
 	github.com/go-telegram-bot-api/telegram-bot-api/v5 v5.5.1
 	github.com/google/uuid v1.6.0
@@ -19,12 +18,17 @@ require (
 	github.com/spf13/cobra v1.10.2
 	github.com/spf13/viper v1.19.0
 	github.com/tencent-connect/botgo v0.2.1
-	github.com/tidwall/gjson v1.18.0
 	github.com/tmc/langchaingo v0.1.14
 	go.uber.org/zap v1.27.0
 	golang.org/x/oauth2 v0.32.0
 	google.golang.org/api v0.218.0
 	gopkg.in/yaml.v3 v3.0.1
+)
+
+require (
+	github.com/fsnotify/fsnotify v1.7.0 // indirect
+	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/tidwall/gjson v1.18.0 // indirect
 )
 
 require (

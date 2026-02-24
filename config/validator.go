@@ -352,12 +352,12 @@ func (v *Validator) validateFeishu(channels *ChannelsConfig) error {
 		return errors.InvalidConfig("feishu app_secret is required when enabled")
 	}
 
-	if channels.Feishu.VerificationToken == "" {
-		return errors.InvalidConfig("feishu verification_token is required when enabled")
-	}
-
-	if channels.Feishu.WebhookPort < 1024 || channels.Feishu.WebhookPort > 65535 {
-		return errors.InvalidConfig("feishu webhook_port must be between 1024 and 65535")
+	// verification_token is optional (for webhook mode)
+	// webhook_port is optional (defaults to 8765 if not set)
+	if channels.Feishu.WebhookPort != 0 {
+		if channels.Feishu.WebhookPort < 1024 || channels.Feishu.WebhookPort > 65535 {
+			return errors.InvalidConfig("feishu webhook_port must be between 1024 and 65535")
+		}
 	}
 
 	return nil

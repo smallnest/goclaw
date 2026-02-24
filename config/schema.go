@@ -153,6 +153,8 @@ type FeishuChannelConfig struct {
 	EncryptKey        string   `mapstructure:"encrypt_key" json:"encrypt_key"`
 	VerificationToken string   `mapstructure:"verification_token" json:"verification_token"`
 	WebhookPort       int      `mapstructure:"webhook_port" json:"webhook_port"`
+	Domain            string   `mapstructure:"domain" json:"domain"`             // 飞书域名 (如: feishu, lark)
+	GroupPolicy       string   `mapstructure:"group_policy" json:"group_policy"` // 群聊策略: open, closed, whitelist
 	AllowedIDs        []string `mapstructure:"allowed_ids" json:"allowed_ids"`
 	// 多账号配置（新格式）
 	Accounts map[string]ChannelAccountConfig `mapstructure:"accounts" json:"accounts"`
