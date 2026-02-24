@@ -2,10 +2,10 @@ package providers
 
 import (
 	"context"
-	"errors"
+	stderrors "errors"
 	"testing"
 
-	"github.com/smallnest/goclaw/types"
+	"github.com/smallnest/goclaw/errors"
 )
 
 // mockProvider 用于测试的模拟提供商
@@ -33,7 +33,7 @@ func (m *mockProvider) Close() error {
 func TestNewFailoverProvider(t *testing.T) {
 	primary := &mockProvider{}
 	fallback := &mockProvider{}
-	classifier := types.NewSimpleErrorClassifier()
+	classifier := errors.NewSimpleErrorClassifier()
 
 	fp := NewFailoverProvider(primary, fallback, classifier)
 
@@ -53,7 +53,7 @@ func TestFailoverProviderSuccessOnPrimary(t *testing.T) {
 		response: &Response{Content: "success"},
 	}
 	fallback := &mockProvider{}
-	classifier := types.NewSimpleErrorClassifier()
+	classifier := errors.NewSimpleErrorClassifier()
 
 	fp := NewFailoverProvider(primary, fallback, classifier)
 
@@ -71,12 +71,12 @@ func TestFailoverProviderSuccessOnPrimary(t *testing.T) {
 func TestFailoverProviderFailoverOnAuthError(t *testing.T) {
 	primary := &mockProvider{
 		shouldFail: true,
-		failError:  errors.New("invalid api key"),
+		failError:  stderrors.New("invalid api key"),
 	}
 	fallback := &mockProvider{
 		response: &Response{Content: "fallback response"},
 	}
-	classifier := types.NewSimpleErrorClassifier()
+	classifier := errors.NewSimpleErrorClassifier()
 
 	fp := NewFailoverProvider(primary, fallback, classifier)
 
@@ -97,12 +97,12 @@ func TestFailoverProviderFailoverOnAuthError(t *testing.T) {
 func TestFailoverProviderFailoverOnRateLimit(t *testing.T) {
 	primary := &mockProvider{
 		shouldFail: true,
-		failError:  errors.New("rate limit exceeded"),
+		failError:  stderrors.New("rate limit exceeded"),
 	}
 	fallback := &mockProvider{
 		response: &Response{Content: "fallback response"},
 	}
-	classifier := types.NewSimpleErrorClassifier()
+	classifier := errors.NewSimpleErrorClassifier()
 
 	fp := NewFailoverProvider(primary, fallback, classifier)
 
@@ -120,12 +120,12 @@ func TestFailoverProviderFailoverOnRateLimit(t *testing.T) {
 func TestFailoverProviderNoFailbackOnTimeout(t *testing.T) {
 	primary := &mockProvider{
 		shouldFail: true,
-		failError:  errors.New("timeout"),
+		failError:  stderrors.New("timeout"),
 	}
 	fallback := &mockProvider{
 		response: &Response{Content: "fallback response"},
 	}
-	classifier := types.NewSimpleErrorClassifier()
+	classifier := errors.NewSimpleErrorClassifier()
 
 	fp := NewFailoverProvider(primary, fallback, classifier)
 
@@ -145,9 +145,9 @@ func TestFailoverProviderNoFailbackOnTimeout(t *testing.T) {
 func TestFailoverProviderNoFallback(t *testing.T) {
 	primary := &mockProvider{
 		shouldFail: true,
-		failError:  errors.New("invalid api key"),
+		failError:  stderrors.New("invalid api key"),
 	}
-	classifier := types.NewSimpleErrorClassifier()
+	classifier := errors.NewSimpleErrorClassifier()
 
 	fp := NewFailoverProvider(primary, nil, classifier)
 
@@ -162,12 +162,12 @@ func TestFailoverProviderNoFallback(t *testing.T) {
 func TestFailoverProviderUseFallbackWhenCircuitOpen(t *testing.T) {
 	primary := &mockProvider{
 		shouldFail: true,
-		failError:  errors.New("invalid api key"),
+		failError:  stderrors.New("invalid api key"),
 	}
 	fallback := &mockProvider{
 		response: &Response{Content: "fallback response"},
 	}
-	classifier := types.NewSimpleErrorClassifier()
+	classifier := errors.NewSimpleErrorClassifier()
 
 	fp := NewFailoverProvider(primary, fallback, classifier)
 
@@ -189,7 +189,7 @@ func TestFailoverProviderUseFallbackWhenCircuitOpen(t *testing.T) {
 
 func TestFailoverProviderSetFallback(t *testing.T) {
 	primary := &mockProvider{}
-	classifier := types.NewSimpleErrorClassifier()
+	classifier := errors.NewSimpleErrorClassifier()
 
 	fp := NewFailoverProvider(primary, nil, classifier)
 
@@ -208,14 +208,14 @@ func TestFailoverProviderSetFallback(t *testing.T) {
 func TestFailoverProviderShouldFailover(t *testing.T) {
 	tests := []struct {
 		name   string
-		reason types.FailoverReason
+		reason errors.FailoverReason
 		want   bool
 	}{
-		{"auth error", types.FailoverReasonAuth, true},
-		{"rate limit", types.FailoverReasonRateLimit, true},
-		{"billing", types.FailoverReasonBilling, true},
-		{"timeout", types.FailoverReasonTimeout, false},
-		{"unknown", types.FailoverReasonUnknown, false},
+		{"auth error", errors.FailoverReasonAuth, true},
+		{"rate limit", errors.FailoverReasonRateLimit, true},
+		{"billing", errors.FailoverReasonBilling, true},
+		{"timeout", errors.FailoverReasonTimeout, false},
+		{"unknown", errors.FailoverReasonUnknown, false},
 	}
 
 	for _, tt := range tests {
@@ -232,7 +232,7 @@ func TestFailoverProviderShouldFailover(t *testing.T) {
 func TestFailoverProviderClose(t *testing.T) {
 	primary := &mockProvider{}
 	fallback := &mockProvider{}
-	classifier := &types.SimpleErrorClassifier{}
+	classifier := &errors.SimpleErrorClassifier{}
 
 	fp := NewFailoverProvider(primary, fallback, classifier)
 

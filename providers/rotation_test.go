@@ -2,15 +2,15 @@ package providers
 
 import (
 	"context"
-	"errors"
+	stderrors "errors"
 	"testing"
 	"time"
 
-	"github.com/smallnest/goclaw/types"
+	"github.com/smallnest/goclaw/errors"
 )
 
 func TestNewRotationProvider(t *testing.T) {
-	classifier := types.NewSimpleErrorClassifier()
+	classifier := errors.NewSimpleErrorClassifier()
 	rp := NewRotationProvider(RotationStrategyRoundRobin, time.Minute, classifier)
 
 	if rp.strategy != RotationStrategyRoundRobin {
@@ -19,7 +19,7 @@ func TestNewRotationProvider(t *testing.T) {
 }
 
 func TestRotationProviderAddProfile(t *testing.T) {
-	classifier := types.NewSimpleErrorClassifier()
+	classifier := errors.NewSimpleErrorClassifier()
 	rp := NewRotationProvider(RotationStrategyRoundRobin, time.Minute, classifier)
 
 	provider := &mockProvider{}
@@ -35,7 +35,7 @@ func TestRotationProviderAddProfile(t *testing.T) {
 }
 
 func TestRotationProviderRemoveProfile(t *testing.T) {
-	classifier := types.NewSimpleErrorClassifier()
+	classifier := errors.NewSimpleErrorClassifier()
 	rp := NewRotationProvider(RotationStrategyRoundRobin, time.Minute, classifier)
 
 	provider := &mockProvider{}
@@ -50,7 +50,7 @@ func TestRotationProviderRemoveProfile(t *testing.T) {
 }
 
 func TestRotationProviderListProfiles(t *testing.T) {
-	classifier := types.NewSimpleErrorClassifier()
+	classifier := errors.NewSimpleErrorClassifier()
 	rp := NewRotationProvider(RotationStrategyRoundRobin, time.Minute, classifier)
 
 	provider := &mockProvider{}
@@ -65,7 +65,7 @@ func TestRotationProviderListProfiles(t *testing.T) {
 }
 
 func TestRotationProviderRoundRobin(t *testing.T) {
-	classifier := types.NewSimpleErrorClassifier()
+	classifier := errors.NewSimpleErrorClassifier()
 	rp := NewRotationProvider(RotationStrategyRoundRobin, time.Minute, classifier)
 
 	provider1 := &mockProvider{response: &Response{Content: "profile1"}}
@@ -99,7 +99,7 @@ func TestRotationProviderRoundRobin(t *testing.T) {
 }
 
 func TestRotationProviderLeastUsed(t *testing.T) {
-	classifier := types.NewSimpleErrorClassifier()
+	classifier := errors.NewSimpleErrorClassifier()
 	rp := NewRotationProvider(RotationStrategyLeastUsed, time.Minute, classifier)
 
 	provider1 := &mockProvider{response: &Response{Content: "profile1"}}
@@ -138,7 +138,7 @@ func TestRotationProviderLeastUsed(t *testing.T) {
 }
 
 func TestRotationProviderRandom(t *testing.T) {
-	classifier := types.NewSimpleErrorClassifier()
+	classifier := errors.NewSimpleErrorClassifier()
 	rp := NewRotationProvider(RotationStrategyRandom, time.Minute, classifier)
 
 	provider := &mockProvider{response: &Response{Content: "response"}}
@@ -157,14 +157,14 @@ func TestRotationProviderRandom(t *testing.T) {
 }
 
 func TestRotationProviderCooldown(t *testing.T) {
-	classifier := types.NewSimpleErrorClassifier()
+	classifier := errors.NewSimpleErrorClassifier()
 	cooldown := 100 * time.Millisecond
 	rp := NewRotationProvider(RotationStrategyRoundRobin, cooldown, classifier)
 
 	// Add only the failing profile first to guarantee it gets selected
 	provider1 := &mockProvider{
 		shouldFail: true,
-		failError:  errors.New("rate limit exceeded"),
+		failError:  stderrors.New("rate limit exceeded"),
 		response:   &Response{Content: "profile1"},
 	}
 	rp.AddProfile("profile1", provider1, "key1", 1)
@@ -214,7 +214,7 @@ func TestRotationProviderCooldown(t *testing.T) {
 }
 
 func TestRotationProviderNoProfiles(t *testing.T) {
-	classifier := types.NewSimpleErrorClassifier()
+	classifier := errors.NewSimpleErrorClassifier()
 	rp := NewRotationProvider(RotationStrategyRoundRobin, time.Minute, classifier)
 
 	ctx := context.Background()
@@ -230,14 +230,14 @@ func TestRotationProviderShouldSetCooldown(t *testing.T) {
 
 	tests := []struct {
 		name   string
-		reason types.FailoverReason
+		reason errors.FailoverReason
 		want   bool
 	}{
-		{"auth error", types.FailoverReasonAuth, true},
-		{"rate limit", types.FailoverReasonRateLimit, true},
-		{"billing", types.FailoverReasonBilling, true},
-		{"timeout", types.FailoverReasonTimeout, false},
-		{"unknown", types.FailoverReasonUnknown, false},
+		{"auth error", errors.FailoverReasonAuth, true},
+		{"rate limit", errors.FailoverReasonRateLimit, true},
+		{"billing", errors.FailoverReasonBilling, true},
+		{"timeout", errors.FailoverReasonTimeout, false},
+		{"unknown", errors.FailoverReasonUnknown, false},
 	}
 
 	for _, tt := range tests {
@@ -251,7 +251,7 @@ func TestRotationProviderShouldSetCooldown(t *testing.T) {
 }
 
 func TestRotationProviderClose(t *testing.T) {
-	classifier := types.NewSimpleErrorClassifier()
+	classifier := errors.NewSimpleErrorClassifier()
 	rp := NewRotationProvider(RotationStrategyRoundRobin, time.Minute, classifier)
 
 	provider := &mockProvider{}

@@ -446,6 +446,89 @@ func (a *Agent) GetCurrentChatID() string {
 	return "main"
 }
 
+// Steer adds a steering message to interrupt the agent mid-run
+// Inspired by pi-mono's Agent.steer() method
+func (a *Agent) Steer(msg AgentMessage) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	a.state.Steer(msg)
+}
+
+// FollowUp adds a follow-up message to be processed after agent finishes
+// Inspired by pi-mono's Agent.followUp() method
+func (a *Agent) FollowUp(msg AgentMessage) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	a.state.FollowUp(msg)
+}
+
+// WaitForIdle waits until the agent is not streaming
+// Inspired by pi-mono's Agent.waitForIdle() method
+func (a *Agent) WaitForIdle(ctx context.Context) error {
+	ticker := time.NewTicker(10 * time.Millisecond)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			a.mu.RLock()
+			isStreaming := a.state.IsStreaming
+			a.mu.RUnlock()
+			if !isStreaming {
+				return nil
+			}
+		}
+	}
+}
+
+// Abort aborts the current agent execution
+// Inspired by pi-mono's Agent.abort() method
+func (a *Agent) Abort() {
+	a.orchestrator.Stop()
+}
+
+// Reset resets the agent state
+// Inspired by pi-mono's Agent.reset() method
+func (a *Agent) Reset() {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	a.state = NewAgentState()
+	a.state.SystemPrompt = a.context.BuildSystemPrompt(nil)
+	a.state.Model = getModelName(a.provider)
+	a.state.Provider = "provider"
+	a.state.SessionKey = "main"
+	a.state.Tools = ToAgentTools(a.tools.ListExisting())
+}
+
+// SetSteeringMode sets how steering messages are delivered
+func (a *Agent) SetSteeringMode(mode MessageQueueMode) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.state.SteeringMode = mode
+}
+
+// SetFollowUpMode sets how follow-up messages are delivered
+func (a *Agent) SetFollowUpMode(mode MessageQueueMode) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+	a.state.FollowUpMode = mode
+}
+
+// ReplaceMessages replaces the message history
+// Inspired by pi-mono's Agent.replaceMessages() method
+func (a *Agent) ReplaceMessages(messages []AgentMessage) {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	a.state.Messages = make([]AgentMessage, len(messages))
+	copy(a.state.Messages, messages)
+}
+
 // GetOrchestrator 获取 orchestrator（供 AgentManager 使用）
 func (a *Agent) GetOrchestrator() *Orchestrator {
 	return a.orchestrator

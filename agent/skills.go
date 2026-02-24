@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/smallnest/goclaw/internal/logger"
-	"github.com/smallnest/goclaw/skills"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v3"
 )
@@ -218,7 +217,7 @@ func (l *SkillsLoader) checkBlockingRequirements(skill *Skill) bool {
 // parseSkillMetadata 解析技能元数据（支持新旧格式）
 func (l *SkillsLoader) parseSkillMetadata(content string, skill *Skill) error {
 	// 首先尝试使用新的 frontmatter 解析器
-	frontmatter := skills.ParseFrontmatter(content)
+	frontmatter := ParseFrontmatter(content)
 	if len(frontmatter) > 0 {
 		// 从 frontmatter 中解析基本字段
 		if name := frontmatter["name"]; name != "" {
@@ -235,36 +234,40 @@ func (l *SkillsLoader) parseSkillMetadata(content string, skill *Skill) error {
 		}
 
 		// 解析 OpenClaw/goclaw 元数据
-		metadata := skills.ParseOpenClawMetadata(frontmatter)
+		metadata := ParseOpenClawMetadata(frontmatter)
 		if metadata != nil {
 			// 映射到旧的 Skill 结构
-			skill.Metadata.OpenClaw.Emoji = metadata.Emoji
-			skill.Metadata.OpenClaw.Always = metadata.Always
-			if metadata.Requires != nil {
-				skill.Metadata.OpenClaw.Requires.Bins = metadata.Requires.Bins
-				skill.Metadata.OpenClaw.Requires.AnyBins = metadata.Requires.AnyBins
-				skill.Metadata.OpenClaw.Requires.Env = metadata.Requires.Env
-				skill.Metadata.OpenClaw.Requires.Config = metadata.Requires.Config
-				skill.Metadata.OpenClaw.Requires.OS = metadata.Requires.OS
+			if emoji, ok := metadata["emoji"].(string); ok {
+				skill.Metadata.OpenClaw.Emoji = emoji
+			}
+			if always, ok := metadata["always"].(bool); ok {
+				skill.Metadata.OpenClaw.Always = always
 			}
 
-			// 映射安装配置
-			for _, install := range metadata.Install {
-				skillInstall := SkillInstall{
-					ID:      install.ID,
-					Kind:    install.Kind,
-					Label:   install.Label,
-					Bins:    install.Bins,
-					OS:      install.OS,
-					Formula: install.Formula,
-					Package: install.Package,
+			// 映射依赖要求
+			if requires, ok := metadata["requires"].(map[string]any); ok {
+				if bins, ok := requires["bins"].([]string); ok {
+					skill.Metadata.OpenClaw.Requires.Bins = bins
 				}
-				skill.Metadata.OpenClaw.Install = append(skill.Metadata.OpenClaw.Install, skillInstall)
+				if anyBins, ok := requires["anyBins"].([]string); ok {
+					skill.Metadata.OpenClaw.Requires.AnyBins = anyBins
+				}
+				if env, ok := requires["env"].([]string); ok {
+					skill.Metadata.OpenClaw.Requires.Env = env
+				}
+				if config, ok := requires["config"].([]string); ok {
+					skill.Metadata.OpenClaw.Requires.Config = config
+				}
+				if os, ok := requires["os"].([]string); ok {
+					skill.Metadata.OpenClaw.Requires.OS = os
+				}
 			}
+
+			// 映射安装配置（暂时跳过，需要更复杂的类型断言）
 		}
 
 		// 提取内容（移除 frontmatter）
-		skill.Content = skills.StripFrontmatter(content)
+		skill.Content = StripFrontmatter(content)
 		return nil
 	}
 
@@ -825,4 +828,85 @@ func resolveSkillSource(skill *Skill) string {
 	}
 
 	return "builtin"
+}
+
+// ParseFrontmatter 解析 YAML frontmatter
+func ParseFrontmatter(content string) map[string]string {
+	// 检查是否以 --- 开头
+	if !strings.HasPrefix(content, "---") {
+		return nil
+	}
+
+	// 查找结束标记
+	endIndex := strings.Index(content[4:], "---")
+	if endIndex == -1 {
+		return nil
+	}
+
+	// 提取 frontmatter 内容
+	frontmatterContent := content[4 : endIndex+4]
+
+	// 解析 YAML
+	var metadata map[string]string
+	if err := yaml.Unmarshal([]byte(frontmatterContent), &metadata); err != nil {
+		return nil
+	}
+
+	return metadata
+}
+
+// StripFrontmatter 移除 YAML frontmatter
+func StripFrontmatter(content string) string {
+	// 检查是否以 --- 开头
+	if !strings.HasPrefix(content, "---") {
+		return content
+	}
+
+	// 查找结束标记
+	endIndex := strings.Index(content[4:], "---")
+	if endIndex == -1 {
+		return content
+	}
+
+	// 返回移除 frontmatter 后的内容
+	return content[endIndex+8:]
+}
+
+// ParseOpenClawMetadata 解析 OpenClaw/goclaw 特定的元数据
+func ParseOpenClawMetadata(frontmatter map[string]string) map[string]any {
+	metadata := make(map[string]any)
+
+	// 解析基本字段
+	if emoji := frontmatter["emoji"]; emoji != "" {
+		metadata["emoji"] = emoji
+	}
+	if always := frontmatter["always"]; always != "" {
+		metadata["always"] = always == "true"
+	}
+
+	// 解析依赖要求
+	requires := make(map[string]any)
+	if bins := frontmatter["requires_bins"]; bins != "" {
+		requires["bins"] = strings.Split(strings.TrimSpace(bins), ",")
+	}
+	if anyBins := frontmatter["any_bins"]; anyBins != "" {
+		requires["anyBins"] = strings.Split(strings.TrimSpace(anyBins), ",")
+	}
+	if env := frontmatter["requires_env"]; env != "" {
+		requires["env"] = strings.Split(strings.TrimSpace(env), ",")
+	}
+	if config := frontmatter["requires_config"]; config != "" {
+		requires["config"] = strings.Split(strings.TrimSpace(config), ",")
+	}
+	if os := frontmatter["requires_os"]; os != "" {
+		requires["os"] = strings.Split(strings.TrimSpace(os), ",")
+	}
+	if len(requires) > 0 {
+		metadata["requires"] = requires
+	}
+
+	// 解析安装配置
+	// 这里可以扩展更多的安装配置解析
+
+	return metadata
 }

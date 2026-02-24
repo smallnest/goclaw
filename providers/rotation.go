@@ -7,7 +7,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/smallnest/goclaw/types"
+	"github.com/smallnest/goclaw/errors"
 )
 
 // RotationStrategy 轮换策略
@@ -38,13 +38,13 @@ type RotationProvider struct {
 	profiles        map[string]*ProviderProfile
 	strategy        RotationStrategy
 	currentIndex    int
-	errorClassifier types.ErrorClassifier
+	errorClassifier errors.ErrorClassifier
 	defaultCooldown time.Duration
 	mu              sync.RWMutex
 }
 
 // NewRotationProvider 创建轮换提供商
-func NewRotationProvider(strategy RotationStrategy, defaultCooldown time.Duration, errorClassifier types.ErrorClassifier) *RotationProvider {
+func NewRotationProvider(strategy RotationStrategy, defaultCooldown time.Duration, errorClassifier errors.ErrorClassifier) *RotationProvider {
 	return &RotationProvider{
 		profiles:        make(map[string]*ProviderProfile),
 		strategy:        strategy,
@@ -217,9 +217,9 @@ func (p *RotationProvider) setCooldown(profileName string) {
 }
 
 // shouldSetCooldown 判断是否应该设置冷却
-func (p *RotationProvider) shouldSetCooldown(reason types.FailoverReason) bool {
+func (p *RotationProvider) shouldSetCooldown(reason errors.FailoverReason) bool {
 	switch reason {
-	case types.FailoverReasonAuth, types.FailoverReasonRateLimit, types.FailoverReasonBilling:
+	case errors.FailoverReasonAuth, errors.FailoverReasonRateLimit, errors.FailoverReasonBilling:
 		return true
 	default:
 		return false

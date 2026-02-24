@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/smallnest/goclaw/config"
-	"github.com/smallnest/goclaw/types"
+	"github.com/smallnest/goclaw/errors"
 )
 
 // ProviderType 提供商类型
@@ -51,7 +51,7 @@ func NewSimpleProvider(cfg *config.Config) (Provider, error) {
 // NewRotationProviderFromConfig 从配置创建轮换提供商
 func NewRotationProviderFromConfig(cfg *config.Config) (Provider, error) {
 	// 创建错误分类器
-	errorClassifier := types.NewSimpleErrorClassifier()
+	errorClassifier := errors.NewSimpleErrorClassifier()
 
 	// 确定轮换策略
 	strategy := RotationStrategy(cfg.Providers.Failover.Strategy)

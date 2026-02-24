@@ -1,9 +1,9 @@
 ---
 name: coding-agent
-description: Run Codex CLI, Claude Code, OpenCode, or Pi Coding Agent via background process for programmatic control.
+description: Run Codex CLI, Claude Code, Kiro CLI, OpenCode, or Pi Coding Agent via background process for programmatic control.
 metadata:
   {
-    "goclaw": { "emoji": "🧩", "requires": { "anyBins": ["claude", "codex", "opencode", "pi"] } },
+    "openclaw": { "emoji": "🧩", "requires": { "anyBins": ["claude", "codex", "opencode", "pi", "kiro-cli"] } },
   }
 ---
 
@@ -13,7 +13,7 @@ Use **bash** (with optional background mode) for all coding agent work. Simple a
 
 ## ⚠️ PTY Mode Required!
 
-Coding agents (Codex, Claude Code, Pi) are **interactive terminal applications** that need a pseudo-terminal (PTY) to work correctly. Without PTY, you'll get broken output, missing colors, or the agent may hang.
+Coding agents (Codex, Claude Code, Kiro, Pi) are **interactive terminal applications** that need a pseudo-terminal (PTY) to work correctly. Without PTY, you'll get broken output, missing colors, or the agent may hang.
 
 **Always use `pty:true`** when running coding agents:
 
@@ -167,6 +167,135 @@ bash pty:true workdir:~/project background:true command:"claude 'Your task'"
 
 ---
 
+## Kiro CLI (AWS)
+
+AWS AI coding assistant with session persistence, custom agents, steering, and MCP integration.
+
+**Install:** https://kiro.dev/docs/cli/installation
+
+### Basic Usage
+
+```bash
+kiro-cli                           # Start interactive chat (default)
+kiro-cli chat "Your question"      # Direct question
+kiro-cli --agent my-agent          # Use specific agent
+kiro-cli chat --resume             # Resume last session (per-directory)
+kiro-cli chat --resume-picker      # Pick from saved sessions
+kiro-cli chat --list-sessions      # List all sessions
+```
+
+### Non-Interactive Mode (scripting/automation)
+
+```bash
+# Single response to STDOUT, then exit
+kiro-cli chat --no-interactive "Show current directory"
+
+# Trust all tools (no confirmation prompts)
+kiro-cli chat --no-interactive --trust-all-tools "Create hello.py"
+
+# Trust specific tools only (comma-separated)
+kiro-cli chat --no-interactive --trust-tools "fs_read,fs_write" "Read package.json"
+```
+
+**🔐 Tool Trust:** Use `--trust-all-tools` for automation (default). For untrusted input or sensitive systems, consider `--trust-tools "fs_read,fs_write,shell"` to limit scope.
+
+### OpenClaw Integration
+
+```bash
+# Interactive session (background)
+bash pty:true workdir:~/project background:true command:"kiro-cli"
+
+# One-shot query (non-interactive)
+bash pty:true workdir:~/project command:"kiro-cli chat --no-interactive --trust-all-tools 'List all TODO comments in src/'"
+
+# With specific agent
+bash pty:true workdir:~/project background:true command:"kiro-cli --agent aws-expert 'Set up Lambda'"
+
+# Resume previous session
+bash pty:true workdir:~/project command:"kiro-cli chat --resume"
+```
+
+### Custom Agents
+
+Pre-define tool permissions, context resources, and behaviors:
+
+```bash
+kiro-cli agent list              # List available agents
+kiro-cli agent create my-agent   # Create new agent
+kiro-cli agent edit my-agent     # Edit agent config
+kiro-cli agent validate ./a.json # Validate config file
+kiro-cli agent set-default my-agent  # Set default
+```
+
+**Benefits:** Pre-approve trusted tools, limit tool access, auto-load project docs, share configs across team.
+
+### Steering (Project Context)
+
+Provide persistent project knowledge via markdown files in `.kiro/steering/`:
+
+```
+.kiro/steering/
+├── product.md       # Product overview
+├── tech.md          # Tech stack
+├── structure.md     # Project structure
+└── api-standards.md # API conventions
+```
+
+- **Workspace steering:** `.kiro/steering/` — applies to current project only
+- **Global steering:** `~/.kiro/steering/` — applies to all projects
+- **AGENTS.md support:** Place in project root or `~/.kiro/steering/`
+
+**In custom agents:** Add `"resources": ["file://.kiro/steering/**/*.md"]` to config.
+
+### MCP Integration
+
+Connect external tools and data sources via Model Context Protocol:
+
+```bash
+kiro-cli mcp add --name my-server --command "node server.js" --scope workspace
+kiro-cli mcp list [workspace|global]
+kiro-cli mcp status --name my-server
+kiro-cli mcp remove --name my-server --scope workspace
+```
+
+### Plan Agent
+
+Plan Agent is a built-in agent for structured planning before execution. It helps transform ideas into detailed implementation plans.
+
+**When to suggest Plan Agent to user:**
+- Complex multi-step features (e.g., "build a user authentication system")
+- Requirements are unclear or need clarification
+- Large features that benefit from task breakdown
+
+**When NOT to use Plan Agent:**
+- Simple queries or single-step tasks
+- User already has clear, specific instructions
+- Quick fixes or small changes
+
+**How to use:**
+
+```bash
+# Start Plan mode
+> /plan
+# Or with immediate prompt
+> /plan Build a REST API for user authentication
+# Or toggle with keyboard shortcut
+Shift + Tab
+```
+
+**Plan workflow (4 phases):**
+
+1. **Requirements gathering** — Structured questions with multiple choice options
+2. **Research and analysis** — Explores codebase, identifies patterns
+3. **Implementation plan** — Detailed task breakdown with clear objectives
+4. **Handoff to execution** — After approval (`y`), plan transfers to execution agent
+
+**Plan Agent limitations (read-only):**
+- ✓ Can read files, search code, research documentation
+- ✗ Cannot write files or execute commands (until handoff)
+
+---
+
 ## OpenCode
 
 ```bash
@@ -201,7 +330,7 @@ For fixing multiple issues in parallel, use git worktrees:
 git worktree add -b fix/issue-78 /tmp/issue-78 main
 git worktree add -b fix/issue-99 /tmp/issue-99 main
 
-# 2. Launch Codex in each (background + PTY!)
+# 2. Launch agent in each (background + PTY!)
 bash pty:true workdir:/tmp/issue-78 background:true command:"pnpm install && codex --yolo 'Fix issue #78: <description>. Commit and push.'"
 bash pty:true workdir:/tmp/issue-99 background:true command:"pnpm install && codex --yolo 'Fix issue #99: <description>. Commit and push.'"
 
@@ -223,16 +352,18 @@ git worktree remove /tmp/issue-99
 ## ⚠️ Rules
 
 1. **Always use pty:true** - coding agents need a terminal!
-2. **Respect tool choice** - if user asks for Codex, use Codex.
+2. **Respect tool choice** - if user asks for Kiro, use Kiro; if they ask for Codex, use Codex.
    - Orchestrator mode: do NOT hand-code patches yourself.
    - If an agent fails/hangs, respawn it or ask the user for direction, but don't silently take over.
 3. **Be patient** - don't kill sessions because they're "slow"
 4. **Monitor with process:log** - check progress without interfering
-5. **--full-auto for building** - auto-approves changes
-6. **vanilla for reviewing** - no special flags needed
-7. **Parallel is OK** - run many Codex processes at once for batch work
-8. **NEVER start Codex in ~/clawd/** - it'll read your soul docs and get weird ideas about the org chart!
-9. **NEVER checkout branches in ~/Projects/openclaw/** - that's the LIVE OpenClaw instance!
+5. **--full-auto/--yolo for Codex building** - auto-approves changes
+6. **--trust-all-tools for Kiro automation** - skips confirmation prompts; use `--trust-tools` for untrusted input
+7. **--no-interactive for Kiro one-shots** - single response mode
+8. **Parallel is OK** - run many agent processes at once for batch work
+9. **NEVER start agents in ~/clawd/** - it'll read your soul docs and get weird ideas about the org chart!
+10. **NEVER checkout branches in ~/Projects/openclaw/** - that's the LIVE OpenClaw instance!
+11. **Suggest Kiro /plan for complex tasks** - when requirements are unclear or task is multi-step, suggest Plan Agent to user and let them decide
 
 ---
 
@@ -263,7 +394,7 @@ When completely finished, run this command to notify me:
 openclaw gateway wake --text "Done: [brief summary of what was built]" --mode now
 ```
 
-**Example:**
+**Example (Codex):**
 
 ```bash
 bash pty:true workdir:~/project background:true command:"codex --yolo exec 'Build a REST API for todos.
@@ -271,7 +402,7 @@ bash pty:true workdir:~/project background:true command:"codex --yolo exec 'Buil
 When completely finished, run: openclaw gateway wake --text \"Done: Built todos REST API with CRUD endpoints\" --mode now'"
 ```
 
-This triggers an immediate wake event — Skippy gets pinged in seconds, not 10 minutes.
+This triggers an immediate wake event — gets pinged in seconds, not 10 minutes.
 
 ---
 

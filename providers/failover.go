@@ -6,7 +6,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/smallnest/goclaw/types"
+	"github.com/smallnest/goclaw/errors"
 )
 
 // FailoverProvider 支持故障转移的提供商
@@ -14,12 +14,12 @@ type FailoverProvider struct {
 	primary         Provider
 	fallback        Provider
 	circuitBreaker  *CircuitBreaker
-	errorClassifier types.ErrorClassifier
+	errorClassifier errors.ErrorClassifier
 	mu              sync.RWMutex
 }
 
 // NewFailoverProvider 创建故障转移提供商
-func NewFailoverProvider(primary, fallback Provider, errorClassifier types.ErrorClassifier) *FailoverProvider {
+func NewFailoverProvider(primary, fallback Provider, errorClassifier errors.ErrorClassifier) *FailoverProvider {
 	return &FailoverProvider{
 		primary:         primary,
 		fallback:        fallback,
@@ -72,9 +72,9 @@ func (p *FailoverProvider) chatWithFallback(ctx context.Context, messages []Mess
 }
 
 // shouldFailover 判断是否应该故障转移
-func (p *FailoverProvider) shouldFailover(reason types.FailoverReason) bool {
+func (p *FailoverProvider) shouldFailover(reason errors.FailoverReason) bool {
 	switch reason {
-	case types.FailoverReasonAuth, types.FailoverReasonRateLimit, types.FailoverReasonBilling:
+	case errors.FailoverReasonAuth, errors.FailoverReasonRateLimit, errors.FailoverReasonBilling:
 		return true
 	default:
 		return false

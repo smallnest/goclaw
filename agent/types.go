@@ -80,14 +80,29 @@ type ToolResult struct {
 }
 
 // Tool represents an executable tool
+// Inspired by pi-mono's AgentTool interface
 type Tool interface {
 	Name() string
 	Description() string
 	Parameters() map[string]any
 
+	// Label returns a human-readable label for the tool (for UI display)
+	// Inspired by pi-mono's AgentTool.label
+	Label() string
+
 	// Execute runs the tool with optional streaming updates
 	Execute(ctx context.Context, params map[string]any, onUpdate func(ToolResult)) (ToolResult, error)
 }
+
+// MessageQueueMode defines how messages are delivered from queues
+type MessageQueueMode string
+
+const (
+	// QueueModeAll delivers all queued messages at once
+	QueueModeAll MessageQueueMode = "all"
+	// QueueModeOneAtATime delivers messages one at a time
+	QueueModeOneAtATime MessageQueueMode = "one-at-a-time"
+)
 
 // AgentState represents the current state of the agent
 type AgentState struct {
@@ -98,12 +113,15 @@ type AgentState struct {
 	Tools         []Tool
 	Messages      []AgentMessage
 	IsStreaming   bool
+	StreamMessage *AgentMessage // Current streaming message
 	PendingTools  map[string]bool
 	Error         error
 
 	// Queues for message injection (inspired by pi-mono)
 	SteeringQueue []AgentMessage
+	SteeringMode  MessageQueueMode
 	FollowUpQueue []AgentMessage
+	FollowUpMode  MessageQueueMode
 
 	// Session key
 	SessionKey string
@@ -130,9 +148,9 @@ const (
 
 // Event represents an event from the agent
 type Event struct {
-	Type      EventType `json:"type"`
-	Message   *Message  `json:"message,omitempty"`
-	Timestamp int64     `json:"timestamp"`
+	Type      EventType     `json:"type"`
+	Message   *AgentMessage `json:"message,omitempty"`
+	Timestamp int64         `json:"timestamp"`
 	// Tool execution fields
 	ToolID     string         `json:"tool_id,omitempty"`
 	ToolName   string         `json:"tool_name,omitempty"`
@@ -142,6 +160,8 @@ type Event struct {
 	// Turn end fields
 	StopReason    string         `json:"stop_reason,omitempty"`
 	FinalMessages []AgentMessage `json:"final_messages,omitempty"`
+	// Message update event
+	AssistantMessageEvent interface{} `json:"assistant_message_event,omitempty"`
 }
 
 // LoopConfig contains configuration for the agent loop
@@ -173,7 +193,9 @@ func NewAgentState() *AgentState {
 		Messages:      make([]AgentMessage, 0),
 		PendingTools:  make(map[string]bool),
 		SteeringQueue: make([]AgentMessage, 0),
+		SteeringMode:  QueueModeAll,
 		FollowUpQueue: make([]AgentMessage, 0),
+		FollowUpMode:  QueueModeAll,
 	}
 }
 
@@ -233,18 +255,44 @@ func (s *AgentState) FollowUp(msg AgentMessage) {
 	s.FollowUpQueue = append(s.FollowUpQueue, msg)
 }
 
-// DequeueSteeringMessages gets and clears steering messages
+// DequeueSteeringMessages gets and clears steering messages based on queue mode
 func (s *AgentState) DequeueSteeringMessages() []AgentMessage {
-	msgs := s.SteeringQueue
-	s.SteeringQueue = make([]AgentMessage, 0)
-	return msgs
+	if len(s.SteeringQueue) == 0 {
+		return []AgentMessage{}
+	}
+
+	switch s.SteeringMode {
+	case QueueModeOneAtATime:
+		// Return only the first message
+		msg := s.SteeringQueue[0]
+		s.SteeringQueue = s.SteeringQueue[1:]
+		return []AgentMessage{msg}
+	default: // QueueModeAll
+		// Return all messages
+		msgs := s.SteeringQueue
+		s.SteeringQueue = make([]AgentMessage, 0)
+		return msgs
+	}
 }
 
-// DequeueFollowUpMessages gets and clears follow-up messages
+// DequeueFollowUpMessages gets and clears follow-up messages based on queue mode
 func (s *AgentState) DequeueFollowUpMessages() []AgentMessage {
-	msgs := s.FollowUpQueue
-	s.FollowUpQueue = make([]AgentMessage, 0)
-	return msgs
+	if len(s.FollowUpQueue) == 0 {
+		return []AgentMessage{}
+	}
+
+	switch s.FollowUpMode {
+	case QueueModeOneAtATime:
+		// Return only the first message
+		msg := s.FollowUpQueue[0]
+		s.FollowUpQueue = s.FollowUpQueue[1:]
+		return []AgentMessage{msg}
+	default: // QueueModeAll
+		// Return all messages
+		msgs := s.FollowUpQueue
+		s.FollowUpQueue = make([]AgentMessage, 0)
+		return msgs
+	}
 }
 
 // HasQueuedMessages checks if there are queued messages
@@ -271,6 +319,12 @@ func (s *AgentState) Clone() *AgentState {
 	loadedSkills := make([]string, len(s.LoadedSkills))
 	copy(loadedSkills, s.LoadedSkills)
 
+	var streamMsg *AgentMessage
+	if s.StreamMessage != nil {
+		msgCopy := *s.StreamMessage
+		streamMsg = &msgCopy
+	}
+
 	return &AgentState{
 		SystemPrompt:  s.SystemPrompt,
 		Model:         s.Model,
@@ -279,10 +333,13 @@ func (s *AgentState) Clone() *AgentState {
 		Tools:         append([]Tool{}, s.Tools...),
 		Messages:      messages,
 		IsStreaming:   s.IsStreaming,
+		StreamMessage: streamMsg,
 		PendingTools:  pendingTools,
 		Error:         s.Error,
 		SteeringQueue: steering,
+		SteeringMode:  s.SteeringMode,
 		FollowUpQueue: followUp,
+		FollowUpMode:  s.FollowUpMode,
 		SessionKey:    s.SessionKey,
 		LoadedSkills:  loadedSkills,
 	}
@@ -297,7 +354,7 @@ func NewEvent(eventType EventType) *Event {
 }
 
 // WithMessage adds message to the event
-func (e *Event) WithMessage(msg *Message) *Event {
+func (e *Event) WithMessage(msg *AgentMessage) *Event {
 	e.Message = msg
 	return e
 }

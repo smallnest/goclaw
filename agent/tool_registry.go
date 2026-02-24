@@ -81,6 +81,12 @@ func (a *toolAdapter) Description() string {
 	return a.tool.Description()
 }
 
+func (a *toolAdapter) Label() string {
+	// Use name as label if no specific label is defined
+	// Existing tools don't have Label(), so we use Name() as fallback
+	return a.tool.Name()
+}
+
 func (a *toolAdapter) Parameters() map[string]any {
 	params := a.tool.Parameters()
 	result := make(map[string]any)
@@ -143,6 +149,10 @@ func (a *reverseToolAdapter) Name() string {
 
 func (a *reverseToolAdapter) Description() string {
 	return a.tool.Description()
+}
+
+func (a *reverseToolAdapter) Label() string {
+	return a.tool.Label()
 }
 
 func (a *reverseToolAdapter) Parameters() map[string]interface{} {
