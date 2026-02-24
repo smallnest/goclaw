@@ -292,7 +292,7 @@ Models can be specified with prefixes:
     "shell": {
       "enabled": true,
       "allowed_cmds": ["ls", "cat", "grep", "find"],
-      "denied_cmds": ["rm", "dd", "mkfs"],
+      "denied_cmds": ["rm", "dd", "mkfs", "format"],
       "timeout": 30,
       "working_dir": "/home/user",
       "sandbox": {

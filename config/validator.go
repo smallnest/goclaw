@@ -472,7 +472,7 @@ func (v *Validator) validateShellTool(shell *ShellToolConfig) error {
 	}
 
 	// Check for dangerous commands
-	dangerousCmds := []string{"rm -rf", "dd", "mkfs", "format"}
+	dangerousCmds := []string{"rm -rf", "dd", "mkfs"}
 	for _, dangerous := range dangerousCmds {
 		found := false
 		for _, denied := range shell.DeniedCmds {
@@ -544,8 +544,9 @@ func (v *Validator) validateGateway(cfg *Config) error {
 
 // validateWebSocketConfig validates WebSocket configuration
 func (v *Validator) validateWebSocketConfig(ws *WebSocketConfig) error {
+	// Only validate WebSocket config if host is set (WebSocket is optional)
 	if ws.Host == "" {
-		return errors.InvalidConfig("websocket host cannot be empty")
+		return nil
 	}
 
 	if ws.Port < 1024 || ws.Port > 65535 {

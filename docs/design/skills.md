@@ -145,6 +145,7 @@ skills:
          - "rm -rf"
          - "dd"
          - "mkfs"
+         - "format"
    ```
 
 2. **权限隔离**：每个 Agent 会话可以有不同的权限配置

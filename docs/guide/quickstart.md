@@ -337,7 +337,7 @@ A: 修改配置文件中的 `tools` 部分：
     "shell": {
       "enabled": true,
       "allowed_cmds": ["ls", "cat", "grep"],
-      "denied_cmds": ["rm -rf", "dd"],
+      "denied_cmds": ["rm -rf", "dd", "mkfs", "format"],
       "timeout": 30
     },
     "browser": {

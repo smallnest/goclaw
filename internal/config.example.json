@@ -111,7 +111,7 @@
     "shell": {
       "enabled": true,
       "allowed_cmds": [],
-      "denied_cmds": ["rm -rf", "dd", "mkfs"],
+      "denied_cmds": ["rm -rf", "dd", "mkfs", "format"],
       "timeout": 30,
       "working_dir": ""
     },

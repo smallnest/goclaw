@@ -213,7 +213,7 @@ goclaw 按以下顺序查找配置文件（找到第一个即使用）：
     "shell": {
       "enabled": true,
       "allowed_cmds": [],
-      "denied_cmds": ["rm -rf", "dd", "mkfs"],
+      "denied_cmds": ["rm -rf", "dd", "mkfs", "format"],
       "timeout": 30,
       "sandbox": {
         "enabled": false,
@@ -441,7 +441,7 @@ A: 在配置中设置 `denied_cmds` 列表，添加危险的命令。也可以�
 {
   "tools": {
     "shell": {
-      "denied_cmds": ["rm -rf", "dd", "mkfs", ":(){ :|:& };:"],
+      "denied_cmds": ["rm -rf", "dd", "mkfs", "format", ":(){ :|:& };:"],
       "sandbox": {
         "enabled": true,
         "image": "golang:alpine",
