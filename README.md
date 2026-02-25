@@ -4,7 +4,6 @@ Go 语言版本的 OpenClaw - 一个功能强大的 AI Agent 框架。
 
 [![License](https://img.shields.io/:license-MIT-blue.svg)](https://opensource.org/licenses/MIT) [![go.dev reference](https://img.shields.io/badge/go.dev-reference-007d9c?logo=go&logoColor=white&style=flat-square)](https://pkg.go.dev/github.com/smallnest/goclaw) [![github actions](https://github.com/smallnest/goclaw/actions/workflows/go.yaml/badge.svg)](https://github.com/smallnest/goclaw/actions) [![Go Report Card](https://goreportcard.com/badge/github.com/smallnest/goclaw)](https://goreportcard.com/report/github.com/smallnest/goclaw) [![Coverage Status](https://coveralls.io/repos/github/smallnest/goclaw/badge.svg?branch=master)](https://coveralls.io/github/smallnest/goclaw?branch=master)
 
-
 ![](docs/goclaw.png)
 
 ## 功能特性
@@ -12,12 +11,15 @@ Go 语言版本的 OpenClaw - 一个功能强大的 AI Agent 框架。
 - 🛠️ **完整的工具系统**：FileSystem、Shell、Web、Browser，支持 Docker 沙箱与权限控制
 - 📚 **技能系统 (Skills)**：兼容 [OpenClaw](https://github.com/openclaw/openclaw) 和 [AgentSkills](https://agentskills.io) 规范，支持自动发现与环境准入控制 (Gating)
 - 💾 **持久化会话**：基于 JSONL 的会话存储，支持完整的工具调用链 (Tool Calls) 记录与恢复
-- 📢 **多渠道支持**：Telegram、WhatsApp、飞书 (Feishu)、QQ、企业微信 (WeWork)
-- 🔧 **灵活配置**：支持 YAML/JSON 配置，热加载
+- 📢 **多渠道支持**：Telegram、WhatsApp、飞书 (Feishu)、QQ、企业微信 (WeWork)、钉钉 (DingTalk)、百度如流 (Infoflow)、Slack、Discord、Google Chat、Microsoft Teams
+- 🔧 **灵活配置**：支持 YAML/JSON 配置，热加载，环境变量支持
 - 🎯 **多 LLM 提供商**：OpenAI (兼容接口)、Anthropic、OpenRouter，支持故障转移
 - 🌐 **WebSocket Gateway**：内置网关服务，支持实时通信
 - ⏰ **Cron 调度**：内置定时任务调度器
 - 🖥️ **Browser 自动化**：基于 Chrome DevTools Protocol 的浏览器控制
+- 🧠 **记忆系统**：支持内置向量数据库和 QMD (Quick Markdown Database)
+- 👥 **多账号支持**：每个通道支持配置多个账号实例
+- 🪟 **跨平台**：支持 Linux、macOS、Windows
 
 ## 技能系统 (New!)
 
@@ -36,8 +38,9 @@ goclaw 按以下顺序查找配置文件（找到第一个即使用）：
 
 1. `~/.goclaw/config.json` (用户全局目录，**最高优先级**)
 2. `./config.json` (当前目录)
+3. 环境变量 `GOSKILLS_*` 前缀
 
-可通过 `--config` 参数指定配置文件路径覆盖默认行为。
+可通过 `--config` 参数指定配置文件路径覆盖默认行为。支持 YAML 和 JSON 格式。
 
 #### Skills 加载顺序
 
@@ -103,6 +106,10 @@ goclaw/
 │   ├── feishu.go       # 飞书实现
 │   ├── qq.go           # QQ 实现
 │   ├── wework.go       # 企业微信实现
+│   ├── dingtalk.go     # 钉钉实现
+│   ├── infoflow.go     # 百度如流实现
+│   ├── slack.go        # Slack 实现
+│   ├── discord.go      # Discord 实现
 │   ├── googlechat.go   # Google Chat 实现
 │   └── teams.go        # Microsoft Teams 实现
 ├── bus/                # 消息总线
@@ -176,55 +183,83 @@ goclaw 按以下顺序查找配置文件（找到第一个即使用）：
 
 1. `~/.goclaw/config.json` (用户全局目录，**最高优先级**)
 2. `./config.json` (当前目录)
+3. 环境变量 `GOSKILLS_*` 前缀
 
-可通过 `--config` 参数指定配置文件路径覆盖默认行为。
+可通过 `--config` 参数指定配置文件路径覆盖默认行为。支持 YAML 和 JSON 格式。
 
-创建 `config.json` (参考 `config.example.json`):
+创建 `config.json` (参考 `internal/config.example.json`):
 
 ```json
 {
+  "workspace": {
+    "path": ""
+  },
   "agents": {
     "defaults": {
-      "model": "deepseek-chat",
+      "model": "YOUR_DEFAULT_MODEL_HERE",
       "max_iterations": 15,
       "temperature": 0.7,
       "max_tokens": 4096
+    }
+  },
+  "channels": {
+    "telegram": {
+      "enabled": false,
+      "token": "your-telegram-bot-token",
+      "allowed_ids": []
+    },
+    "feishu": {
+      "enabled": false,
+      "app_id": "",
+      "app_secret": "",
+      "domain": "feishu",
+      "group_policy": "open"
+    },
+    "dingtalk": {
+      "enabled": false,
+      "client_id": "",
+      "secret": "",
+      "allowed_ids": []
     }
   },
   "providers": {
     "openai": {
       "api_key": "YOUR_OPENAI_API_KEY_HERE",
       "base_url": "https://api.deepseek.com",
-      "timeout": 30
-    }
-  },
-  "channels": {
-    "telegram": {
-      "enabled": true,
-      "token": "your-telegram-bot-token",
-      "allowed_ids": ["123456789"]
+      "timeout": 600
+    },
+    "anthropic": {
+      "api_key": "",
+      "base_url": "",
+      "timeout": 600
     }
   },
   "tools": {
     "filesystem": {
-      "allowed_paths": ["/home/user/projects"],
-      "denied_paths": ["/etc", "/sys"]
+      "allowed_paths": [],
+      "denied_paths": []
     },
     "shell": {
       "enabled": true,
       "allowed_cmds": [],
       "denied_cmds": ["rm -rf", "dd", "mkfs", "format"],
       "timeout": 30,
-      "sandbox": {
-        "enabled": false,
-        "image": "golang:alpine",
-        "remove": true
-      }
+      "working_dir": ""
     },
     "browser": {
       "enabled": true,
       "headless": true,
-      "timeout": 30
+      "timeout": 30,
+      "relay_url": "ws://127.0.0.1:18789",
+      "relay_mode": "auto"
+    }
+  },
+  "memory": {
+    "backend": "builtin",
+    "builtin": {
+      "enabled": true,
+      "database_path": "",
+      "auto_index": true
     }
   }
 }
@@ -404,16 +439,20 @@ type BaseChannel interface {
 
 ### 环境变量
 
-goclaw 支持以下环境变量：
+goclaw 支持以下环境变量（前缀 `GOSKILLS_`）：
 
 | 变量 | 描述 |
 |-----|------|
-| `GOCRAW_CONFIG_PATH` | 配置文件路径 |
-| `GOCRAW_WORKSPACE` | 工作区目录 (默认: `~/.goclaw/workspace`) |
+| `GOSKILLS_CONFIG_PATH` | 配置文件路径 |
+| `GOSKILLS_WORKSPACE` | 工作区目录 (默认: `~/.goclaw/workspace`) |
 | `ANTHROPIC_API_KEY` | Anthropic API Key |
 | `OPENAI_API_KEY` | OpenAI API Key |
-| `GOCRAW_GATEWAY_URL` | Gateway WebSocket URL |
-| `GOCRAW_GATEWAY_TOKEN` | Gateway 认证 Token |
+| `GOSKILLS_GATEWAY_URL` | Gateway WebSocket URL |
+| `GOSKILLS_GATEWAY_TOKEN` | Gateway 认证 Token |
+
+配置项可通过环境变量覆盖，例如：
+- `GOSKILLS_AGENTS_DEFAULTS_MODEL` - 覆盖默认模型
+- `GOSKILLS_TOOLS_SHELL_TIMEOUT` - 覆盖 Shell 工具超时时间
 
 ## 常见问题
 
@@ -503,6 +542,69 @@ A: 使用 `--thinking` 参数查看思考过程，或查看日志：
 ```bash
 ./goclaw agent --message "测试" --thinking
 ./goclaw logs -f
+```
+
+### Q: 如何配置多个相同通道的账号？
+
+A: 使用 `accounts` 字段配置多个账号实例：
+
+```json
+{
+  "channels": {
+    "telegram": {
+      "accounts": {
+        "bot1": {
+          "enabled": true,
+          "token": "bot1-token",
+          "allowed_ids": ["user1"]
+        },
+        "bot2": {
+          "enabled": true,
+          "token": "bot2-token",
+          "allowed_ids": ["user2"]
+        }
+      }
+    }
+  }
+}
+```
+
+### Q: 记忆系统如何使用？
+
+A: goclaw 支持两种记忆后端：
+
+1. **内置向量数据库** (`builtin`)：
+```json
+{
+  "memory": {
+    "backend": "builtin",
+    "builtin": {
+      "enabled": true,
+      "database_path": "",
+      "auto_index": true
+    }
+  }
+}
+```
+
+2. **QMD (Quick Markdown Database)**：
+```json
+{
+  "memory": {
+    "backend": "qmd",
+    "qmd": {
+      "command": "qmd",
+      "enabled": true,
+      "paths": [
+        {
+          "name": "notes",
+          "path": "~/notes",
+          "pattern": "**/*.md"
+        }
+      ]
+    }
+  }
+}
 ```
 
 ## 相关文档
