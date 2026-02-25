@@ -48,13 +48,11 @@ goclaw 按以下顺序查找配置文件（找到第一个即使用）：
 
 | 顺序 | 路径 | 说明 |
 |-----|------|------|
-| 1 | `传入的自定义目录` | 通过 `NewSkillsLoader()` 指定 |
-| 2 | `workspace/skills/` | 工作区目录 |
-| 3 | `workspace/.goclaw/skills/` | 工作区隐藏目录 |
-| 4 | `<可执行文件路径>/skills/` | 可执行文件同级目录 |
-| 5 | `./skills/` (当前目录) | **最后加载，优先级最高** |
+| 1 | `~/.goclaw/skills/` | 用户全局目录（最低优先级） |
+| 2 | `${WORKSPACE}/skills/` | 工作区目录 |
+| 3 | `./skills/` (当前目录) | **最后加载，优先级最高** |
 
-默认 `workspace` 为 `~/.goclaw/workspace`。
+默认 `WORKSPACE` 为 `~/.goclaw/workspace`。
 
 1.  **列出可用技能**
     ```bash
@@ -63,9 +61,9 @@ goclaw 按以下顺序查找配置文件（找到第一个即使用）：
 
 2.  **安装技能**
     将技能文件夹放入以下任一位置：
-    *   `./skills/` (当前目录，最高优先级)
-    *   `${WORKSPACE}/skills/` (工作区目录)
     *   `~/.goclaw/skills/` (用户全局目录)
+    *   `${WORKSPACE}/skills/` (工作区目录)
+    *   `./skills/` (当前目录，**最高优先级，后加载会覆盖前面的**)
 
 3.  **编写技能**
     创建一个目录 `my-skill`，并在其中创建 `SKILL.md`：

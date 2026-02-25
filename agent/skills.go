@@ -111,13 +111,16 @@ func (l *SkillsLoader) SetInstallTimeout(timeout time.Duration) {
 }
 
 // Discover 发现技能
+// 按照顺序加载技能，后加载的同名技能会覆盖前面的
 func (l *SkillsLoader) Discover() error {
-	// 只使用配置的技能目录（~/.goclaw/skills）
+	// 按照配置的技能目录顺序加载（后面的会覆盖前面的）
 	for _, dir := range l.skillsDirs {
 		if err := l.discoverInDir(dir); err != nil {
 			// 目录不存在是正常的，继续
 			if !os.IsNotExist(err) {
-				return err
+				logger.Warn("Failed to discover skills in directory",
+					zap.String("dir", dir),
+					zap.Error(err))
 			}
 		}
 	}

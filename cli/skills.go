@@ -154,15 +154,26 @@ func runSkillsList(cmd *cobra.Command, args []string) {
 	}
 	defer func() { _ = logger.Sync() }()
 
-	// 创建技能加载器（统一使用 ~/.goclaw/skills 目录）
+	// 创建技能加载器
+	// 加载顺序（后加载的同名技能会覆盖前面的）：
+	// 1. ./skills/ (当前目录，最高优先级)
+	// 2. ${WORKSPACE}/skills/ (工作区目录)
+	// 3. ~/.goclaw/skills/ (用户全局目录)
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get home directory: %v\n", err)
 		os.Exit(1)
 	}
 	goclawDir := homeDir + "/.goclaw"
-	skillsDir := goclawDir + "/skills"
-	skillsLoader := agent.NewSkillsLoader(goclawDir, []string{skillsDir})
+	globalSkillsDir := goclawDir + "/skills"
+	workspaceSkillsDir := goclawDir + "/workspace/skills"
+	currentSkillsDir := "./skills"
+
+	skillsLoader := agent.NewSkillsLoader(goclawDir, []string{
+		globalSkillsDir,    // 最先加载（最低优先级）
+		workspaceSkillsDir, // 其次加载
+		currentSkillsDir,   // 最后加载（最高优先级）
+	})
 	if err := skillsLoader.Discover(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to discover skills: %v\n", err)
 		os.Exit(1)
@@ -231,15 +242,26 @@ func runSkillsValidate(cmd *cobra.Command, args []string) {
 	}
 	defer func() { _ = logger.Sync() }()
 
-	// 创建技能加载器（统一使用 ~/.goclaw/skills 目录）
+	// 创建技能加载器
+	// 加载顺序（后加载的同名技能会覆盖前面的）：
+	// 1. ./skills/ (当前目录，最高优先级)
+	// 2. ${WORKSPACE}/skills/ (工作区目录)
+	// 3. ~/.goclaw/skills/ (用户全局目录)
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get home directory: %v\n", err)
 		os.Exit(1)
 	}
 	goclawDir := homeDir + "/.goclaw"
-	skillsDir := goclawDir + "/skills"
-	skillsLoader := agent.NewSkillsLoader(goclawDir, []string{skillsDir})
+	globalSkillsDir := goclawDir + "/skills"
+	workspaceSkillsDir := goclawDir + "/workspace/skills"
+	currentSkillsDir := "./skills"
+
+	skillsLoader := agent.NewSkillsLoader(goclawDir, []string{
+		globalSkillsDir,    // 最先加载（最低优先级）
+		workspaceSkillsDir, // 其次加载
+		currentSkillsDir,   // 最后加载（最高优先级）
+	})
 	if err := skillsLoader.Discover(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to discover skills: %v\n", err)
 		os.Exit(1)
@@ -362,15 +384,26 @@ func runSkillsTest(cmd *cobra.Command, args []string) {
 	}
 	defer func() { _ = logger.Sync() }()
 
-	// 创建技能加载器（统一使用 ~/.goclaw/skills 目录）
+	// 创建技能加载器
+	// 加载顺序（后加载的同名技能会覆盖前面的）：
+	// 1. ./skills/ (当前目录，最高优先级)
+	// 2. ${WORKSPACE}/skills/ (工作区目录)
+	// 3. ~/.goclaw/skills/ (用户全局目录)
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to get home directory: %v\n", err)
 		os.Exit(1)
 	}
 	goclawDir := homeDir + "/.goclaw"
-	skillsDir := goclawDir + "/skills"
-	skillsLoader := agent.NewSkillsLoader(goclawDir, []string{skillsDir})
+	globalSkillsDir := goclawDir + "/skills"
+	workspaceSkillsDir := goclawDir + "/workspace/skills"
+	currentSkillsDir := "./skills"
+
+	skillsLoader := agent.NewSkillsLoader(goclawDir, []string{
+		globalSkillsDir,    // 最先加载（最低优先级）
+		workspaceSkillsDir, // 其次加载
+		currentSkillsDir,   // 最后加载（最高优先级）
+	})
 	if err := skillsLoader.Discover(); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to discover skills: %v\n", err)
 		os.Exit(1)
@@ -730,11 +763,18 @@ func runSkillsInstallDeps(cmd *cobra.Command, args []string) {
 		fmt.Fprintf(os.Stderr, "Failed to get home directory: %v\n", err)
 		os.Exit(1)
 	}
-	workspace := homeDir + "/.goclaw/workspace"
-	managedSkillsDir := homeDir + "/.goclaw/skills"
+	goclawDir := homeDir + "/.goclaw"
+	workspace := goclawDir + "/workspace"
+	globalSkillsDir := goclawDir + "/skills"
+	workspaceSkillsDir := workspace + "/skills"
+	currentSkillsDir := "./skills"
 
 	// 创建技能加载器并启用自动安装
-	skillsLoader := agent.NewSkillsLoader(workspace, []string{managedSkillsDir})
+	skillsLoader := agent.NewSkillsLoader(goclawDir, []string{
+		globalSkillsDir,    // 最先加载（最低优先级）
+		workspaceSkillsDir, // 其次加载
+		currentSkillsDir,   // 最后加载（最高优先级）
+	})
 	skillsLoader.SetAutoInstall(true)
 
 	if err := skillsLoader.Discover(); err != nil {

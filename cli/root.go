@@ -188,10 +188,21 @@ func runStart(cmd *cobra.Command, args []string) {
 	// 创建工具注册表
 	toolRegistry := agent.NewToolRegistry()
 
-	// 创建技能加载器（统一使用 ~/.goclaw/skills 目录）
+	// 创建技能加载器
+	// 加载顺序（后加载的同名技能会覆盖前面的）：
+	// 1. ./skills/ (当前目录，最高优先级)
+	// 2. ${WORKSPACE}/skills/ (工作区目录)
+	// 3. ~/.goclaw/skills/ (用户全局目录)
 	goclawDir := homeDir + "/.goclaw"
-	skillsDir := goclawDir + "/skills"
-	skillsLoader := agent.NewSkillsLoader(goclawDir, []string{skillsDir})
+	globalSkillsDir := goclawDir + "/skills"
+	workspaceSkillsDir := workspaceDir + "/skills"
+	currentSkillsDir := "./skills"
+
+	skillsLoader := agent.NewSkillsLoader(goclawDir, []string{
+		globalSkillsDir,    // 最先加载（最低优先级）
+		workspaceSkillsDir, // 其次加载
+		currentSkillsDir,   // 最后加载（最高优先级）
+	})
 	if err := skillsLoader.Discover(); err != nil {
 		logger.Warn("Failed to discover skills", zap.Error(err))
 	} else {

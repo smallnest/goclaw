@@ -179,9 +179,28 @@ func runAgent(cmd *cobra.Command, args []string) {
 	}
 
 	// Create skills loader
-	skillsLoader := agent.NewSkillsLoader(workspace, []string{})
-	if err := skillsLoader.Discover(); err != nil && agentVerbose {
-		fmt.Fprintf(os.Stderr, "Warning: Failed to discover skills: %v\n", err)
+	// 加载顺序（后加载的同名技能会覆盖前面的）：
+	// 1. ./skills/ (当前目录，最高优先级)
+	// 2. ${WORKSPACE}/skills/ (工作区目录)
+	// 3. ~/.goclaw/skills/ (用户全局目录)
+	var homeDirErr error
+	homeDir, homeDirErr = os.UserHomeDir()
+	if homeDirErr != nil && agentVerbose {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to get home directory: %v\n", homeDirErr)
+		homeDir = os.Getenv("HOME")
+	}
+	goclawDir := homeDir + "/.goclaw"
+	globalSkillsDir := goclawDir + "/skills"
+	workspaceSkillsDir := workspace + "/skills"
+	currentSkillsDir := "./skills"
+
+	skillsLoader := agent.NewSkillsLoader(goclawDir, []string{
+		globalSkillsDir,    // 最先加载（最低优先级）
+		workspaceSkillsDir, // 其次加载
+		currentSkillsDir,   // 最后加载（最高优先级）
+	})
+	if skillsErr := skillsLoader.Discover(); skillsErr != nil && agentVerbose {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to discover skills: %v\n", skillsErr)
 	}
 
 	// Create LLM provider
