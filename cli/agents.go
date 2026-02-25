@@ -63,7 +63,7 @@ var (
 func init() {
 	// List flags
 	agentsListCmd.Flags().BoolVar(&agentsListJSON, "json", false, "Output in JSON format")
-	agentsListCmd.Flags().BoolVar(&agentsAddNonInteractive, "bindings", false, "Show channel bindings")
+	agentsListCmd.Flags().BoolVar(&agentsListBindings, "bindings", false, "Show channel bindings")
 
 	// Add flags
 	agentsAddCmd.Flags().StringVar(&agentsAddWorkspace, "workspace", "", "Workspace directory for the agent")
