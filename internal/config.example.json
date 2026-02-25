@@ -92,7 +92,7 @@
     "read_timeout": 30,
     "write_timeout": 30,
     "websocket": {
-      "host": "0.0.0.0",
+      "host": "localhost",
       "port": 28789,
       "path": "/ws",
       "enable_auth": false,

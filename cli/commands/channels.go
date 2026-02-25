@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/smallnest/goclaw/config"
 	"github.com/spf13/cobra"
 )
 
@@ -131,41 +132,45 @@ func getChannelsFromGateway(timeout int) []ChannelInfo {
 		Timeout: time.Duration(timeout) * time.Second,
 	}
 
-	// Try different WebSocket gateway ports
-	ports := []int{28789, 28790, 28791}
+	// Load config to get gateway port
+	cfg, err := config.Load("")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to load config: %v\n", err)
+		return nil
+	}
+
+	// Get port from config (defaults to 28789 if not configured)
+	port := config.GetGatewayHTTPPort(cfg)
+
+	// Try to get channels from the HTTP API
+	url := fmt.Sprintf("http://localhost:%d/api/channels", port)
+	resp, err := client.Get(url)
+	if err != nil {
+		return nil
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil
+	}
+
+	body, _ := io.ReadAll(resp.Body)
+	var result struct {
+		Channels []map[string]interface{} `json:"channels"`
+	}
+	if err := json.Unmarshal(body, &result); err != nil {
+		return nil
+	}
+
+	// Parse channels
 	var channels []ChannelInfo
-
-	for _, port := range ports {
-		// Try to get channels from the HTTP API
-		url := fmt.Sprintf("http://localhost:%d/api/channels", port)
-		resp, err := client.Get(url)
-		if err != nil {
-			continue
-		}
-		defer resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			continue
-		}
-
-		body, _ := io.ReadAll(resp.Body)
-		var result struct {
-			Channels []map[string]interface{} `json:"channels"`
-		}
-		if err := json.Unmarshal(body, &result); err != nil {
-			continue
-		}
-
-		// Parse channels
-		for _, ch := range result.Channels {
-			name, _ := ch["name"].(string)
-			enabled, _ := ch["enabled"].(bool)
-			channels = append(channels, ChannelInfo{
-				Name:    name,
-				Enabled: enabled,
-			})
-		}
-		break
+	for _, ch := range result.Channels {
+		name, _ := ch["name"].(string)
+		enabled, _ := ch["enabled"].(bool)
+		channels = append(channels, ChannelInfo{
+			Name:    name,
+			Enabled: enabled,
+		})
 	}
 
 	return channels
@@ -177,67 +182,63 @@ func getChannelStatusFromGateway(channelName string, timeout int) map[string]int
 		Timeout: time.Duration(timeout) * time.Second,
 	}
 
-	// Try different WebSocket gateway ports
-	ports := []int{28789, 28790, 28791}
+	// Load config to get gateway port
+	cfg, err := config.Load("")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to load config: %v\n", err)
+	}
 
-	for _, port := range ports {
-		// If channel name is specified, get specific channel status
-		// Otherwise, get all channels
-		url := fmt.Sprintf("http://localhost:%d/api/channels", port)
-		if channelName != "" {
-			url += "?channel=" + channelName
-		}
+	// Get port from config (defaults to 28789 if not configured)
+	port := config.GetGatewayHTTPPort(cfg)
 
-		resp, err := client.Get(url)
-		if err != nil {
-			continue
-		}
+	// If channel name is specified, get specific channel status
+	// Otherwise, get all channels
+	url := fmt.Sprintf("http://localhost:%d/api/channels", port)
+	if channelName != "" {
+		url += "?channel=" + channelName
+	}
+
+	resp, err := client.Get(url)
+	if err == nil {
 		defer resp.Body.Close()
 
-		if resp.StatusCode != http.StatusOK {
-			// Fall back to health check
-			break
-		}
+		if resp.StatusCode == http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
 
-		body, _ := io.ReadAll(resp.Body)
-
-		if channelName != "" {
-			// Specific channel status
-			var status map[string]interface{}
-			if err := json.Unmarshal(body, &status); err != nil {
-				continue
-			}
-			status["online"] = true
-			return status
-		} else {
-			// All channels
-			var result struct {
-				Channels []map[string]interface{} `json:"channels"`
-				Count    int                      `json:"count"`
-			}
-			if err := json.Unmarshal(body, &result); err != nil {
-				continue
-			}
-			return map[string]interface{}{
-				"online":   true,
-				"channels": result.Channels,
-				"count":    result.Count,
+			if channelName != "" {
+				// Specific channel status
+				var status map[string]interface{}
+				if err := json.Unmarshal(body, &status); err == nil {
+					status["online"] = true
+					return status
+				}
+			} else {
+				// All channels
+				var result struct {
+					Channels []map[string]interface{} `json:"channels"`
+					Count    int                      `json:"count"`
+				}
+				if err := json.Unmarshal(body, &result); err == nil {
+					return map[string]interface{}{
+						"online":   true,
+						"channels": result.Channels,
+						"count":    result.Count,
+					}
+				}
 			}
 		}
 	}
 
 	// Gateway is offline or endpoint not available
 	// Try health check as fallback
-	for _, port := range ports {
-		url := fmt.Sprintf("http://localhost:%d/health", port)
-		resp, err := client.Get(url)
-		if err == nil {
-			defer resp.Body.Close()
-			return map[string]interface{}{
-				"online":  true,
-				"channel": channelName,
-				"message": "Channel API not available, but gateway is online",
-			}
+	healthURL := fmt.Sprintf("http://localhost:%d/health", port)
+	resp, err = client.Get(healthURL)
+	if err == nil {
+		defer resp.Body.Close()
+		return map[string]interface{}{
+			"online":  true,
+			"channel": channelName,
+			"message": "Channel API not available, but gateway is online",
 		}
 	}
 
@@ -374,17 +375,20 @@ func checkGatewayOnline(timeout int) bool {
 		Timeout: time.Duration(timeout) * time.Second,
 	}
 
-	ports := []int{28789, 28790, 28791}
+	// Load config to get gateway port
+	cfg, err := config.Load("")
+	if err != nil {
+		return false
+	}
 
-	for _, port := range ports {
-		url := fmt.Sprintf("http://localhost:%d/health", port)
-		resp, err := client.Get(url)
-		if err == nil {
-			resp.Body.Close()
-			if resp.StatusCode == http.StatusOK {
-				return true
-			}
-		}
+	// Get port from config (defaults to 28789 if not configured)
+	port := config.GetGatewayHTTPPort(cfg)
+
+	url := fmt.Sprintf("http://localhost:%d/health", port)
+	resp, err := client.Get(url)
+	if err == nil {
+		resp.Body.Close()
+		return resp.StatusCode == http.StatusOK
 	}
 
 	return false

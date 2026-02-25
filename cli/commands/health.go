@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/smallnest/goclaw/config"
 	"github.com/spf13/cobra"
 )
 
@@ -35,39 +36,32 @@ func HealthCommand() *cobra.Command {
 
 // runHealth checks the health of the gateway
 func runHealth(cmd *cobra.Command, args []string) {
-	// Try default ports
-	ports := []int{28789, 28790, 28791}
+	// Load config to get gateway port
+	cfg, err := config.Load("")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
+		os.Exit(1)
+	}
+
+	port := config.GetGatewayHTTPPort(cfg)
 	if len(args) > 0 {
 		// Use provided port
-		var port int
 		if _, err := fmt.Sscanf(args[0], "%d", &port); err == nil {
-			ports = []int{port}
+			// port updated from args
 		}
 	}
 
-	// Check each port
-	var lastErr error
-	var healthURL string
-	var resp *http.Response
-
-	for _, port := range ports {
-		url := fmt.Sprintf("http://localhost:%d/health", port)
-		client := &http.Client{
-			Timeout: time.Duration(healthTimeout) * time.Second,
-		}
-
-		resp, lastErr = client.Get(url)
-		if lastErr == nil {
-			healthURL = url
-			break
-		}
+	url := fmt.Sprintf("http://localhost:%d/health", port)
+	client := &http.Client{
+		Timeout: time.Duration(healthTimeout) * time.Second,
 	}
 
-	if lastErr != nil {
+	resp, err := client.Get(url)
+	if err != nil {
 		if healthJSON {
-			fmt.Printf(`{"status":"error","error":"%s"}`+"\n", lastErr)
+			fmt.Printf(`{"status":"error","error":"%s"}`+"\n", err)
 		} else {
-			fmt.Fprintf(os.Stderr, "Failed to connect to gateway: %v\n", lastErr)
+			fmt.Fprintf(os.Stderr, "Failed to connect to gateway: %v\n", err)
 			fmt.Println("Make sure the gateway is running (use 'goclaw gateway run')")
 		}
 		os.Exit(1)
@@ -104,7 +98,7 @@ func runHealth(cmd *cobra.Command, args []string) {
 	}
 
 	// Add URL to response
-	health["url"] = healthURL
+	health["url"] = url
 
 	if healthJSON {
 		// Output as JSON
@@ -113,7 +107,7 @@ func runHealth(cmd *cobra.Command, args []string) {
 	} else {
 		// Output as text
 		fmt.Println("Gateway Health: OK")
-		fmt.Printf("  URL: %s\n", healthURL)
+		fmt.Printf("  URL: %s\n", url)
 
 		if status, ok := health["status"].(string); ok {
 			fmt.Printf("  Status: %s\n", status)

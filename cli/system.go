@@ -245,7 +245,8 @@ func callGatewayRPC(cfg *config.Config, method string, params map[string]interfa
 	}
 	port := cfg.Gateway.Port
 	if port == 0 {
-		port = 28789
+		// Use WebSocket port if HTTP port is not configured
+		port = config.GetGatewayHTTPPort(cfg)
 	}
 
 	url := fmt.Sprintf("http://%s:%d/rpc", host, port)

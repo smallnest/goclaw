@@ -13,6 +13,7 @@ import (
 
 	"github.com/ergochat/readline"
 	"github.com/manifoldco/promptui"
+	"github.com/smallnest/goclaw/config"
 	"github.com/smallnest/goclaw/session"
 )
 
@@ -526,38 +527,44 @@ func (r *CommandRegistry) handleStatus(args []string) string {
 func (r *CommandRegistry) checkGatewayStatus(timeout int) GatewayStatus {
 	result := GatewayStatus{Online: false}
 
-	ports := []int{28789, 28790, 28791}
+	// Load config to get gateway port
+	cfg, err := config.Load("")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to load config, using default port: %v\n", err)
+	}
+
+	// Get port from config (defaults to 28789 if not configured)
+	port := config.GetGatewayHTTPPort(cfg)
+
 	client := &http.Client{
 		Timeout: time.Duration(timeout) * time.Second,
 	}
 
-	for _, port := range ports {
-		url := fmt.Sprintf("http://localhost:%d/health", port)
-		resp, err := client.Get(url)
-		if err == nil {
-			defer resp.Body.Close()
+	url := fmt.Sprintf("http://localhost:%d/health", port)
+	resp, err := client.Get(url)
+	if err == nil {
+		defer resp.Body.Close()
 
-			if resp.StatusCode == http.StatusOK {
-				body, _ := io.ReadAll(resp.Body)
-				var health map[string]interface{}
-				_ = json.Unmarshal(body, &health)
+		if resp.StatusCode == http.StatusOK {
+			body, _ := io.ReadAll(resp.Body)
+			var health map[string]interface{}
+			_ = json.Unmarshal(body, &health)
 
-				result.Online = true
-				result.URL = url
-				result.Status = "ok"
+			result.Online = true
+			result.URL = url
+			result.Status = "ok"
 
-				if status, ok := health["status"].(string); ok {
-					result.Status = status
-				}
-				if version, ok := health["version"].(string); ok {
-					result.Version = version
-				}
-				if ts, ok := health["time"].(float64); ok {
-					result.Timestamp = int64(ts)
-				}
-
-				break
+			if status, ok := health["status"].(string); ok {
+				result.Status = status
 			}
+			if version, ok := health["version"].(string); ok {
+				result.Version = version
+			}
+			if ts, ok := health["time"].(float64); ok {
+				result.Timestamp = int64(ts)
+			}
+
+			return result
 		}
 	}
 

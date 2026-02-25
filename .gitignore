@@ -31,6 +31,8 @@ go.work.sum
 # .idea/
 # .vscode/
 
+dist/
+
 goclaw
 !goclaw/
 

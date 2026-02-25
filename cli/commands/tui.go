@@ -156,6 +156,11 @@ func runTUI(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
+	// Use gateway URL from config if not specified via flag
+	if tuiURL == "" {
+		tuiURL = config.GetGatewayWebSocketURL(cfg)
+	}
+
 	// Initialize logger
 	logLevel := "info"
 	if tuiThinking {

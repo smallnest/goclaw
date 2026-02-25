@@ -162,3 +162,40 @@ func HasProvider(cfg *Config, provider string) bool {
 		return false
 	}
 }
+
+// GetGatewayWebSocketURL 获取 Gateway WebSocket URL
+func GetGatewayWebSocketURL(cfg *Config) string {
+	if cfg == nil {
+		return "ws://localhost:28789/ws"
+	}
+
+	port := cfg.Gateway.WebSocket.Port
+	if port == 0 {
+		port = 28789
+	}
+
+	host := cfg.Gateway.WebSocket.Host
+	if host == "" {
+		host = "localhost"
+	}
+
+	path := cfg.Gateway.WebSocket.Path
+	if path == "" {
+		path = "/ws"
+	}
+
+	return fmt.Sprintf("ws://%s:%d%s", host, port, path)
+}
+
+// GetGatewayHTTPPort 获取 Gateway HTTP 端口
+func GetGatewayHTTPPort(cfg *Config) int {
+	if cfg == nil {
+		return 28789
+	}
+
+	port := cfg.Gateway.WebSocket.Port
+	if port == 0 {
+		port = 28789
+	}
+	return port
+}

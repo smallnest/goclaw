@@ -293,11 +293,19 @@ func runGateway(cmd *cobra.Command, args []string) {
 
 // runGatewayStatus shows gateway status
 func runGatewayStatus(cmd *cobra.Command, args []string) {
-	// Try to connect to local gateway
-	url := fmt.Sprintf("http://localhost:%d/health", gatewayPort)
-	if gatewayPort == 0 {
-		url = "http://localhost:28789/health"
+	// Load config to get default port
+	cfg, err := config.Load("")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to load config: %v\n", err)
 	}
+
+	port := gatewayPort
+	if port == 0 {
+		port = config.GetGatewayHTTPPort(cfg)
+	}
+
+	// Try to connect to local gateway
+	url := fmt.Sprintf("http://localhost:%d/health", port)
 
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Get(url)
@@ -326,10 +334,18 @@ func runGatewayStatus(cmd *cobra.Command, args []string) {
 
 // runGatewayHealth checks gateway health
 func runGatewayHealth(cmd *cobra.Command, args []string) {
-	url := fmt.Sprintf("http://localhost:%d/health", gatewayPort)
-	if gatewayPort == 0 {
-		url = "http://localhost:28789/health"
+	// Load config to get default port
+	cfg, err := config.Load("")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to load config: %v\n", err)
 	}
+
+	port := gatewayPort
+	if port == 0 {
+		port = config.GetGatewayHTTPPort(cfg)
+	}
+
+	url := fmt.Sprintf("http://localhost:%d/health", port)
 
 	client := &http.Client{Timeout: 5 * time.Second}
 	resp, err := client.Get(url)
@@ -351,29 +367,33 @@ func runGatewayHealth(cmd *cobra.Command, args []string) {
 
 // runGatewayProbe probes gateway connectivity
 func runGatewayProbe(cmd *cobra.Command, args []string) {
-	ports := []int{28789, 28790, 28791}
+	// Load config to get default port
+	cfg, err := config.Load("")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to load config: %v\n", err)
+	}
+
+	port := config.GetGatewayHTTPPort(cfg)
 	if gatewayPort != 0 {
-		ports = []int{gatewayPort}
+		port = gatewayPort
 	}
 
 	fmt.Println("Probing for gateway...")
-	for _, port := range ports {
-		url := fmt.Sprintf("http://localhost:%d/health", port)
-		client := &http.Client{Timeout: 2 * time.Second}
+	url := fmt.Sprintf("http://localhost:%d/health", port)
+	client := &http.Client{Timeout: 2 * time.Second}
 
-		resp, err := client.Get(url)
-		if err == nil {
-			resp.Body.Close()
-			if resp.StatusCode == http.StatusOK {
-				fmt.Printf("Found gateway on port %d\n", port)
-				body, _ := io.ReadAll(resp.Body)
-				var health map[string]interface{}
-				_ = json.Unmarshal(body, &health)
-				if version, ok := health["version"]; ok {
-					fmt.Printf("  Version: %v\n", version)
-				}
-				return
+	resp, err := client.Get(url)
+	if err == nil {
+		resp.Body.Close()
+		if resp.StatusCode == http.StatusOK {
+			fmt.Printf("Found gateway on port %d\n", port)
+			body, _ := io.ReadAll(resp.Body)
+			var health map[string]interface{}
+			_ = json.Unmarshal(body, &health)
+			if version, ok := health["version"]; ok {
+				fmt.Printf("  Version: %v\n", version)
 			}
+			return
 		}
 	}
 
@@ -1069,10 +1089,18 @@ func restartWindowsService() {
 
 // checkGatewayRunning checks if the gateway is responding
 func checkGatewayRunning() bool {
-	url := fmt.Sprintf("http://localhost:%d/health", gatewayPort)
-	if gatewayPort == 0 {
-		url = "http://localhost:28789/health"
+	// Load config to get default port
+	cfg, err := config.Load("")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to load config: %v\n", err)
 	}
+
+	port := gatewayPort
+	if port == 0 {
+		port = config.GetGatewayHTTPPort(cfg)
+	}
+
+	url := fmt.Sprintf("http://localhost:%d/health", port)
 
 	client := &http.Client{Timeout: 2 * time.Second}
 	resp, err := client.Get(url)
