@@ -1,9 +1,13 @@
 package channels
 
 import (
+	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
 	"strconv"
 	"strings"
 	"sync"
@@ -174,6 +178,36 @@ func (c *FeishuChannel) registerEventHandlers(ctx context.Context) {
 		return nil
 	})
 
+	// 处理消息已读事件（忽略）
+	c.eventDispatcher.OnP2MessageReadV1(func(ctx context.Context, event *larkim.P2MessageReadV1) error {
+		logger.Debug("Feishu message read event ignored", zap.Strings("message_ids", event.Event.MessageIdList))
+		return nil
+	})
+
+	// 处理机器人进入私聊事件（忽略）
+	c.eventDispatcher.OnP2ChatAccessEventBotP2pChatEnteredV1(func(ctx context.Context, event *larkim.P2ChatAccessEventBotP2pChatEnteredV1) error {
+		logger.Debug("Feishu bot p2p chat entered event ignored")
+		return nil
+	})
+
+	// 处理消息撤回事件（忽略）
+	c.eventDispatcher.OnP2MessageRecalledV1(func(ctx context.Context, event *larkim.P2MessageRecalledV1) error {
+		logger.Debug("Feishu message recalled event ignored", zap.String("message_id", *event.Event.MessageId))
+		return nil
+	})
+
+	// 处理消息表情反应创建事件（忽略）
+	c.eventDispatcher.OnP2MessageReactionCreatedV1(func(ctx context.Context, event *larkim.P2MessageReactionCreatedV1) error {
+		logger.Debug("Feishu message reaction created event ignored")
+		return nil
+	})
+
+	// 处理消息表情反应删除事件（忽略）
+	c.eventDispatcher.OnP2MessageReactionDeletedV1(func(ctx context.Context, event *larkim.P2MessageReactionDeletedV1) error {
+		logger.Debug("Feishu message reaction deleted event ignored")
+		return nil
+	})
+
 	// 处理机器人被添加到群聊事件
 	c.eventDispatcher.OnP2ChatMemberBotAddedV1(func(ctx context.Context, event *larkim.P2ChatMemberBotAddedV1) error {
 		logger.Info("Feishu bot added to chat",
@@ -251,9 +285,9 @@ func (c *FeishuChannel) handleMessageReceived(ctx context.Context, event *larkim
 		}
 	}
 
-	// 解析消息内容
-	content := c.extractMessageContent(event.Event.Message)
-	if content == "" {
+	// 解析消息内容和媒体
+	content, media := c.extractMessageContentAndMedia(event.Event.Message)
+	if content == "" && len(media) == 0 {
 		return
 	}
 
@@ -287,6 +321,7 @@ func (c *FeishuChannel) handleMessageReceived(ctx context.Context, event *larkim
 		Metadata: map[string]interface{}{
 			"msg_type": getStringPtr(event.Event.Message.MessageType),
 		},
+		Media: media,
 	}
 
 	if err := c.PublishInbound(ctx, inbound); err != nil {
@@ -301,9 +336,15 @@ func (c *FeishuChannel) handleMessageReceived(ctx context.Context, event *larkim
 
 // extractMessageContent 从消息中提取文本内容
 func (c *FeishuChannel) extractMessageContent(msg *larkim.EventMessage) string {
+	content, _ := c.extractMessageContentAndMedia(msg)
+	return content
+}
+
+// extractMessageContentAndMedia 从消息中提取文本内容和媒体文件
+func (c *FeishuChannel) extractMessageContentAndMedia(msg *larkim.EventMessage) (string, []bus.Media) {
 	if msg.Content == nil {
 		logger.Debug("Message content is nil")
-		return ""
+		return "", nil
 	}
 
 	contentRaw := *msg.Content
@@ -321,31 +362,63 @@ func (c *FeishuChannel) extractMessageContent(msg *larkim.EventMessage) string {
 		var content map[string]string
 		if err := json.Unmarshal([]byte(contentRaw), &content); err != nil {
 			logger.Error("Failed to parse text message content", zap.Error(err))
-			return ""
+			return "", nil
 		}
-		return content["text"]
+		return content["text"], nil
+
+	case "image":
+		// 图片消息格式: {"image_key":"img_xxx"}
+		var content map[string]string
+		if err := json.Unmarshal([]byte(contentRaw), &content); err != nil {
+			logger.Error("Failed to parse image message content", zap.Error(err))
+			return "", nil
+		}
+		imageKey := content["image_key"]
+		if imageKey == "" {
+			return "", nil
+		}
+		// 使用 feishu: 前缀格式存储 image_key，用于后续通过 GetImage API 获取
+		media := []bus.Media{
+			{
+				Type: "image",
+				URL:  "feishu:" + imageKey,
+			},
+		}
+		return "[图片]", media
 
 	case "post":
 		// 富文本消息格式: {"post":{"zh_cn":[{"tag":"text","text":"内容"}]}}
 		var content map[string]interface{}
 		if err := json.Unmarshal([]byte(contentRaw), &content); err != nil {
 			logger.Error("Failed to parse post message content", zap.Error(err))
-			return ""
+			return "", nil
 		}
 		if post, ok := content["post"].(map[string]interface{}); ok {
 			if zhCn, ok := post["zh_cn"].([]interface{}); ok && len(zhCn) > 0 {
-				// 提取所有文本元素
+				// 提取所有文本元素和图片
 				var result strings.Builder
+				var media []bus.Media
 				for _, elem := range zhCn {
 					if elemMap, ok := elem.(map[string]interface{}); ok {
-						if tag, ok := elemMap["tag"].(string); ok && tag == "text" {
-							if text, ok := elemMap["text"].(string); ok {
-								result.WriteString(text)
+						if tag, ok := elemMap["tag"].(string); ok {
+							if tag == "text" {
+								if text, ok := elemMap["text"].(string); ok {
+									result.WriteString(text)
+								}
+							} else if tag == "img" {
+								// 提取富文本中的图片
+								if imageKey, ok := elemMap["image_key"].(string); ok && imageKey != "" {
+									media = append(media, bus.Media{
+										Type: "image",
+										URL:  "feishu:" + imageKey,
+									})
+									result.WriteString("[图片]")
+								}
 							}
 						}
 					}
 				}
-				return result.String()
+				return result.String(), media
 			}
 		}
 
@@ -353,7 +426,7 @@ func (c *FeishuChannel) extractMessageContent(msg *larkim.EventMessage) string {
 		logger.Debug("Unsupported message type", zap.String("type", msgType))
 	}
 
-	return ""
+	return "", nil
 }
 
 // checkBotMentioned 检查消息是否 @ 了机器人
@@ -395,7 +468,8 @@ func (c *FeishuChannel) Send(msg *bus.OutboundMessage) error {
 	logger.Debug("Feishu sending message",
 		zap.String("chat_id", msg.ChatID),
 		zap.String("reply_to", msg.ReplyTo),
-		zap.Int("content_length", len(msg.Content)))
+		zap.Int("content_length", len(msg.Content)),
+		zap.Int("media_count", len(msg.Media)))
 
 	// 判断接收者类型
 	receiveIDType := larkim.ReceiveIdTypeChatId
@@ -403,7 +477,24 @@ func (c *FeishuChannel) Send(msg *bus.OutboundMessage) error {
 		receiveIDType = larkim.ReceiveIdTypeOpenId
 	}
 
-	err := c.sendCardMessage(msg, receiveIDType)
+	var err error
+	// 优先发送图片消息
+	if len(msg.Media) > 0 {
+		for _, media := range msg.Media {
+			if media.Type == "image" {
+				if err = c.sendImageMessage(msg, media, receiveIDType); err != nil {
+					logger.Error("Failed to send image message", zap.Error(err))
+				}
+			}
+		}
+	}
+
+	// 如果有文本内容，发送卡片消息
+	if msg.Content != "" {
+		if err = c.sendCardMessage(msg, receiveIDType); err != nil {
+			logger.Error("Failed to send card message", zap.Error(err))
+		}
+	}
 
 	// 清除 typing indicator（无论成功或失败）
 	if msg.ReplyTo != "" {
@@ -414,6 +505,148 @@ func (c *FeishuChannel) Send(msg *bus.OutboundMessage) error {
 	}
 
 	return err
+}
+
+// downloadFeishuImage 从飞书下载图片，返回 io.ReadCloser
+func (c *FeishuChannel) downloadFeishuImage(imageKey string) (io.ReadCloser, error) {
+	req := larkim.NewGetImageReqBuilder().
+		ImageKey(imageKey).
+		Build()
+
+	resp, err := c.httpClient.Im.Image.Get(context.Background(), req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get image: %w", err)
+	}
+
+	if !resp.Success() || resp.File == nil {
+		return nil, fmt.Errorf("get image failed: code=%d msg=%s", resp.Code, resp.Msg)
+	}
+
+	// resp.File 是 io.Reader，读取所有数据
+	data, err := io.ReadAll(resp.File)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read image data: %w", err)
+	}
+	return io.NopCloser(bytes.NewReader(data)), nil
+}
+
+// uploadImage 上传图片到飞书，返回 image_key
+func (c *FeishuChannel) uploadImage(imageData io.Reader) (string, error) {
+	imageType := "message" // message 类型的图片可以用于发送消息
+	req := larkim.NewCreateImageReqBuilder().
+		Body(
+			larkim.NewCreateImageReqBodyBuilder().
+				ImageType(imageType).
+				Image(imageData).
+				Build(),
+		).
+		Build()
+
+	resp, err := c.httpClient.Im.Image.Create(context.Background(), req)
+	if err != nil {
+		return "", fmt.Errorf("failed to upload image: %w", err)
+	}
+
+	if !resp.Success() || resp.Data == nil {
+		return "", fmt.Errorf("upload image failed: code=%d msg=%s", resp.Code, resp.Msg)
+	}
+
+	if resp.Data.ImageKey == nil {
+		return "", fmt.Errorf("upload image response missing image_key")
+	}
+
+	logger.Debug("Image uploaded successfully", zap.String("image_key", *resp.Data.ImageKey))
+	return *resp.Data.ImageKey, nil
+}
+
+// sendImageMessage 发送图片消息
+func (c *FeishuChannel) sendImageMessage(msg *bus.OutboundMessage, media bus.Media, receiveIDType string) error {
+	var imageReader io.Reader
+
+	// 根据不同来源获取图片数据
+	if media.URL != "" {
+		var imageBody io.ReadCloser
+		var err error
+
+		// 检查是否是 Feishu 图片 (feishu:image_key 格式)
+		if strings.HasPrefix(media.URL, "feishu:") {
+			imageKey := strings.TrimPrefix(media.URL, "feishu:")
+			imageBody, err = c.downloadFeishuImage(imageKey)
+			if err != nil {
+				return fmt.Errorf("failed to download feishu image: %w", err)
+			}
+		} else {
+			// 从普通 URL 下载图片
+			req, err := http.NewRequest("GET", media.URL, nil)
+			if err != nil {
+				return fmt.Errorf("failed to create download request: %w", err)
+			}
+
+			resp, err := http.DefaultClient.Do(req)
+			if err != nil {
+				return fmt.Errorf("failed to download image from URL: %w", err)
+			}
+			if resp.StatusCode != http.StatusOK {
+				resp.Body.Close()
+				return fmt.Errorf("failed to download image, status: %d", resp.StatusCode)
+			}
+			imageBody = resp.Body
+		}
+		defer imageBody.Close()
+		imageReader = imageBody
+
+	} else if media.Base64 != "" {
+		// 从 Base64 解码图片
+		data, err := base64.StdEncoding.DecodeString(media.Base64)
+		if err != nil {
+			return fmt.Errorf("failed to decode base64 image: %w", err)
+		}
+		imageReader = bytes.NewReader(data)
+	} else {
+		return fmt.Errorf("no valid image data (URL or Base64) provided")
+	}
+
+	// 上传图片获取 image_key
+	imageKey, err := c.uploadImage(imageReader)
+	if err != nil {
+		return fmt.Errorf("failed to upload image: %w", err)
+	}
+
+	// 构建图片消息内容: {"image_key":"xxx"}
+	content := fmt.Sprintf(`{"image_key":"%s"}`, imageKey)
+
+	imageMsgReq := larkim.NewCreateMessageReqBuilder().
+		ReceiveIdType(receiveIDType).
+		Body(
+			larkim.NewCreateMessageReqBodyBuilder().
+				ReceiveId(msg.ChatID).
+				MsgType(larkim.MsgTypeImage).
+				Content(content).
+				Build(),
+		).
+		Build()
+
+	resp, err := c.httpClient.Im.Message.Create(context.Background(), imageMsgReq)
+	if err != nil {
+		logger.Error("Feishu send image message error", zap.Error(err), zap.String("chat_id", msg.ChatID), zap.String("image_key", imageKey))
+		return err
+	}
+
+	if !resp.Success() {
+		logger.Error("Feishu API error for image message",
+			zap.Int("code", int(resp.Code)),
+			zap.String("msg", resp.Msg),
+			zap.String("chat_id", msg.ChatID),
+			zap.String("image_key", imageKey),
+		)
+		return fmt.Errorf("feishu api error: %d %s", resp.Code, resp.Msg)
+	}
+
+	logger.Debug("Sent Feishu image message",
+		zap.String("chat_id", msg.ChatID),
+		zap.String("image_key", imageKey))
+
+	return nil
 }
 
 // addTypingIndicator 添加 typing indicator（使用 "Typing" emoji reaction）
