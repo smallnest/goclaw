@@ -5,17 +5,18 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
+	lark "github.com/larksuite/oapi-sdk-go/v3"
+	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
+	"github.com/larksuite/oapi-sdk-go/v3/event/dispatcher"
+	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
+	larkws "github.com/larksuite/oapi-sdk-go/v3/ws"
 	"github.com/smallnest/goclaw/bus"
 	"github.com/smallnest/goclaw/config"
 	"github.com/smallnest/goclaw/internal/logger"
-	lark "github.com/larksuite/oapi-sdk-go/v3"
-	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
-	larkim "github.com/larksuite/oapi-sdk-go/v3/service/im/v1"
-	"github.com/larksuite/oapi-sdk-go/v3/event/dispatcher"
-	larkws "github.com/larksuite/oapi-sdk-go/v3/ws"
 	"go.uber.org/zap"
 )
 
@@ -33,6 +34,8 @@ type FeishuChannel struct {
 	// typing indicator state: messageID -> reactionID mapping
 	typingReactions   map[string]string
 	typingReactionsMu sync.RWMutex
+	// bot open_id for mention checking
+	botOpenId string
 }
 
 // NewFeishuChannel 创建飞书通道
@@ -76,6 +79,13 @@ func (c *FeishuChannel) Start(ctx context.Context) error {
 		zap.String("app_id", c.appID),
 		zap.String("domain", c.domain))
 
+	// 获取机器人的 open_id（用于 @ 检查）
+	if err := c.fetchBotOpenId(); err != nil {
+		logger.Warn("Failed to fetch bot open_id, mention checking will be disabled", zap.Error(err))
+	} else {
+		logger.Info("Feishu bot open_id resolved", zap.String("bot_open_id", c.botOpenId))
+	}
+
 	// 创建事件分发器
 	c.eventDispatcher = dispatcher.NewEventDispatcher(
 		c.verificationToken,
@@ -106,6 +116,54 @@ func resolveDomain(domain string) string {
 		return lark.LarkBaseUrl
 	}
 	return lark.FeishuBaseUrl
+}
+
+// fetchBotOpenId 获取机器人的 open_id
+func (c *FeishuChannel) fetchBotOpenId() error {
+	ctx := context.Background()
+
+	// 1. 获取 app_access_token
+	tokenReq := &larkcore.SelfBuiltAppAccessTokenReq{
+		AppID:     c.appID,
+		AppSecret: c.appSecret,
+	}
+
+	tokenResp, err := c.httpClient.GetAppAccessTokenBySelfBuiltApp(ctx, tokenReq)
+	if err != nil {
+		return fmt.Errorf("failed to get app access token: %w", err)
+	}
+	if !tokenResp.Success() || tokenResp.AppAccessToken == "" {
+		return fmt.Errorf("app access token error: code=%d msg=%s", tokenResp.Code, tokenResp.Msg)
+	}
+
+	// 2. 使用 app_access_token 调用 bot/info API
+	apiResp, err := c.httpClient.Get(ctx, "/open-apis/bot/v3/info", nil, larkcore.AccessTokenTypeApp)
+	if err != nil {
+		return fmt.Errorf("failed to fetch bot info: %w", err)
+	}
+
+	var result struct {
+		Code int    `json:"code"`
+		Msg  string `json:"msg"`
+		Bot  struct {
+			OpenId  string `json:"open_id"`
+			BotName string `json:"bot_name"`
+		} `json:"bot"`
+	}
+
+	if err := json.Unmarshal(apiResp.RawBody, &result); err != nil {
+		return fmt.Errorf("failed to decode bot info response: %w", err)
+	}
+
+	if result.Code != 0 {
+		return fmt.Errorf("bot info API error: code=%d msg=%s", result.Code, result.Msg)
+	}
+
+	c.botOpenId = result.Bot.OpenId
+	logger.Info("Fetched bot info",
+		zap.String("bot_name", result.Bot.BotName),
+		zap.String("bot_open_id", c.botOpenId))
+	return nil
 }
 
 // registerEventHandlers 注册事件处理器
@@ -170,24 +228,59 @@ func (c *FeishuChannel) handleMessageReceived(ctx context.Context, event *larkim
 		messageID = *event.Event.Message.MessageId
 	}
 
-	logger.Debug("Feishu message received",
+	chatType := "unknown"
+	if event.Event.Message.ChatType != nil {
+		chatType = *event.Event.Message.ChatType
+	}
+	messageType := "unknown"
+	if event.Event.Message.MessageType != nil {
+		messageType = *event.Event.Message.MessageType
+	}
+
+	logger.Info("Feishu message received",
 		zap.String("chat_id", chatID),
 		zap.String("message_id", messageID),
-		zap.String("sender_id", senderID))
+		zap.String("sender_id", senderID),
+		zap.String("chat_type", chatType),
+		zap.String("message_type", messageType))
 
 	// 检查发送者权限
 	if senderID != "" && !c.IsAllowed(senderID) {
-		logger.Debug("Feishu message filtered (not allowed)",
+		logger.Info("Feishu message filtered (not allowed)",
 			zap.String("sender_id", senderID))
 		return
+	}
+
+	// 检查群聊消息是否 @ 了机器人
+	isGroupChat := chatType == "group"
+
+	if isGroupChat {
+		if c.botOpenId == "" {
+			logger.Info("Feishu group message skipped (botOpenId not resolved)",
+				zap.String("chat_id", chatID))
+			return
+		}
+		mentionedBot := c.checkBotMentioned(event.Event.Message)
+		if !mentionedBot {
+			logger.Info("Feishu message filtered (not mentioned bot in group)",
+				zap.String("chat_id", chatID),
+				zap.String("bot_open_id", c.botOpenId),
+				zap.Int("mentions_count", len(event.Event.Message.Mentions)))
+			return
+		}
 	}
 
 	// 解析消息内容
 	content := c.extractMessageContent(event.Event.Message)
 	if content == "" {
-		logger.Debug("Feishu message has no extractable text content")
+		logger.Info("Feishu message has no extractable text content", zap.String("message_type", messageType))
 		return
 	}
+
+	logger.Info("Processing Feishu message",
+		zap.String("chat_id", chatID),
+		zap.String("chat_type", chatType),
+		zap.Int("content_length", len(content)))
 
 	// 解析时间戳
 	var timestamp time.Time
@@ -230,7 +323,7 @@ func (c *FeishuChannel) handleMessageReceived(ctx context.Context, event *larkim
 		return
 	}
 
-	logger.Debug("Processed Feishu message",
+	logger.Info("Processed Feishu message",
 		zap.String("message_id", messageID),
 		zap.String("chat_id", chatID),
 		zap.String("sender_id", senderID))
@@ -238,22 +331,96 @@ func (c *FeishuChannel) handleMessageReceived(ctx context.Context, event *larkim
 
 // extractMessageContent 从消息中提取文本内容
 func (c *FeishuChannel) extractMessageContent(msg *larkim.EventMessage) string {
-	if msg.MessageType == nil || *msg.MessageType != "text" {
-		return ""
-	}
-
 	if msg.Content == nil {
+		logger.Debug("Message content is nil")
 		return ""
 	}
 
-	// 解析 content JSON
-	var content map[string]string
-	if err := json.Unmarshal([]byte(*msg.Content), &content); err != nil {
-		logger.Error("Failed to parse message content", zap.Error(err))
-		return ""
+	contentRaw := *msg.Content
+	logger.Debug("Extracting message content", zap.String("message_type", getStringPtr(msg.MessageType)), zap.String("content", contentRaw))
+
+	// 支持多种消息类型
+	msgType := "text"
+	if msg.MessageType != nil {
+		msgType = *msg.MessageType
 	}
 
-	return content["text"]
+	switch msgType {
+	case "text":
+		// 文本消息格式: {"text":"内容"}
+		var content map[string]string
+		if err := json.Unmarshal([]byte(contentRaw), &content); err != nil {
+			logger.Error("Failed to parse text message content", zap.Error(err))
+			return ""
+		}
+		return content["text"]
+
+	case "post":
+		// 富文本消息格式: {"post":{"zh_cn":[{"tag":"text","text":"内容"}]}}
+		var content map[string]interface{}
+		if err := json.Unmarshal([]byte(contentRaw), &content); err != nil {
+			logger.Error("Failed to parse post message content", zap.Error(err))
+			return ""
+		}
+		if post, ok := content["post"].(map[string]interface{}); ok {
+			if zhCn, ok := post["zh_cn"].([]interface{}); ok && len(zhCn) > 0 {
+				// 提取所有文本元素
+				var result strings.Builder
+				for _, elem := range zhCn {
+					if elemMap, ok := elem.(map[string]interface{}); ok {
+						if tag, ok := elemMap["tag"].(string); ok && tag == "text" {
+							if text, ok := elemMap["text"].(string); ok {
+								result.WriteString(text)
+							}
+						}
+					}
+				}
+				return result.String()
+			}
+		}
+
+	default:
+		logger.Debug("Unsupported message type", zap.String("type", msgType))
+	}
+
+	return ""
+}
+
+// checkBotMentioned 检查消息是否 @ 了机器人
+func (c *FeishuChannel) checkBotMentioned(msg *larkim.EventMessage) bool {
+	mentions := msg.Mentions
+
+	// 如果不 AT 任何机器人，就当废话
+	// if len(mentions) == 0 {
+	// 	logger.Debug("No mentions in message", zap.String("bot_open_id", c.botOpenId))
+	// 	return false
+	// }
+
+	// 遍历 mentions，检查是否有机器人的 open_id
+	for _, mention := range mentions {
+		mentionOpenId := ""
+		if mention.Id != nil && mention.Id.OpenId != nil {
+			mentionOpenId = *mention.Id.OpenId
+		}
+		logger.Debug("Checking mention",
+			zap.String("bot_open_id", c.botOpenId),
+			zap.String("mention_open_id", mentionOpenId),
+			zap.Bool("matches", mentionOpenId == c.botOpenId))
+
+		if mention.Id != nil && mention.Id.OpenId != nil {
+			if *mention.Id.OpenId == c.botOpenId {
+				logger.Info("Bot mentioned in message",
+					zap.String("bot_open_id", c.botOpenId),
+					zap.String("mention_open_id", *mention.Id.OpenId))
+				return true
+			}
+		}
+	}
+
+	logger.Debug("Bot not mentioned in message",
+		zap.String("bot_open_id", c.botOpenId),
+		zap.Int("mentions_count", len(mentions)))
+	return false
 }
 
 // Send 发送消息
