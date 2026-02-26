@@ -68,10 +68,18 @@ var (
 	installWorkspacePath string
 )
 
+// Flags for start command
+var (
+	logLevel string
+)
+
 func init() {
 	// Add install command flags
 	installCmd.Flags().StringVar(&installConfigPath, "config", "", "Path to config file")
 	installCmd.Flags().StringVar(&installWorkspacePath, "workspace", "", "Path to workspace directory (overrides config)")
+
+	// Add start command flags
+	startCmd.Flags().StringVarP(&logLevel, "log-level", "l", "info", "Log level: debug, info, warn, error, fatal (default: info)")
 
 	rootCmd.AddCommand(versionCmd)
 	rootCmd.AddCommand(startCmd)
@@ -137,7 +145,7 @@ func runStart(cmd *cobra.Command, args []string) {
 	}
 
 	// 初始化日志
-	if err := logger.Init("info", false); err != nil {
+	if err := logger.Init(logLevel, false); err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
 		os.Exit(1)
 	}
