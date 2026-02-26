@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strconv"
+	"sync"
 	"time"
 
 	"github.com/smallnest/goclaw/bus"
@@ -29,6 +30,9 @@ type FeishuChannel struct {
 	wsClient          *larkws.Client
 	eventDispatcher   *dispatcher.EventDispatcher
 	httpClient        *lark.Client
+	// typing indicator state: messageID -> reactionID mapping
+	typingReactions   map[string]string
+	typingReactionsMu sync.RWMutex
 }
 
 // NewFeishuChannel 创建飞书通道
@@ -58,6 +62,7 @@ func NewFeishuChannel(cfg config.FeishuChannelConfig, bus *bus.MessageBus) (*Fei
 		encryptKey:        cfg.EncryptKey,
 		verificationToken: cfg.VerificationToken,
 		httpClient:        client,
+		typingReactions:   make(map[string]string),
 	}, nil
 }
 
@@ -196,6 +201,12 @@ func (c *FeishuChannel) handleMessageReceived(ctx context.Context, event *larkim
 		timestamp = time.Now()
 	}
 
+	// 发布到消息总线前，先添加 typing indicator
+	// 使用 messageID 来匹配用户消息
+	if err := c.addTypingIndicator(messageID); err != nil {
+		logger.Debug("Failed to add typing indicator (non-critical)", zap.Error(err))
+	}
+
 	// 发布到消息总线
 	inbound := &bus.InboundMessage{
 		ID:        messageID,
@@ -214,6 +225,8 @@ func (c *FeishuChannel) handleMessageReceived(ctx context.Context, event *larkim
 		logger.Error("Failed to publish inbound message",
 			zap.String("message_id", messageID),
 			zap.Error(err))
+		// 清除 typing indicator
+		c.removeTypingIndicator(messageID)
 		return
 	}
 
@@ -247,7 +260,8 @@ func (c *FeishuChannel) extractMessageContent(msg *larkim.EventMessage) string {
 func (c *FeishuChannel) Send(msg *bus.OutboundMessage) error {
 	logger.Info("Feishu sending message",
 		zap.String("chat_id", msg.ChatID),
-		zap.String("content", msg.Content))
+		zap.String("reply_to", msg.ReplyTo),
+		zap.Int("content_length", len(msg.Content)))
 
 	// 判断接收者类型
 	receiveIDType := larkim.ReceiveIdTypeChatId
@@ -255,7 +269,89 @@ func (c *FeishuChannel) Send(msg *bus.OutboundMessage) error {
 		receiveIDType = larkim.ReceiveIdTypeOpenId
 	}
 
-	return c.sendCardMessage(msg, receiveIDType)
+	err := c.sendCardMessage(msg, receiveIDType)
+
+	// 清除 typing indicator（无论成功或失败）
+	if msg.ReplyTo != "" {
+		rmErr := c.removeTypingIndicator(msg.ReplyTo)
+		if rmErr != nil {
+			logger.Debug("Failed to remove typing indicator (non-critical)", zap.Error(rmErr))
+		}
+	}
+
+	return err
+}
+
+// addTypingIndicator 添加 typing indicator（使用 "Typing" emoji reaction）
+func (c *FeishuChannel) addTypingIndicator(messageID string) error {
+	emojiType := "Typing"
+	req := larkim.NewCreateMessageReactionReqBuilder().
+		MessageId(messageID).
+		Body(larkim.NewCreateMessageReactionReqBodyBuilder().
+			ReactionType(&larkim.Emoji{EmojiType: &emojiType}).
+			Build()).
+		Build()
+
+	resp, err := c.httpClient.Im.MessageReaction.Create(context.Background(), req)
+	if err != nil {
+		logger.Debug("Feishu add typing indicator error", zap.Error(err))
+		return err
+	}
+
+	if !resp.Success() {
+		logger.Debug("Feishu API error for typing indicator",
+			zap.Int("code", int(resp.Code)),
+			zap.String("msg", resp.Msg))
+		return fmt.Errorf("feishu api error: %d %s", resp.Code, resp.Msg)
+	}
+
+	if resp.Data.ReactionId != nil {
+		reactionID := *resp.Data.ReactionId
+		c.typingReactionsMu.Lock()
+		c.typingReactions[messageID] = reactionID
+		c.typingReactionsMu.Unlock()
+		logger.Debug("Added typing indicator",
+			zap.String("message_id", messageID),
+			zap.String("reaction_id", reactionID))
+	}
+
+	return nil
+}
+
+// removeTypingIndicator 移除 typing indicator
+func (c *FeishuChannel) removeTypingIndicator(messageID string) error {
+	c.typingReactionsMu.Lock()
+	reactionID, ok := c.typingReactions[messageID]
+	if !ok {
+		c.typingReactionsMu.Unlock()
+		return nil
+	}
+	delete(c.typingReactions, messageID)
+	c.typingReactionsMu.Unlock()
+
+	req := larkim.NewDeleteMessageReactionReqBuilder().
+		MessageId(messageID).
+		ReactionId(reactionID).
+		Build()
+
+	resp, err := c.httpClient.Im.MessageReaction.Delete(context.Background(), req)
+	if err != nil {
+		logger.Debug("Feishu remove typing indicator error", zap.Error(err))
+		return err
+	}
+
+	if !resp.Success() {
+		logger.Debug("Feishu API error for removing typing indicator",
+			zap.Int("code", int(resp.Code)),
+			zap.String("msg", resp.Msg))
+		return fmt.Errorf("feishu api error: %d %s", resp.Code, resp.Msg)
+	}
+
+	logger.Debug("Removed typing indicator",
+		zap.String("message_id", messageID),
+		zap.String("reaction_id", reactionID))
+
+	return nil
 }
 
 // sendCardMessage 发送卡片消息（使用 markdown 格式）

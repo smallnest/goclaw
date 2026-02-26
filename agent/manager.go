@@ -538,7 +538,7 @@ func (m *AgentManager) handleInboundMessage(ctx context.Context, msg *bus.Inboun
 				if len(finalMessages) > 0 {
 					lastMsg := finalMessages[len(finalMessages)-1]
 					if lastMsg.Role == RoleAssistant {
-						m.publishToBus(ctx, msg.Channel, msg.ChatID, lastMsg)
+						m.publishToBus(ctx, msg.Channel, msg.ChatID, lastMsg, msg.ID)
 					}
 				}
 				return nil
@@ -555,7 +555,7 @@ func (m *AgentManager) handleInboundMessage(ctx context.Context, msg *bus.Inboun
 	if len(finalMessages) > 0 {
 		lastMsg := finalMessages[len(finalMessages)-1]
 		if lastMsg.Role == RoleAssistant {
-			m.publishToBus(ctx, msg.Channel, msg.ChatID, lastMsg)
+			m.publishToBus(ctx, msg.Channel, msg.ChatID, lastMsg, msg.ID)
 		}
 	}
 
@@ -574,13 +574,14 @@ func (m *AgentManager) updateSession(sess *session.Session, messages []AgentMess
 }
 
 // publishToBus 发布消息到总线
-func (m *AgentManager) publishToBus(ctx context.Context, channel, chatID string, msg AgentMessage) {
+func (m *AgentManager) publishToBus(ctx context.Context, channel, chatID string, msg AgentMessage, replyTo string) {
 	content := extractTextContent(msg)
 
 	outbound := &bus.OutboundMessage{
 		Channel:   channel,
 		ChatID:    chatID,
 		Content:   content,
+		ReplyTo:   replyTo,
 		Timestamp: time.Unix(msg.Timestamp/1000, 0),
 	}
 
