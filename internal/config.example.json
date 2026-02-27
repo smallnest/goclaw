@@ -126,6 +126,10 @@
       "timeout": 30,
       "relay_url": "ws://127.0.0.1:18789",
       "relay_mode": "auto"
+    },
+    "cron": {
+      "enabled": true,
+      "store_path": ""
     }
   },
   "memory": {

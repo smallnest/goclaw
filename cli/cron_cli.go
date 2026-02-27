@@ -1,16 +1,23 @@
 package cli
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
-	"github.com/smallnest/goclaw/config"
+	"github.com/smallnest/goclaw/agent"
+	"github.com/smallnest/goclaw/agent/tools"
+	"github.com/smallnest/goclaw/bus"
 	"github.com/smallnest/goclaw/cron"
+	"github.com/smallnest/goclaw/config"
+	"github.com/smallnest/goclaw/internal/logger"
+	"github.com/smallnest/goclaw/internal/workspace"
+	"github.com/smallnest/goclaw/providers"
+	"github.com/smallnest/goclaw/session"
 	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 )
 
 var cronCmd = &cobra.Command{
@@ -79,19 +86,23 @@ var cronRunCmd = &cobra.Command{
 
 // Cron flags
 var (
-	cronStatusJSON     bool
-	cronListAll        bool
-	cronListJSON       bool
+	cronStatusJSON bool
+	cronListAll    bool
+	cronListJSON   bool
+
+	// add flags
 	cronAddName        string
 	cronAddAt          string
 	cronAddEvery       string
 	cronAddCron        string
 	cronAddMessage     string
 	cronAddSystemEvent string
-	cronRunsID         string
-	cronRunsLimit      int
-	cronRunForce       bool
-	// cron edit flags
+	cronAddWebhook     string
+	cronAddWebhookToken string
+	cronAddBestEffort  bool
+	cronAddIsolated    bool
+
+	// edit flags
 	cronEditName        string
 	cronEditAt          string
 	cronEditEvery       string
@@ -100,10 +111,17 @@ var (
 	cronEditSystemEvent string
 	cronEditEnable      bool
 	cronEditDisable     bool
+
+	// runs flags
+	cronRunsID    string
+	cronRunsLimit int
+	cronRunsAfter string
+
+	// run flags
+	cronRunForce bool
 )
 
 func init() {
-	// Register cron commands
 	rootCmd.AddCommand(cronCmd)
 	cronCmd.AddCommand(cronStatusCmd)
 	cronCmd.AddCommand(cronListCmd)
@@ -115,36 +133,34 @@ func init() {
 	cronCmd.AddCommand(cronRunsCmd)
 	cronCmd.AddCommand(cronRunCmd)
 
-	// Add aliases for cron add
 	cronAddCmd.Aliases = []string{"create"}
 
-	// cron status flags
 	cronStatusCmd.Flags().BoolVar(&cronStatusJSON, "json", false, "Output in JSON format")
 
-	// cron list flags
 	cronListCmd.Flags().BoolVar(&cronListAll, "all", false, "Show all jobs including disabled")
 	cronListCmd.Flags().BoolVar(&cronListJSON, "json", false, "Output in JSON format")
 
-	// cron add flags
 	cronAddCmd.Flags().StringVar(&cronAddName, "name", "", "Job name (required)")
-	cronAddCmd.Flags().StringVar(&cronAddAt, "at", "", "Time to run (e.g., 14:30, 2:30pm)")
-	cronAddCmd.Flags().StringVar(&cronAddEvery, "every", "", "Interval (e.g., 1h, 30m, 1d)")
+	cronAddCmd.Flags().StringVar(&cronAddAt, "at", "", "Time to run (ISO 8601 format)")
+	cronAddCmd.Flags().StringVar(&cronAddEvery, "every", "", "Interval (e.g., 30s, 5m, 2h, 1d)")
 	cronAddCmd.Flags().StringVar(&cronAddCron, "cron", "", "Cron expression")
 	cronAddCmd.Flags().StringVar(&cronAddMessage, "message", "", "Message to send")
 	cronAddCmd.Flags().StringVar(&cronAddSystemEvent, "system-event", "", "System event type")
+	cronAddCmd.Flags().StringVar(&cronAddWebhook, "webhook", "", "Webhook URL for delivery")
+	cronAddCmd.Flags().StringVar(&cronAddWebhookToken, "webhook-token", "", "Webhook bearer token")
+	cronAddCmd.Flags().BoolVar(&cronAddBestEffort, "best-effort", false, "Best-effort delivery")
+	cronAddCmd.Flags().BoolVar(&cronAddIsolated, "isolated", false, "Run in isolated session")
 	_ = cronAddCmd.MarkFlagRequired("name")
 
-	// cron runs flags
 	cronRunsCmd.Flags().StringVar(&cronRunsID, "id", "", "Job ID (required)")
 	cronRunsCmd.Flags().IntVar(&cronRunsLimit, "limit", 10, "Limit number of results")
+	cronRunsCmd.Flags().StringVar(&cronRunsAfter, "after", "", "Show runs after this time")
 
-	// cron run flags
 	cronRunCmd.Flags().BoolVar(&cronRunForce, "force", false, "Run even if disabled")
 
-	// cron edit flags
 	cronEditCmd.Flags().StringVar(&cronEditName, "name", "", "Job name")
-	cronEditCmd.Flags().StringVar(&cronEditAt, "at", "", "Time to run (e.g., 14:30, 2:30pm)")
-	cronEditCmd.Flags().StringVar(&cronEditEvery, "every", "", "Interval (e.g., 1h, 30m, 1d)")
+	cronEditCmd.Flags().StringVar(&cronEditAt, "at", "", "Time to run (ISO 8601 format)")
+	cronEditCmd.Flags().StringVar(&cronEditEvery, "every", "", "Interval (e.g., 30s, 5m, 2h, 1d)")
 	cronEditCmd.Flags().StringVar(&cronEditCron, "cron", "", "Cron expression")
 	cronEditCmd.Flags().StringVar(&cronEditMessage, "message", "", "Message to send")
 	cronEditCmd.Flags().StringVar(&cronEditSystemEvent, "system-event", "", "System event type")
@@ -152,69 +168,43 @@ func init() {
 	cronEditCmd.Flags().BoolVar(&cronEditDisable, "disable", false, "Disable the job")
 }
 
-// runCronStatus handles the cron status command
 func runCronStatus(cmd *cobra.Command, args []string) {
-	cfg, err := config.Load("")
+	service, err := cron.NewService(cron.DefaultCronConfig(), nil)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error creating cron service: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Load jobs
-	jobs, err := loadJobs(cfg)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading jobs: %v\n", err)
-		os.Exit(1)
-	}
-
-	enabledCount := 0
-	disabledCount := 0
-	for _, job := range jobs {
-		if job.Enabled {
-			enabledCount++
-		} else {
-			disabledCount++
-		}
-	}
+	status := service.GetStatus()
 
 	if cronStatusJSON {
-		status := map[string]interface{}{
-			"total_jobs":    len(jobs),
-			"enabled_jobs":  enabledCount,
-			"disabled_jobs": disabledCount,
-			"timestamp":     time.Now().Unix(),
-		}
 		data, _ := json.MarshalIndent(status, "", "  ")
 		fmt.Println(string(data))
 		return
 	}
 
 	fmt.Println("Cron Scheduler Status:")
-	fmt.Printf("  Total Jobs: %d\n", len(jobs))
-	fmt.Printf("  Enabled: %d\n", enabledCount)
-	fmt.Printf("  Disabled: %d\n", disabledCount)
-	fmt.Printf("  Timestamp: %s\n", time.Now().Format(time.RFC3339))
+	fmt.Printf("  Running: %v\n", status["running"])
+	fmt.Printf("  Total Jobs: %v\n", status["total_jobs"])
+	fmt.Printf("  Enabled: %v\n", status["enabled_jobs"])
+	fmt.Printf("  Disabled: %v\n", status["disabled_jobs"])
+	fmt.Printf("  Running Jobs: %v\n", status["running_jobs"])
 }
 
-// runCronList handles the cron list command
 func runCronList(cmd *cobra.Command, args []string) {
-	cfg, err := config.Load("")
+	service, err := cron.NewService(cron.DefaultCronConfig(), nil)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error creating cron service: %v\n", err)
 		os.Exit(1)
 	}
 
-	jobs, err := loadJobs(cfg)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading jobs: %v\n", err)
-		os.Exit(1)
-	}
+	jobs := service.ListJobs()
 
 	// Filter if not showing all
 	if !cronListAll {
-		filtered := make([]*JobData, 0, len(jobs))
+		filtered := make([]*cron.Job, 0, len(jobs))
 		for _, job := range jobs {
-			if job.Enabled {
+			if job.State.Enabled {
 				filtered = append(filtered, job)
 			}
 		}
@@ -235,595 +225,588 @@ func runCronList(cmd *cobra.Command, args []string) {
 	fmt.Println("Scheduled Jobs:")
 	for _, job := range jobs {
 		status := "enabled"
-		if !job.Enabled {
+		if !job.State.Enabled {
 			status = "disabled"
 		}
 		fmt.Printf("\n  %s (%s)\n", job.ID, status)
 		fmt.Printf("    Name: %s\n", job.Name)
-		fmt.Printf("    Schedule: %s\n", job.Schedule)
-		fmt.Printf("    Task: %s\n", job.Task)
+		fmt.Printf("    Schedule: %s\n", formatSchedule(job))
+		fmt.Printf("    Payload: %s\n", formatPayload(job))
+		fmt.Printf("    Next Run: %s\n", formatTimePtr(job.State.NextRunAt))
 		fmt.Printf("    Created: %s\n", job.CreatedAt.Format(time.RFC3339))
 	}
 }
 
-// runCronAdd handles the cron add command
 func runCronAdd(cmd *cobra.Command, args []string) {
-	cfg, err := config.Load("")
+	service, err := cron.NewService(cron.DefaultCronConfig(), nil)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error creating cron service: %v\n", err)
 		os.Exit(1)
 	}
 
 	// Determine schedule
-	schedule := cronAddCron
-	if schedule == "" {
-		if cronAddAt != "" {
-			schedule = parseAtSchedule(cronAddAt)
-		} else if cronAddEvery != "" {
-			schedule = parseEverySchedule(cronAddEvery)
-		} else {
-			fmt.Fprintf(os.Stderr, "Error: Must specify one of --at, --every, or --cron\n")
-			os.Exit(1)
-		}
-	}
-
-	// Validate schedule
-	if _, err := cron.Parse(schedule); err != nil {
+	schedule, err := parseScheduleFlags()
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "Invalid schedule: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Determine task
-	task := cronAddMessage
-	if task == "" {
-		if cronAddSystemEvent != "" {
-			task = fmt.Sprintf("system-event:%s", cronAddSystemEvent)
-		} else {
-			fmt.Fprintf(os.Stderr, "Error: Must specify --message or --system-event\n")
-			os.Exit(1)
+	// Determine payload
+	payload, err := parsePayloadFlags()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Invalid payload: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Determine delivery
+	var delivery *cron.Delivery
+	if cronAddWebhook != "" {
+		delivery = &cron.Delivery{
+			Mode:         cron.DeliveryModeWebhook,
+			WebhookURL:   cronAddWebhook,
+			WebhookToken: cronAddWebhookToken,
+			BestEffort:   cronAddBestEffort,
 		}
 	}
 
-	// Generate ID
-	id := fmt.Sprintf("job-%d", time.Now().UnixNano())
-
-	// Create job
-	job := &JobData{
-		ID:        id,
-		Name:      cronAddName,
-		Schedule:  schedule,
-		Task:      task,
-		Message:   cronAddMessage,
-		EventType: cronAddSystemEvent,
-		Enabled:   true,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+	// Determine session target
+	sessionTarget := cron.SessionTargetMain
+	if cronAddIsolated {
+		sessionTarget = cron.SessionTargetIsolated
 	}
 
-	// Save job
-	if err := saveJob(cfg, job); err != nil {
-		fmt.Fprintf(os.Stderr, "Error saving job: %v\n", err)
+	job := &cron.Job{
+		Name:          cronAddName,
+		Schedule:      schedule,
+		SessionTarget: sessionTarget,
+		WakeMode:      cron.WakeModeNow,
+		Payload:       payload,
+		Delivery:      delivery,
+		State: cron.JobState{
+			Enabled: true,
+		},
+	}
+
+	if err := service.AddJob(job); err != nil {
+		fmt.Fprintf(os.Stderr, "Error adding job: %v\n", err)
 		os.Exit(1)
 	}
 
-	fmt.Printf("Job '%s' added with ID: %s\n", cronAddName, id)
+	fmt.Printf("Job '%s' added with ID: %s\n", cronAddName, job.ID)
 }
 
-// runCronEdit handles the cron edit command
 func runCronEdit(cmd *cobra.Command, args []string) {
-	cfg, err := config.Load("")
+	id := args[0]
+
+	service, err := cron.NewService(cron.DefaultCronConfig(), nil)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error creating cron service: %v\n", err)
 		os.Exit(1)
 	}
 
-	id := args[0]
+	// Check if job exists
+	if _, err := service.GetJob(id); err != nil {
+		fmt.Fprintf(os.Stderr, "Job not found: %s\n", id)
+		os.Exit(1)
+	}
 
-	// Check if any edit flag is provided
 	hasChanges := cronEditName != "" || cronEditAt != "" || cronEditEvery != "" ||
 		cronEditCron != "" || cronEditMessage != "" || cronEditSystemEvent != "" ||
 		cronEditEnable || cronEditDisable
 
 	if !hasChanges {
-		fmt.Fprintln(os.Stderr, "Error: No changes specified. Use at least one flag:")
-		fmt.Fprintln(os.Stderr, "  --name <name>")
-		fmt.Fprintln(os.Stderr, "  --at <time>")
-		fmt.Fprintln(os.Stderr, "  --every <interval>")
-		fmt.Fprintln(os.Stderr, "  --cron <expression>")
-		fmt.Fprintln(os.Stderr, "  --message <text>")
-		fmt.Fprintln(os.Stderr, "  --system-event <text>")
-		fmt.Fprintln(os.Stderr, "  --enable")
-		fmt.Fprintln(os.Stderr, "  --disable")
+		fmt.Fprintln(os.Stderr, "Error: No changes specified")
 		os.Exit(1)
 	}
 
-	// Check conflicting enable/disable flags
 	if cronEditEnable && cronEditDisable {
 		fmt.Fprintln(os.Stderr, "Error: Cannot use --enable and --disable together")
 		os.Exit(1)
 	}
 
-	// Load existing job
-	job, err := loadJob(cfg, id)
+	// Apply updates
+	err = service.UpdateJob(id, func(job *cron.Job) error {
+		if cronEditName != "" {
+			job.Name = cronEditName
+		}
+
+		if cronEditCron != "" {
+			job.Schedule.Type = cron.ScheduleTypeCron
+			job.Schedule.CronExpression = cronEditCron
+		} else if cronEditEvery != "" {
+			duration, err := cron.ParseHumanDuration(cronEditEvery)
+			if err != nil {
+				return fmt.Errorf("invalid interval: %w", err)
+			}
+			job.Schedule.Type = cron.ScheduleTypeEvery
+			job.Schedule.EveryDuration = duration
+		} else if cronEditAt != "" {
+			t, err := time.Parse(time.RFC3339, cronEditAt)
+			if err != nil {
+				return fmt.Errorf("invalid time format: %w", err)
+			}
+			job.Schedule.Type = cron.ScheduleTypeAt
+			job.Schedule.At = t
+		}
+
+		if cronEditMessage != "" {
+			job.Payload.Type = cron.PayloadTypeAgentTurn
+			job.Payload.Message = cronEditMessage
+		}
+
+		if cronEditSystemEvent != "" {
+			job.Payload.Type = cron.PayloadTypeSystemEvent
+			job.Payload.SystemEventType = cronEditSystemEvent
+		}
+
+		if cronEditEnable {
+			job.State.Enabled = true
+		}
+		if cronEditDisable {
+			job.State.Enabled = false
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Job with ID '%s' not found\n", id)
+		fmt.Fprintf(os.Stderr, "Error updating job: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Update name if specified
-	if cronEditName != "" {
-		job.Name = cronEditName
-	}
-
-	// Handle schedule updates with priority: cron > every > at
-	if cronEditCron != "" {
-		// Validate cron expression
-		if _, err := cron.Parse(cronEditCron); err != nil {
-			fmt.Fprintf(os.Stderr, "Invalid cron expression: %v\n", err)
-			os.Exit(1)
-		}
-		job.Schedule = cronEditCron
-	} else if cronEditEvery != "" {
-		schedule := parseEverySchedule(cronEditEvery)
-		if schedule == "" {
-			fmt.Fprintf(os.Stderr, "Invalid interval: %s\n", cronEditEvery)
-			os.Exit(1)
-		}
-		job.Schedule = schedule
-	} else if cronEditAt != "" {
-		schedule := parseAtSchedule(cronEditAt)
-		if schedule == "" {
-			fmt.Fprintf(os.Stderr, "Invalid time: %s\n", cronEditAt)
-			os.Exit(1)
-		}
-		job.Schedule = schedule
-	}
-
-	// Update message if specified
-	if cronEditMessage != "" {
-		job.Message = cronEditMessage
-		job.Task = cronEditMessage
-	}
-
-	// Update system event if specified
-	if cronEditSystemEvent != "" {
-		job.EventType = cronEditSystemEvent
-		job.Task = fmt.Sprintf("system-event:%s", cronEditSystemEvent)
-	}
-
-	// Handle enable/disable
-	if cronEditEnable {
-		job.Enabled = true
-	} else if cronEditDisable {
-		job.Enabled = false
-	}
-
-	// Update timestamp
-	job.UpdatedAt = time.Now()
-
-	// Save updated job
-	if err := saveJob(cfg, job); err != nil {
-		fmt.Fprintf(os.Stderr, "Error saving job: %v\n", err)
-		os.Exit(1)
-	}
-
-	// Display updated job information
-	fmt.Printf("Job '%s' updated successfully\n\n", job.ID)
-	fmt.Printf("  ID: %s\n", job.ID)
-	fmt.Printf("  Name: %s\n", job.Name)
-	fmt.Printf("  Schedule: %s\n", job.Schedule)
-	fmt.Printf("  Task: %s\n", job.Task)
-	if job.EventType != "" {
-		fmt.Printf("  Event Type: %s\n", job.EventType)
-	}
-	fmt.Printf("  Enabled: %t\n", job.Enabled)
-	fmt.Printf("  Updated: %s\n", job.UpdatedAt.Format(time.RFC3339))
+	fmt.Printf("Job '%s' updated successfully\n", id)
 }
 
-// runCronRm handles the cron rm command
 func runCronRm(cmd *cobra.Command, args []string) {
-	cfg, err := config.Load("")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-		os.Exit(1)
-	}
-
 	id := args[0]
 
-	// Load jobs
-	jobs, err := loadJobs(cfg)
+	service, err := cron.NewService(cron.DefaultCronConfig(), nil)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading jobs: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error creating cron service: %v\n", err)
 		os.Exit(1)
 	}
 
-	// Find and remove job
-	found := false
-	newJobs := make([]*JobData, 0, len(jobs))
-	for _, job := range jobs {
-		if job.ID == id {
-			found = true
-			continue
-		}
-		newJobs = append(newJobs, job)
-	}
-
-	if !found {
-		fmt.Printf("Job with ID '%s' not found\n", id)
-		return
-	}
-
-	// Save updated jobs list
-	if err := saveJobs(cfg, newJobs); err != nil {
-		fmt.Fprintf(os.Stderr, "Error saving jobs: %v\n", err)
+	if err := service.RemoveJob(id); err != nil {
+		fmt.Fprintf(os.Stderr, "Error removing job: %v\n", err)
 		os.Exit(1)
 	}
-
-	// Remove job file
-	jobFile := getJobFilePath(cfg, id)
-	_ = os.Remove(jobFile)
 
 	fmt.Printf("Job '%s' removed\n", id)
 }
 
-// runCronEnable handles the cron enable command
 func runCronEnable(cmd *cobra.Command, args []string) {
-	cfg, err := config.Load("")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-		os.Exit(1)
-	}
-
 	id := args[0]
 
-	job, err := loadJob(cfg, id)
+	service, err := cron.NewService(cron.DefaultCronConfig(), nil)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Job with ID '%s' not found\n", id)
+		fmt.Fprintf(os.Stderr, "Error creating cron service: %v\n", err)
 		os.Exit(1)
 	}
 
-	job.Enabled = true
-	job.UpdatedAt = time.Now()
-
-	if err := saveJob(cfg, job); err != nil {
-		fmt.Fprintf(os.Stderr, "Error saving job: %v\n", err)
+	if err := service.EnableJob(id); err != nil {
+		fmt.Fprintf(os.Stderr, "Error enabling job: %v\n", err)
 		os.Exit(1)
 	}
 
 	fmt.Printf("Job '%s' enabled\n", id)
 }
 
-// runCronDisable handles the cron disable command
 func runCronDisable(cmd *cobra.Command, args []string) {
-	cfg, err := config.Load("")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-		os.Exit(1)
-	}
-
 	id := args[0]
 
-	job, err := loadJob(cfg, id)
+	service, err := cron.NewService(cron.DefaultCronConfig(), nil)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Job with ID '%s' not found\n", id)
+		fmt.Fprintf(os.Stderr, "Error creating cron service: %v\n", err)
 		os.Exit(1)
 	}
 
-	job.Enabled = false
-	job.UpdatedAt = time.Now()
-
-	if err := saveJob(cfg, job); err != nil {
-		fmt.Fprintf(os.Stderr, "Error saving job: %v\n", err)
+	if err := service.DisableJob(id); err != nil {
+		fmt.Fprintf(os.Stderr, "Error disabling job: %v\n", err)
 		os.Exit(1)
 	}
 
 	fmt.Printf("Job '%s' disabled\n", id)
 }
 
-// runCronRuns handles the cron runs command
 func runCronRuns(cmd *cobra.Command, args []string) {
-	cfg, err := config.Load("")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-		os.Exit(1)
-	}
-
 	if cronRunsID == "" {
 		fmt.Fprintln(os.Stderr, "Error: --id parameter is required")
 		os.Exit(1)
 	}
 
-	// Load run history
-	history, err := loadRunHistory(cfg, cronRunsID, cronRunsLimit)
+	service, err := cron.NewService(cron.DefaultCronConfig(), nil)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating cron service: %v\n", err)
+		os.Exit(1)
+	}
+
+	filter := cron.RunLogFilter{
+		JobID: cronRunsID,
+		Limit: cronRunsLimit,
+	}
+
+	if cronRunsAfter != "" {
+		if t, err := time.Parse(time.RFC3339, cronRunsAfter); err == nil {
+			filter.After = t
+		}
+	}
+
+	runs, err := service.GetRunLogs(cronRunsID, filter)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error loading run history: %v\n", err)
 		os.Exit(1)
 	}
 
-	if len(history) == 0 {
+	if len(runs) == 0 {
 		fmt.Printf("No run history found for job '%s'\n", cronRunsID)
 		return
 	}
 
-	fmt.Printf("Run History for Job '%s' (last %d runs):\n", cronRunsID, cronRunsLimit)
-	for i, run := range history {
+	fmt.Printf("Run History for Job '%s' (last %d runs):\n", cronRunsID, len(runs))
+	for i, run := range runs {
 		fmt.Printf("\n  %d. %s\n", i+1, run.StartedAt.Format(time.RFC3339))
 		fmt.Printf("     Status: %s\n", run.Status)
-		duration := run.FinishedAt.Sub(run.StartedAt)
-		fmt.Printf("     Duration: %v\n", duration)
+		fmt.Printf("     Duration: %v\n", run.Duration)
 		if run.Error != "" {
 			fmt.Printf("     Error: %s\n", run.Error)
 		}
 	}
 }
 
-// runCronRun handles the cron run command
 func runCronRun(cmd *cobra.Command, args []string) {
-	cfg, err := config.Load("")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error loading config: %v\n", err)
-		os.Exit(1)
-	}
-
 	id := args[0]
 
-	job, err := loadJob(cfg, id)
+	// Load configuration
+	cfg, err := config.Load("")
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Job with ID '%s' not found\n", id)
+		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
 		os.Exit(1)
 	}
 
-	if !job.Enabled && !cronRunForce {
+	// Initialize logger if not already initialized
+	if err := logger.Init("info", false); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to initialize logger: %v\n", err)
+		os.Exit(1)
+	}
+	defer func() { _ = logger.Sync() }()
+
+	// Validate configuration
+	if err := config.Validate(cfg); err != nil {
+		fmt.Fprintf(os.Stderr, "Invalid configuration: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Get workspace directory
+	workspaceDir, err := config.GetWorkspacePath(cfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get workspace path: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Create workspace manager
+	workspaceMgr := workspace.NewManager(workspaceDir)
+	if err := workspaceMgr.Ensure(); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to ensure workspace: %v\n", err)
+	}
+
+	// Create message bus
+	messageBus := bus.NewMessageBus(100)
+	defer messageBus.Close()
+
+	// Create session manager
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get home directory: %v\n", err)
+		os.Exit(1)
+	}
+	sessionDir := homeDir + "/.goclaw/sessions"
+	sessionMgr, err := session.NewManager(sessionDir)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create session manager: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Create memory store
+	memoryStore := agent.NewMemoryStore(workspaceDir)
+
+	// Create context builder
+	contextBuilder := agent.NewContextBuilder(memoryStore, workspaceDir)
+
+	// Create tool registry
+	toolRegistry := agent.NewToolRegistry()
+
+	// Create skills loader
+	goclawDir := homeDir + "/.goclaw"
+	globalSkillsDir := goclawDir + "/skills"
+	workspaceSkillsDir := workspaceDir + "/skills"
+	currentSkillsDir := "./skills"
+
+	skillsLoader := agent.NewSkillsLoader(goclawDir, []string{
+		globalSkillsDir,
+		workspaceSkillsDir,
+		currentSkillsDir,
+	})
+	if err := skillsLoader.Discover(); err != nil {
+		logger.Warn("Failed to discover skills", zap.Error(err))
+	}
+
+	// Register filesystem tool
+	fsTool := tools.NewFileSystemTool(cfg.Tools.FileSystem.AllowedPaths, cfg.Tools.FileSystem.DeniedPaths, workspaceDir)
+	for _, tool := range fsTool.GetTools() {
+		if err := toolRegistry.RegisterExisting(tool); err != nil {
+			logger.Warn("Failed to register tool", zap.String("tool", tool.Name()))
+		}
+	}
+
+	// Register use_skill tool
+	if err := toolRegistry.RegisterExisting(tools.NewUseSkillTool()); err != nil {
+		logger.Warn("Failed to register use_skill tool", zap.Error(err))
+	}
+
+	// Register shell tool
+	shellTool := tools.NewShellTool(
+		cfg.Tools.Shell.Enabled,
+		cfg.Tools.Shell.AllowedCmds,
+		cfg.Tools.Shell.DeniedCmds,
+		cfg.Tools.Shell.Timeout,
+		cfg.Tools.Shell.WorkingDir,
+		cfg.Tools.Shell.Sandbox,
+	)
+	for _, tool := range shellTool.GetTools() {
+		if err := toolRegistry.RegisterExisting(tool); err != nil {
+			logger.Warn("Failed to register tool", zap.String("tool", tool.Name()))
+		}
+	}
+
+	// Register web tool
+	webTool := tools.NewWebTool(
+		cfg.Tools.Web.SearchAPIKey,
+		cfg.Tools.Web.SearchEngine,
+		cfg.Tools.Web.Timeout,
+	)
+	for _, tool := range webTool.GetTools() {
+		if err := toolRegistry.RegisterExisting(tool); err != nil {
+			logger.Warn("Failed to register tool", zap.String("tool", tool.Name()))
+		}
+	}
+
+	// Register smart search tool
+	browserTimeout := 30
+	if cfg.Tools.Browser.Timeout > 0 {
+		browserTimeout = cfg.Tools.Browser.Timeout
+	}
+	if err := toolRegistry.RegisterExisting(tools.NewSmartSearch(webTool, true, browserTimeout).GetTool()); err != nil {
+		logger.Warn("Failed to register smart_search tool", zap.Error(err))
+	}
+
+	// Register browser tool if enabled
+	if cfg.Tools.Browser.Enabled {
+		browserTool := tools.NewBrowserTool(
+			cfg.Tools.Browser.Headless,
+			cfg.Tools.Browser.Timeout,
+		)
+		for _, tool := range browserTool.GetTools() {
+			if err := toolRegistry.RegisterExisting(tool); err != nil {
+				logger.Warn("Failed to register tool", zap.String("tool", tool.Name()))
+			}
+		}
+	}
+
+	// Register cron tool
+	cronTool := tools.NewCronTool(cfg.Tools.Cron.Enabled, cfg.Tools.Cron.StorePath, messageBus)
+	for _, tool := range cronTool.GetTools() {
+		if err := toolRegistry.RegisterExisting(tool); err != nil {
+			logger.Warn("Failed to register tool", zap.String("tool", tool.Name()))
+		}
+	}
+
+	// Create LLM provider
+	provider, err := providers.NewProvider(cfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to create LLM provider: %v\n", err)
+		os.Exit(1)
+	}
+	defer provider.Close()
+
+	// Create context
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// Create cron service with message bus
+	cronService, err := cron.NewService(cron.DefaultCronConfig(), messageBus)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating cron service: %v\n", err)
+		os.Exit(1)
+	}
+	defer func() { _ = cronService.Stop() }()
+
+	// Get job
+	job, err := cronService.GetJob(id)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Job not found: %s\n", id)
+		os.Exit(1)
+	}
+
+	if !job.State.Enabled && !cronRunForce {
 		fmt.Printf("Job '%s' is disabled. Use --force to run anyway\n", id)
 		return
 	}
 
 	fmt.Printf("Running job '%s' (%s)...\n", job.Name, job.ID)
-	fmt.Printf("  Task: %s\n", job.Task)
+	fmt.Printf("  Schedule: %s\n", formatSchedule(job))
+	fmt.Printf("  Payload: %s\n", formatPayload(job))
+	fmt.Println()
 
-	// In a real implementation, this would execute the job
-	// For now, just record a run history entry
-	run := RunHistory{
-		JobID:      job.ID,
-		JobName:    job.Name,
-		StartedAt:  time.Now(),
-		FinishedAt: time.Now(),
-		Status:     "success",
+	// Create AgentManager for execution
+	agentManager := agent.NewAgentManager(&agent.NewAgentManagerConfig{
+		Bus:            messageBus,
+		Provider:       provider,
+		SessionMgr:     sessionMgr,
+		Tools:          toolRegistry,
+		DataDir:        workspaceDir,
+		ContextBuilder: contextBuilder,
+		SkillsLoader:   skillsLoader,
+	})
+
+	// Setup agents from config
+	if err := agentManager.SetupFromConfig(cfg, contextBuilder); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to setup agent manager: %v\n", err)
+		os.Exit(1)
 	}
 
-	_ = saveRunHistory(cfg, run)
-
-	fmt.Printf("  Started at: %s\n", run.StartedAt.Format(time.RFC3339))
-	fmt.Printf("  Finished at: %s\n", run.FinishedAt.Format(time.RFC3339))
-	fmt.Printf("  Status: %s\n", run.Status)
-}
-
-// Helper types and functions
-
-type JobData struct {
-	ID        string    `json:"id"`
-	Name      string    `json:"name"`
-	Schedule  string    `json:"schedule"`
-	Task      string    `json:"task"`
-	Message   string    `json:"message,omitempty"`
-	EventType string    `json:"event_type,omitempty"`
-	Enabled   bool      `json:"enabled"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
-}
-
-type RunHistory struct {
-	JobID      string    `json:"job_id"`
-	JobName    string    `json:"job_name"`
-	StartedAt  time.Time `json:"started_at"`
-	FinishedAt time.Time `json:"finished_at"`
-	Status     string    `json:"status"`
-	Error      string    `json:"error,omitempty"`
-}
-
-func getCronDir(cfg *config.Config) string {
-	homeDir, _ := os.UserHomeDir()
-	return filepath.Join(homeDir, ".goclaw", "cron")
-}
-
-func getJobFilePath(cfg *config.Config, id string) string {
-	return filepath.Join(getCronDir(cfg), fmt.Sprintf("%s.json", id))
-}
-
-func saveJob(cfg *config.Config, job *JobData) error {
-	cronDir := getCronDir(cfg)
-	if err := os.MkdirAll(cronDir, 0755); err != nil {
-		return err
-	}
-
-	data, err := json.MarshalIndent(job, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	return os.WriteFile(getJobFilePath(cfg, job.ID), data, 0644)
-}
-
-func loadJob(cfg *config.Config, id string) (*JobData, error) {
-	data, err := os.ReadFile(getJobFilePath(cfg, id))
-	if err != nil {
-		return nil, err
-	}
-
-	var job JobData
-	if err := json.Unmarshal(data, &job); err != nil {
-		return nil, err
-	}
-
-	return &job, nil
-}
-
-func saveJobs(cfg *config.Config, jobs []*JobData) error {
-	// Save each job individually
-	for _, job := range jobs {
-		if err := saveJob(cfg, job); err != nil {
-			return err
+	// Start agent manager
+	go func() {
+		if err := agentManager.Start(ctx); err != nil {
+			logger.Error("AgentManager error", zap.Error(err))
 		}
+	}()
+	defer func() {
+		if err := agentManager.Stop(); err != nil {
+			logger.Error("Failed to stop agent manager", zap.Error(err))
+		}
+	}()
+
+	// Execute the job
+	if err := cronService.RunJob(ctx, id, cronRunForce); err != nil {
+		fmt.Fprintf(os.Stderr, "Error running job: %v\n", err)
+		os.Exit(1)
 	}
-	return nil
+
+	// Wait for the job to complete (give it some time to process)
+	fmt.Println("Waiting for job to complete...")
+	time.Sleep(5 * time.Second)
+
+	fmt.Println("\nJob execution completed. Check run logs for details:")
+	fmt.Printf("  ./goclaw cron runs %s\n", id)
 }
 
-func loadJobs(cfg *config.Config) ([]*JobData, error) {
-	cronDir := getCronDir(cfg)
+// Helper functions
 
-	entries, err := os.ReadDir(cronDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return []*JobData{}, nil
-		}
-		return nil, err
+func parseScheduleFlags() (cron.Schedule, error) {
+	var schedule cron.Schedule
+
+	count := 0
+	if cronAddAt != "" {
+		count++
+	}
+	if cronAddEvery != "" {
+		count++
+	}
+	if cronAddCron != "" {
+		count++
 	}
 
-	var jobs []*JobData
-	for _, entry := range entries {
-		if entry.IsDir() {
-			continue
-		}
-		if !strings.HasSuffix(entry.Name(), ".json") || strings.HasSuffix(entry.Name(), "-history.json") {
-			continue
-		}
+	if count == 0 {
+		return schedule, fmt.Errorf("must specify one of --at, --every, or --cron")
+	}
+	if count > 1 {
+		return schedule, fmt.Errorf("can only specify one of --at, --every, or --cron")
+	}
 
-		data, err := os.ReadFile(filepath.Join(cronDir, entry.Name()))
+	if cronAddAt != "" {
+		t, err := time.Parse(time.RFC3339, cronAddAt)
 		if err != nil {
-			continue
+			return schedule, fmt.Errorf("invalid time format: %w", err)
 		}
-
-		var job JobData
-		if err := json.Unmarshal(data, &job); err != nil {
-			continue
-		}
-
-		jobs = append(jobs, &job)
+		schedule.Type = cron.ScheduleTypeAt
+		schedule.At = t
 	}
 
-	return jobs, nil
+	if cronAddEvery != "" {
+		duration, err := cron.ParseHumanDuration(cronAddEvery)
+		if err != nil {
+			return schedule, fmt.Errorf("invalid interval: %w", err)
+		}
+		schedule.Type = cron.ScheduleTypeEvery
+		schedule.EveryDuration = duration
+	}
+
+	if cronAddCron != "" {
+		schedule.Type = cron.ScheduleTypeCron
+		schedule.CronExpression = cronAddCron
+	}
+
+	return schedule, nil
 }
 
-func getRunHistoryFilePath(cfg *config.Config, jobID string) string {
-	return filepath.Join(getCronDir(cfg), fmt.Sprintf("%s-history.json", jobID))
+func parsePayloadFlags() (cron.Payload, error) {
+	var payload cron.Payload
+
+	count := 0
+	if cronAddMessage != "" {
+		count++
+	}
+	if cronAddSystemEvent != "" {
+		count++
+	}
+
+	if count == 0 {
+		return payload, fmt.Errorf("must specify one of --message or --system-event")
+	}
+	if count > 1 {
+		return payload, fmt.Errorf("can only specify one of --message or --system-event")
+	}
+
+	if cronAddMessage != "" {
+		payload.Type = cron.PayloadTypeAgentTurn
+		payload.Message = cronAddMessage
+	}
+
+	if cronAddSystemEvent != "" {
+		payload.Type = cron.PayloadTypeSystemEvent
+		payload.SystemEventType = cronAddSystemEvent
+	}
+
+	return payload, nil
 }
 
-func saveRunHistory(cfg *config.Config, run RunHistory) error {
-	historyFile := getRunHistoryFilePath(cfg, run.JobID)
-
-	// Load existing history
-	var history []RunHistory
-	if data, err := os.ReadFile(historyFile); err == nil {
-		_ = json.Unmarshal(data, &history)
+func formatSchedule(job *cron.Job) string {
+	switch job.Schedule.Type {
+	case cron.ScheduleTypeAt:
+		return "at " + job.Schedule.At.Format(time.RFC3339)
+	case cron.ScheduleTypeEvery:
+		return "every " + cron.FormatDuration(job.Schedule.EveryDuration)
+	case cron.ScheduleTypeCron:
+		return job.Schedule.CronExpression
+	default:
+		return "unknown"
 	}
-
-	// Add new run
-	history = append(history, run)
-
-	// Keep only last 100 runs
-	if len(history) > 100 {
-		history = history[len(history)-100:]
-	}
-
-	// Save
-	data, err := json.MarshalIndent(history, "", "  ")
-	if err != nil {
-		return err
-	}
-
-	return os.WriteFile(historyFile, data, 0644)
 }
 
-func loadRunHistory(cfg *config.Config, jobID string, limit int) ([]RunHistory, error) {
-	historyFile := getRunHistoryFilePath(cfg, jobID)
-
-	data, err := os.ReadFile(historyFile)
-	if err != nil {
-		if os.IsNotExist(err) {
-			return []RunHistory{}, nil
-		}
-		return nil, err
+func formatPayload(job *cron.Job) string {
+	switch job.Payload.Type {
+	case cron.PayloadTypeAgentTurn:
+		return "message: " + job.Payload.Message
+	case cron.PayloadTypeSystemEvent:
+		return "event: " + job.Payload.SystemEventType
+	default:
+		return "unknown"
 	}
-
-	var history []RunHistory
-	if err := json.Unmarshal(data, &history); err != nil {
-		return nil, err
-	}
-
-	// Return last N runs in reverse order
-	if len(history) > limit {
-		start := len(history) - limit
-		result := make([]RunHistory, limit)
-		for i := 0; i < limit; i++ {
-			result[i] = history[start+i]
-		}
-		// Reverse for display
-		for i, j := 0, len(result)-1; i < j; i, j = i+1, j-1 {
-			result[i], result[j] = result[j], result[i]
-		}
-		return result, nil
-	}
-
-	// Reverse for display
-	for i, j := 0, len(history)-1; i < j; i, j = i+1, j-1 {
-		history[i], history[j] = history[j], history[i]
-	}
-
-	return history, nil
 }
 
-func parseAtSchedule(at string) string {
-	// Parse at time and convert to cron expression
-	hour, minute, err := parseTime(at)
-	if err != nil {
-		return ""
+func formatTimePtr(t *time.Time) string {
+	if t == nil {
+		return "-"
 	}
-	return fmt.Sprintf("%d %d * * *", minute, hour)
-}
-
-func parseEverySchedule(every string) string {
-	// Parse every duration and convert to cron expression
-	duration, err := time.ParseDuration(every)
-	if err != nil {
-		// Try parsing as days
-		if strings.HasSuffix(every, "d") {
-			days := strings.TrimSuffix(every, "d")
-			var d int
-			if _, err := fmt.Sscanf(days, "%d", &d); err == nil {
-				return fmt.Sprintf("0 0 */%d * *", d)
-			}
-		}
-		return ""
-	}
-
-	minutes := int(duration.Minutes())
-	if minutes < 1 {
-		minutes = 1
-	}
-
-	if minutes < 60 {
-		return fmt.Sprintf("*/%d * * * *", minutes)
-	}
-
-	hours := int(duration.Hours())
-	return fmt.Sprintf("0 */%d * * *", hours)
-}
-
-func parseTime(s string) (hour, minute int, err error) {
-	layouts := []string{
-		"15:04",
-		"3:04pm",
-		"03:04pm",
-		"3:04PM",
-		"03:04PM",
-	}
-
-	for _, layout := range layouts {
-		t, e := time.Parse(layout, s)
-		if e == nil {
-			return t.Hour(), t.Minute(), nil
-		}
-	}
-
-	return 0, 0, fmt.Errorf("invalid time format: %s", s)
+	return t.Format(time.RFC3339)
 }

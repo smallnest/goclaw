@@ -283,6 +283,14 @@ func runStart(cmd *cobra.Command, args []string) {
 		logger.Info("Browser tools registered")
 	}
 
+	// 注册 Cron 工具
+	cronTool := tools.NewCronTool(cfg.Tools.Cron.Enabled, cfg.Tools.Cron.StorePath, messageBus)
+	for _, tool := range cronTool.GetTools() {
+		if err := toolRegistry.RegisterExisting(tool); err != nil {
+			logger.Warn("Failed to register tool", zap.String("tool", tool.Name()))
+		}
+	}
+
 	// 创建 LLM 提供商
 	provider, err := providers.NewProvider(cfg)
 	if err != nil {
@@ -307,8 +315,16 @@ func runStart(cmd *cobra.Command, args []string) {
 	}
 	defer func() { _ = gatewayServer.Stop() }()
 
-	// 创建调度器
-	scheduler := cron.NewScheduler(messageBus, provider, sessionMgr)
+	// 创建 Cron 服务
+	cronService, err := cron.NewService(cron.DefaultCronConfig(), messageBus)
+	if err != nil {
+		logger.Warn("Failed to create cron service", zap.Error(err))
+	} else {
+		if err := cronService.Start(ctx); err != nil {
+			logger.Warn("Failed to start cron service", zap.Error(err))
+		}
+		defer func() { _ = cronService.Stop() }()
+	}
 
 	// 创建 AgentManager
 	agentManager := agent.NewAgentManager(&agent.NewAgentManagerConfig{
@@ -335,12 +351,6 @@ func runStart(cmd *cobra.Command, args []string) {
 		logger.Error("Failed to start channels", zap.Error(err))
 	}
 	defer func() { _ = channelMgr.Stop() }()
-
-	// 启动调度器
-	if err := scheduler.Start(ctx); err != nil {
-		logger.Error("Failed to start scheduler", zap.Error(err))
-	}
-	defer scheduler.Stop()
 
 	// 启动出站消息分发
 	go func() {
