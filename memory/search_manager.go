@@ -102,8 +102,6 @@ func (m *BuiltinSearchManager) GetStatus() map[string]interface{} {
 
 	if stats, err := m.manager.GetStats(ctx); err == nil {
 		status["total_count"] = stats.TotalCount
-		status["source_counts"] = stats.SourceCounts
-		status["type_counts"] = stats.TypeCounts
 		status["cache_size"] = stats.CacheSize
 	}
 

@@ -305,3 +305,60 @@ func (c *SlackChannel) healthCheck(ctx context.Context) {
 func (c *SlackChannel) Stop() error {
 	return c.BaseChannelImpl.Stop()
 }
+
+// SendStream sends streaming messages (posts initial message for updates)
+func (c *SlackChannel) SendStream(chatID string, stream <-chan *bus.StreamMessage) error {
+	if !c.IsRunning() {
+		return fmt.Errorf("slack channel is not running")
+	}
+
+	if c.client == nil {
+		return fmt.Errorf("slack client is not initialized")
+	}
+
+	var timestamp string
+	var content strings.Builder
+
+	for msg := range stream {
+		if msg.Error != "" {
+			return fmt.Errorf("stream error: %s", msg.Error)
+		}
+
+		if !msg.IsThinking && !msg.IsFinal {
+			content.WriteString(msg.Content)
+		}
+
+		if timestamp == "" && content.Len() > 0 {
+			// Send initial message
+			options := []slack.MsgOption{
+				slack.MsgOptionText(content.String(), false),
+			}
+
+			_, ts, err := c.client.PostMessage(chatID, options...)
+			if err != nil {
+				return fmt.Errorf("failed to send initial slack message: %w", err)
+			}
+			timestamp = ts
+		} else if timestamp != "" && content.Len() > 0 {
+			// Update the message
+			options := []slack.MsgOption{
+				slack.MsgOptionText(content.String(), false),
+			}
+
+			if _, _, _, err := c.client.UpdateMessage(chatID, timestamp, options...); err != nil {
+				return fmt.Errorf("failed to update slack message: %w", err)
+			}
+		}
+
+		if msg.IsComplete {
+			logger.Info("Slack streaming completed",
+				zap.String("channel_id", chatID),
+				zap.String("message_timestamp", timestamp),
+				zap.Int("content_length", content.Len()),
+			)
+			return nil
+		}
+	}
+
+	return nil
+}

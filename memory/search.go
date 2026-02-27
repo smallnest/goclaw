@@ -7,13 +7,12 @@ import (
 	"sync"
 )
 
-// MemoryManager manages memory storage and retrieval
+// MemoryManager manages memory storage and retrieval with LRU caching
 type MemoryManager struct {
 	store        Store
 	provider     EmbeddingProvider
 	mu           sync.RWMutex
-	cache        map[string]*VectorEmbedding
-	cacheMaxSize int
+	cache        *LRUCache
 	initialized  bool
 }
 
@@ -33,7 +32,7 @@ func DefaultManagerConfig(store Store, provider EmbeddingProvider) ManagerConfig
 	}
 }
 
-// NewMemoryManager creates a new memory manager
+// NewMemoryManager creates a new memory manager with LRU cache
 func NewMemoryManager(config ManagerConfig) (*MemoryManager, error) {
 	if config.Store == nil {
 		return nil, fmt.Errorf("store is required")
@@ -46,12 +45,13 @@ func NewMemoryManager(config ManagerConfig) (*MemoryManager, error) {
 		config.CacheMaxSize = 1000
 	}
 
+	cache := NewLRUCache(config.CacheMaxSize)
+
 	return &MemoryManager{
-		store:        config.Store,
-		provider:     config.Provider,
-		cache:        make(map[string]*VectorEmbedding),
-		cacheMaxSize: config.CacheMaxSize,
-		initialized:  true,
+		store:       config.Store,
+		provider:    config.Provider,
+		cache:       cache,
+		initialized: true,
 	}, nil
 }
 
@@ -149,7 +149,7 @@ type MemoryItem struct {
 	Metadata MemoryMetadata
 }
 
-// Search searches for similar memories
+// Search searches for similar memories with advanced ranking options
 func (m *MemoryManager) Search(ctx context.Context, query string, opts SearchOptions) ([]*SearchResult, error) {
 	select {
 	case <-ctx.Done():
@@ -172,6 +172,39 @@ func (m *MemoryManager) Search(ctx context.Context, query string, opts SearchOpt
 		return nil, fmt.Errorf("search failed: %w", err)
 	}
 
+	// Apply temporal decay if enabled
+	if opts.TemporalDecay != nil && opts.TemporalDecay.Enabled {
+		results = ApplyTemporalDecay(results, *opts.TemporalDecay)
+	}
+
+	// Apply MMR re-ranking if enabled
+	if opts.MMR != nil && opts.MMR.Enabled {
+		results = ApplyMMR(results, *opts.MMR)
+	}
+
+	// Apply min score filter
+	if opts.MinScore > 0 {
+		filtered := make([]*SearchResult, 0, len(results))
+		for _, r := range results {
+			if r.Score >= opts.MinScore {
+				filtered = append(filtered, r)
+			}
+		}
+		results = filtered
+	}
+
+	// Apply limit
+	if opts.Limit > 0 && len(results) > opts.Limit {
+		results = results[:opts.Limit]
+	}
+
+	// Add citations if requested
+	if opts.IncludeCitations {
+		for _, r := range results {
+			r.Citation = formatCitation(&r.VectorEmbedding)
+		}
+	}
+
 	return results, nil
 }
 
@@ -184,10 +217,18 @@ func (m *MemoryManager) Get(ctx context.Context, id string) (*VectorEmbedding, e
 	}
 
 	m.mu.RLock()
-	defer m.mu.RUnlock()
+	// Check LRU cache first (automatically updates position on hit)
+	if ve, ok := m.cache.Get(id); ok {
+		m.mu.RUnlock()
+		return ve, nil
+	}
+	m.mu.RUnlock()
 
-	// Check cache first
-	if ve, ok := m.cache[id]; ok {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	// Double-check in case another goroutine added it
+	if ve, ok := m.cache.Get(id); ok {
 		return ve, nil
 	}
 
@@ -197,8 +238,8 @@ func (m *MemoryManager) Get(ctx context.Context, id string) (*VectorEmbedding, e
 		return nil, err
 	}
 
-	// Update cache
-	m.updateCache(ve)
+	// Update cache (also moves to front)
+	m.cache.Put(id, ve)
 
 	return ve, nil
 }
@@ -230,7 +271,7 @@ func (m *MemoryManager) Update(ctx context.Context, ve *VectorEmbedding) error {
 	}
 
 	// Update cache
-	m.cache[ve.ID] = ve
+	m.cache.Put(ve.ID, ve)
 
 	return nil
 }
@@ -252,7 +293,7 @@ func (m *MemoryManager) Delete(ctx context.Context, id string) error {
 	}
 
 	// Remove from cache
-	delete(m.cache, id)
+	m.cache.Delete(id)
 
 	return nil
 }
@@ -322,16 +363,8 @@ func (m *MemoryManager) GetStats(ctx context.Context) (*MemoryStats, error) {
 	}
 
 	stats := &MemoryStats{
-		TotalCount:   len(all),
-		SourceCounts: make(map[MemorySource]int),
-		TypeCounts:   make(map[MemoryType]int),
-		CacheSize:    len(m.cache),
-		CacheMaxSize: m.cacheMaxSize,
-	}
-
-	for _, ve := range all {
-		stats.SourceCounts[ve.Source]++
-		stats.TypeCounts[ve.Type]++
+		TotalCount: len(all),
+		CacheSize:  m.cache.Len(),
 	}
 
 	return stats, nil
@@ -339,11 +372,8 @@ func (m *MemoryManager) GetStats(ctx context.Context) (*MemoryStats, error) {
 
 // MemoryStats contains statistics about the memory store
 type MemoryStats struct {
-	TotalCount   int                  `json:"total_count"`
-	SourceCounts map[MemorySource]int `json:"source_counts"`
-	TypeCounts   map[MemoryType]int   `json:"type_counts"`
-	CacheSize    int                  `json:"cache_size"`
-	CacheMaxSize int                  `json:"cache_max_size"`
+	TotalCount int                  `json:"total_count"`
+	CacheSize  int                  `json:"cache_size"`
 }
 
 // ClearCache clears the in-memory cache
@@ -351,7 +381,7 @@ func (m *MemoryManager) ClearCache() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 
-	m.cache = make(map[string]*VectorEmbedding)
+	m.cache.Clear()
 }
 
 // Close closes the memory manager
@@ -366,7 +396,7 @@ func (m *MemoryManager) Close() error {
 	m.initialized = false
 
 	// Clear cache
-	m.cache = nil
+	m.cache.Clear()
 
 	// Close store
 	return m.store.Close()
@@ -374,14 +404,6 @@ func (m *MemoryManager) Close() error {
 
 // updateCache updates the cache with a new memory
 func (m *MemoryManager) updateCache(ve *VectorEmbedding) {
-	// If cache is full, remove oldest entries
-	if len(m.cache) >= m.cacheMaxSize {
-		// Simple FIFO eviction
-		for k := range m.cache {
-			delete(m.cache, k)
-			break
-		}
-	}
-
-	m.cache[ve.ID] = ve
+	// LRU cache handles eviction automatically
+	m.cache.Put(ve.ID, ve)
 }

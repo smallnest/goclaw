@@ -1,6 +1,8 @@
 package memory
 
-import "time"
+import (
+	"time"
+)
 
 // MemorySource represents where a memory entry originates
 type MemorySource string
@@ -47,6 +49,8 @@ type MemoryMetadata struct {
 	FilePath string `json:"file_path,omitempty"`
 	// LineNumber is the line in the source file
 	LineNumber int `json:"line_number,omitempty"`
+	// EndLineNumber is the end line for multi-line snippets
+	EndLineNumber int `json:"end_line_number,omitempty"`
 	// SessionKey is the session identifier (if from session)
 	SessionKey string `json:"session_key,omitempty"`
 	// Tags are user-defined tags
@@ -57,6 +61,8 @@ type MemoryMetadata struct {
 	AccessCount int `json:"access_count,omitempty"`
 	// LastAccessed is when this memory was last retrieved
 	LastAccessed time.Time `json:"last_accessed,omitempty"`
+	// Timestamp is the original timestamp for session/daily memories
+	Timestamp *time.Time `json:"timestamp,omitempty"`
 }
 
 // SearchResult represents a memory search result with relevance score
@@ -65,6 +71,14 @@ type SearchResult struct {
 	Score       float64 `json:"score"`
 	MatchedText string  `json:"matched_text"`
 	Highlight   string  `json:"highlight,omitempty"`
+	// VectorScore is the pure vector similarity score (before hybrid/decay)
+	VectorScore float64 `json:"vector_score,omitempty"`
+	// TextScore is the keyword match score (for hybrid search)
+	TextScore float64 `json:"text_score,omitempty"`
+	// Citation is the formatted citation string (e.g., "memory/2024-02-15.md#L10-L20")
+	Citation string `json:"citation,omitempty"`
+	// AgeInDays is the age of the memory in days (for temporal decay)
+	AgeInDays float64 `json:"age_in_days,omitempty"`
 }
 
 // SearchOptions configures memory search behavior
@@ -83,20 +97,71 @@ type SearchOptions struct {
 	VectorWeight float64 `json:"vector_weight"`
 	// TextWeight is the weight for keyword match in hybrid search (0-1)
 	TextWeight float64 `json:"text_weight"`
+	// MMR enables Maximal Marginal Relevance re-ranking for diversity
+	MMR *MMRConfig `json:"mmr,omitempty"`
+	// TemporalDecay enables time-aware scoring
+	TemporalDecay *TemporalDecayConfig `json:"temporal_decay,omitempty"`
+	// IncludeCitations adds citation strings to results
+	IncludeCitations bool `json:"include_citations,omitempty"`
 }
 
 // DefaultSearchOptions returns sensible default search options
 func DefaultSearchOptions() SearchOptions {
 	return SearchOptions{
-		Limit:        10,
-		MinScore:     0.7,
-		Sources:      nil, // All sources
-		Types:        nil, // All types
-		Hybrid:       true,
-		VectorWeight: 0.7,
-		TextWeight:   0.3,
+		Limit:            10,
+		MinScore:         0.7,
+		Sources:          nil, // All sources
+		Types:            nil, // All types
+		Hybrid:           true,
+		VectorWeight:     0.7,
+		TextWeight:       0.3,
+		IncludeCitations: true,
 	}
 }
+
+// MMRConfig configures Maximal Marginal Relevance re-ranking
+type MMRConfig struct {
+	// Enabled enables MMR re-ranking
+	Enabled bool `json:"enabled"`
+	// Lambda balances relevance vs diversity: 0=max diversity, 1=max relevance
+	Lambda float64 `json:"lambda"`
+}
+
+// DefaultMMRConfig returns default MMR configuration
+func DefaultMMRConfig() MMRConfig {
+	return MMRConfig{
+		Enabled: false,
+		Lambda:  0.7,
+	}
+}
+
+// TemporalDecayConfig configures time-aware scoring decay
+type TemporalDecayConfig struct {
+	// Enabled enables temporal decay
+	Enabled bool `json:"enabled"`
+	// HalfLifeDays is the half-life for exponential decay (default: 30 days)
+	HalfLifeDays float64 `json:"half_life_days"`
+}
+
+// DefaultTemporalDecayConfig returns default temporal decay configuration
+func DefaultTemporalDecayConfig() TemporalDecayConfig {
+	return TemporalDecayConfig{
+		Enabled:      false,
+		HalfLifeDays: 30,
+	}
+}
+
+// CitationsMode controls citation display behavior
+type CitationsMode string
+
+const (
+	// CitationsModeAuto shows citations in direct chats, hides in groups
+	CitationsModeAuto CitationsMode = "auto"
+	// CitationsModeOn always shows citations
+	CitationsModeOn CitationsMode = "on"
+	// CitationsModeOff never shows citations (agent still receives paths)
+	CitationsModeOff CitationsMode = "off"
+)
 
 // EmbeddingProvider defines the interface for generating embeddings
 type EmbeddingProvider interface {

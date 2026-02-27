@@ -266,3 +266,260 @@ func (c *DiscordChannel) Stop() error {
 
 	return nil
 }
+
+// SendStream sends streaming messages (edits original message progressively)
+func (c *DiscordChannel) SendStream(chatID string, stream <-chan *bus.StreamMessage) error {
+	if !c.IsRunning() {
+		return fmt.Errorf("discord channel is not running")
+	}
+
+	if c.session == nil {
+		return fmt.Errorf("discord session is not initialized")
+	}
+
+	var messageID string
+	var content strings.Builder
+
+	for msg := range stream {
+		if msg.Error != "" {
+			return fmt.Errorf("stream error: %s", msg.Error)
+		}
+
+		if !msg.IsThinking && !msg.IsFinal {
+			content.WriteString(msg.Content)
+		}
+
+		if messageID == "" && content.Len() > 0 {
+			// Send initial message
+			discordMsg := &discordgo.MessageSend{
+				Content: content.String(),
+			}
+
+			sentMsg, err := c.session.ChannelMessageSendComplex(chatID, discordMsg)
+			if err != nil {
+				return fmt.Errorf("failed to send initial discord message: %w", err)
+			}
+			messageID = sentMsg.ID
+		} else if messageID != "" && content.Len() > 0 {
+			// Edit the message
+			contentStr := content.String()
+			edit := &discordgo.MessageEdit{
+				ID:      messageID,
+				Channel: chatID,
+				Content: &contentStr,
+			}
+
+			if _, err := c.session.ChannelMessageEditComplex(edit); err != nil {
+				return fmt.Errorf("failed to update discord message: %w", err)
+			}
+		}
+
+		if msg.IsComplete {
+			logger.Info("Discord streaming completed",
+				zap.String("channel_id", chatID),
+				zap.String("message_id", messageID),
+				zap.Int("content_length", content.Len()),
+			)
+			return nil
+		}
+	}
+
+	return nil
+}
+
+// ============================================
+// Discord Reactions Support
+// ============================================
+
+// DiscordReaction represents a Discord reaction
+type DiscordReaction struct {
+	EmojiID   string `json:"emoji_id"`
+	EmojiName string `json:"emoji_name"`
+	Animated  bool   `json:"animated"`
+	Count     int    `json:"count"`
+}
+
+// DiscordReactionUser represents a user who reacted
+type DiscordReactionUser struct {
+	ID       string `json:"id"`
+	Username string `json:"username"`
+	Tag      string `json:"tag"`
+}
+
+// AddReaction adds a reaction to a message
+func (c *DiscordChannel) AddReaction(channelID, messageID, emoji string) error {
+	if !c.IsRunning() {
+		return fmt.Errorf("discord channel is not running")
+	}
+	if c.session == nil {
+		return fmt.Errorf("discord session is not initialized")
+	}
+
+	// Normalize emoji format
+	emojiAPI := c.normalizeEmoji(emoji)
+
+	err := c.session.MessageReactionAdd(channelID, messageID, emojiAPI)
+	if err != nil {
+		return fmt.Errorf("failed to add reaction: %w", err)
+	}
+
+	logger.Debug("Discord reaction added",
+		zap.String("channel_id", channelID),
+		zap.String("message_id", messageID),
+		zap.String("emoji", emoji),
+	)
+
+	return nil
+}
+
+// RemoveReaction removes a reaction from a message
+func (c *DiscordChannel) RemoveReaction(channelID, messageID, emoji string) error {
+	if !c.IsRunning() {
+		return fmt.Errorf("discord channel is not running")
+	}
+	if c.session == nil {
+		return fmt.Errorf("discord session is not initialized")
+	}
+
+	emojiAPI := c.normalizeEmoji(emoji)
+
+	err := c.session.MessageReactionRemove(channelID, messageID, emojiAPI, "@me")
+	if err != nil {
+		return fmt.Errorf("failed to remove reaction: %w", err)
+	}
+
+	logger.Debug("Discord reaction removed",
+		zap.String("channel_id", channelID),
+		zap.String("message_id", messageID),
+		zap.String("emoji", emoji),
+	)
+
+	return nil
+}
+
+// RemoveAllReactions removes all reactions from a message (only bot's own reactions)
+func (c *DiscordChannel) RemoveOwnReactions(channelID, messageID string) ([]string, error) {
+	if !c.IsRunning() {
+		return nil, fmt.Errorf("discord channel is not running")
+	}
+	if c.session == nil {
+		return nil, fmt.Errorf("discord session is not initialized")
+	}
+
+	// Get message to see current reactions
+	msg, err := c.session.ChannelMessage(channelID, messageID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get message: %w", err)
+	}
+
+	var removed []string
+
+	// Remove each of the bot's reactions
+	for _, reaction := range msg.Reactions {
+		// Build emoji identifier for API call
+		emojiAPI := c.buildEmojiAPI(reaction.Emoji)
+
+		err := c.session.MessageReactionRemove(channelID, messageID, emojiAPI, "@me")
+		if err != nil {
+			logger.Warn("Failed to remove reaction",
+				zap.String("emoji", reaction.Emoji.Name),
+				zap.Error(err),
+			)
+			continue
+		}
+
+		removed = append(removed, c.formatEmoji(reaction.Emoji))
+	}
+
+	logger.Debug("Discord reactions removed",
+		zap.String("channel_id", channelID),
+		zap.String("message_id", messageID),
+		zap.Int("count", len(removed)),
+	)
+
+	return removed, nil
+}
+
+// GetReactions fetches all reactions for a message with user details
+func (c *DiscordChannel) GetReactions(channelID, messageID string, limit int) (map[string]*DiscordReactionDetail, error) {
+	if !c.IsRunning() {
+		return nil, fmt.Errorf("discord channel is not running")
+	}
+	if c.session == nil {
+		return nil, fmt.Errorf("discord session is not initialized")
+	}
+
+	if limit <= 0 || limit > 100 {
+		limit = 100
+	}
+
+	// Get message to see current reactions
+	msg, err := c.session.ChannelMessage(channelID, messageID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get message: %w", err)
+	}
+
+	result := make(map[string]*DiscordReactionDetail)
+
+	for _, reaction := range msg.Reactions {
+		emojiKey := c.formatEmoji(reaction.Emoji)
+
+		// For each reaction, we'll store the summary info
+		// Note: DiscordGo doesn't have a direct API to get reaction users with our signature
+		// We'll store what we can get from the reaction itself
+
+		detail := &DiscordReactionDetail{
+			Emoji: DiscordReaction{
+				EmojiID:   reaction.Emoji.ID,
+				EmojiName: reaction.Emoji.Name,
+				Animated:  reaction.Emoji.Animated,
+				Count:     reaction.Count,
+			},
+			Users: []DiscordReactionUser{}, // Would need separate API call to populate
+		}
+
+		result[emojiKey] = detail
+	}
+
+	return result, nil
+}
+
+// DiscordReactionDetail contains reaction details with users
+type DiscordReactionDetail struct {
+	Emoji DiscordReaction
+	Users []DiscordReactionUser `json:"users"`
+}
+
+// normalizeEmoji converts emoji to API format
+func (c *DiscordChannel) normalizeEmoji(emoji string) string {
+	// Custom emoji format: <name:id>
+	if strings.HasPrefix(emoji, "<") && strings.HasSuffix(emoji, ">") {
+		return emoji
+	}
+
+	// Unicode emoji - use as-is
+	return emoji
+}
+
+// buildEmojiAPI builds API format emoji from Discord Emoji struct
+func (c *DiscordChannel) buildEmojiAPI(emoji *discordgo.Emoji) string {
+	if emoji.ID != "" {
+		// Custom emoji: name:id (emoji.ID is string in discordgo)
+		return emoji.Name + ":" + emoji.ID
+	}
+	// Unicode emoji
+	return emoji.Name
+}
+
+// formatEmoji formats emoji for display
+func (c *DiscordChannel) formatEmoji(emoji *discordgo.Emoji) string {
+	if emoji.ID != "" {
+		// Custom emoji format
+		if emoji.Animated {
+			return fmt.Sprintf("<a:%s:%s>", emoji.Name, emoji.ID)
+		}
+		return fmt.Sprintf("<:%s:%s>", emoji.Name, emoji.ID)
+	}
+	// Unicode emoji
+	return emoji.Name
+}

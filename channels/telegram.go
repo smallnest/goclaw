@@ -16,15 +16,33 @@ import (
 // TelegramChannel Telegram 通道
 type TelegramChannel struct {
 	*BaseChannelImpl
-	bot   *telegrambot.BotAPI
-	token string
+	bot                *telegrambot.BotAPI
+	token              string
+	inlineButtonsScope TelegramInlineButtonsScope
 }
 
 // TelegramConfig Telegram 配置
 type TelegramConfig struct {
 	BaseChannelConfig
-	Token string `mapstructure:"token" json:"token"`
+	Token             string                       `mapstructure:"token" json:"token"`
+	InlineButtonsScope string                       `mapstructure:"inline_buttons_scope" json:"inline_buttons_scope"`
 }
+
+// TelegramInlineButtonsScope controls inline button availability
+type TelegramInlineButtonsScope string
+
+const (
+	// TelegramInlineButtonsOff disables inline buttons
+	TelegramInlineButtonsOff TelegramInlineButtonsScope = "off"
+	// TelegramInlineButtonsDM enables inline buttons only in direct messages
+	TelegramInlineButtonsDM TelegramInlineButtonsScope = "dm"
+	// TelegramInlineButtonsGroup enables inline buttons only in groups
+	TelegramInlineButtonsGroup TelegramInlineButtonsScope = "group"
+	// TelegramInlineButtonsAll enables inline buttons everywhere
+	TelegramInlineButtonsAll TelegramInlineButtonsScope = "all"
+	// TelegramInlineButtonsAllowlist enables inline buttons only for whitelisted chats
+	TelegramInlineButtonsAllowlist TelegramInlineButtonsScope = "allowlist"
+)
 
 // NewTelegramChannel 创建 Telegram 通道
 func NewTelegramChannel(accountID string, cfg TelegramConfig, bus *bus.MessageBus) (*TelegramChannel, error) {
@@ -37,10 +55,26 @@ func NewTelegramChannel(accountID string, cfg TelegramConfig, bus *bus.MessageBu
 		return nil, fmt.Errorf("failed to create telegram bot: %w", err)
 	}
 
+	// Parse inline buttons scope
+	inlineScope := TelegramInlineButtonsOff
+	switch strings.ToLower(strings.TrimSpace(cfg.InlineButtonsScope)) {
+	case "dm":
+		inlineScope = TelegramInlineButtonsDM
+	case "group":
+		inlineScope = TelegramInlineButtonsGroup
+	case "all":
+		inlineScope = TelegramInlineButtonsAll
+	case "allowlist":
+		inlineScope = TelegramInlineButtonsAllowlist
+	default:
+		inlineScope = TelegramInlineButtonsOff
+	}
+
 	return &TelegramChannel{
-		BaseChannelImpl: NewBaseChannelImpl("telegram", accountID, cfg.BaseChannelConfig, bus),
-		bot:             bot,
-		token:           cfg.Token,
+		BaseChannelImpl:   NewBaseChannelImpl("telegram", accountID, cfg.BaseChannelConfig, bus),
+		bot:                bot,
+		token:              cfg.Token,
+		inlineButtonsScope: inlineScope,
 	}, nil
 }
 
@@ -270,4 +304,222 @@ func (c *TelegramChannel) SendTypingIndicator(chatID int64) error {
 	action := telegrambot.NewChatAction(chatID, telegrambot.ChatTyping)
 	_, err := c.bot.Send(action)
 	return err
+}
+
+// SendStream sends streaming messages (edits original message progressively)
+func (c *TelegramChannel) SendStream(chatID string, stream <-chan *bus.StreamMessage) error {
+	if !c.IsRunning() {
+		return fmt.Errorf("telegram channel is not running")
+	}
+
+	parsedChatID, err := strconv.ParseInt(chatID, 10, 64)
+	if err != nil {
+		return fmt.Errorf("invalid chat id: %w", err)
+	}
+
+	var messageID int
+	var content strings.Builder
+
+	for msg := range stream {
+		if msg.Error != "" {
+			return fmt.Errorf("stream error: %s", msg.Error)
+		}
+
+		if !msg.IsThinking && !msg.IsFinal {
+			content.WriteString(msg.Content)
+		}
+
+		if messageID == 0 && content.Len() > 0 {
+			// Send initial message
+			tgMsg := telegrambot.NewMessage(parsedChatID, content.String())
+
+			sentMsg, err := c.bot.Send(tgMsg)
+			if err != nil {
+				return fmt.Errorf("failed to send initial telegram message: %w", err)
+			}
+			messageID = sentMsg.MessageID
+		} else if messageID != 0 && content.Len() > 0 {
+			// Edit the message
+			edit := telegrambot.NewEditMessageText(parsedChatID, messageID, content.String())
+
+			if _, err := c.bot.Send(edit); err != nil {
+				return fmt.Errorf("failed to update telegram message: %w", err)
+			}
+		}
+
+		if msg.IsComplete {
+			logger.Info("Telegram streaming completed",
+				zap.Int64("chat_id", parsedChatID),
+				zap.Int("message_id", messageID),
+				zap.Int("content_length", content.Len()),
+			)
+			return nil
+		}
+	}
+
+	return nil
+}
+
+// ============================================
+// Telegram Inline Buttons Support
+// ============================================
+
+// TelegramInlineButton represents an inline button
+type TelegramInlineButton struct {
+	// Text is the button label
+	Text string `json:"text"`
+	// CallbackData is the data sent when button is clicked (for callback buttons)
+	CallbackData string `json:"callback_data,omitempty"`
+	// URL is the URL to open (for URL buttons)
+	URL string `json:"url,omitempty"`
+	// WebAppURL is the URL of a Web App to open (for web app buttons)
+	WebAppURL string `json:"web_app_url,omitempty"`
+}
+
+// TelegramInlineKeyboardRow represents a row of inline buttons
+type TelegramInlineKeyboardRow struct {
+	Buttons []TelegramInlineButton `json:"buttons"`
+}
+
+// SendMessageWithButtons sends a message with inline keyboard buttons
+func (c *TelegramChannel) SendMessageWithButtons(
+	chatID int64,
+	text string,
+	keyboard [][]TelegramInlineButton,
+	parseMode string,
+) error {
+	if !c.IsRunning() {
+		return fmt.Errorf("telegram channel is not running")
+	}
+
+	// Create message with inline keyboard
+	msg := telegrambot.NewMessage(chatID, text)
+	if parseMode != "" {
+		msg.ParseMode = parseMode
+	}
+
+	// Build inline keyboard markup
+	if len(keyboard) > 0 {
+		inlineKeyboard := c.buildInlineKeyboard(keyboard)
+		msg.ReplyMarkup = &inlineKeyboard
+	}
+
+	_, err := c.bot.Send(msg)
+	if err != nil {
+		return fmt.Errorf("failed to send message with buttons: %w", err)
+	}
+
+	logger.Info("Telegram message with buttons sent",
+		zap.Int64("chat_id", chatID),
+		zap.Int("button_count", countButtons(keyboard)),
+	)
+
+	return nil
+}
+
+// EditMessageReplyMarkup edits the reply markup of a message (to update buttons)
+func (c *TelegramChannel) EditMessageReplyMarkup(
+	chatID int64,
+	messageID int,
+	keyboard [][]TelegramInlineButton,
+) error {
+	if !c.IsRunning() {
+		return fmt.Errorf("telegram channel is not running")
+	}
+
+	if len(keyboard) > 0 {
+		replyMarkup := c.buildInlineKeyboard(keyboard)
+		edit := telegrambot.NewEditMessageReplyMarkup(chatID, messageID, replyMarkup)
+		_, err := c.bot.Send(edit)
+		if err != nil {
+			return fmt.Errorf("failed to edit message reply markup: %w", err)
+		}
+	} else {
+		// Remove keyboard by passing empty markup
+		edit := telegrambot.NewEditMessageReplyMarkup(chatID, messageID, telegrambot.InlineKeyboardMarkup{})
+		_, err := c.bot.Send(edit)
+		if err != nil {
+			return fmt.Errorf("failed to edit message reply markup: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// AnswerCallbackQuery answers a callback query from an inline button
+func (c *TelegramChannel) AnswerCallbackQuery(
+	callbackQueryID string,
+	text string,
+ showAlert bool,
+) error {
+	if !c.IsRunning() {
+		return fmt.Errorf("telegram channel is not running")
+	}
+
+	callback := telegrambot.NewCallback(callbackQueryID, text)
+	callback.ShowAlert = showAlert
+
+	_, err := c.bot.Send(callback)
+	if err != nil {
+		return fmt.Errorf("failed to answer callback query: %w", err)
+	}
+
+	return nil
+}
+
+// buildInlineKeyboard builds Telegram inline keyboard from our format
+func (c *TelegramChannel) buildInlineKeyboard(keyboard [][]TelegramInlineButton) telegrambot.InlineKeyboardMarkup {
+	rows := make([][]telegrambot.InlineKeyboardButton, len(keyboard))
+
+	for i, row := range keyboard {
+		buttons := make([]telegrambot.InlineKeyboardButton, len(row))
+		for j, btn := range row {
+			button := telegrambot.InlineKeyboardButton{
+				Text: btn.Text,
+			}
+
+			if btn.CallbackData != "" {
+				button.CallbackData = &btn.CallbackData
+			}
+
+			if btn.URL != "" {
+				button.URL = &btn.URL
+			}
+
+			buttons[j] = button
+		}
+
+		rows[i] = buttons
+	}
+
+	return telegrambot.InlineKeyboardMarkup{
+		InlineKeyboard: rows,
+	}
+}
+
+// IsInlineButtonsEnabled checks if inline buttons are enabled for the given chat
+func (c *TelegramChannel) IsInlineButtonsEnabled(chatType string, chatID string) bool {
+	switch c.inlineButtonsScope {
+	case TelegramInlineButtonsOff:
+		return false
+	case TelegramInlineButtonsDM:
+		return chatType == "private"
+	case TelegramInlineButtonsGroup:
+		return chatType == "group" || chatType == "supergroup"
+	case TelegramInlineButtonsAll:
+		return true
+	case TelegramInlineButtonsAllowlist:
+		return c.IsAllowed(chatID)
+	default:
+		return false
+	}
+}
+
+// countButtons counts total buttons in keyboard
+func countButtons(keyboard [][]TelegramInlineButton) int {
+	count := 0
+	for _, row := range keyboard {
+		count += len(row)
+	}
+	return count
 }
