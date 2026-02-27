@@ -132,7 +132,12 @@ func (j *Job) ShouldRun(now time.Time) bool {
 	}
 
 	// Check if next run time has arrived
-	if j.State.NextRunAt != nil && now.After(*j.State.NextRunAt) {
+	if j.State.NextRunAt == nil || j.State.NextRunAt.IsZero() {
+		// Invalid next run time, don't run
+		return false
+	}
+
+	if now.After(*j.State.NextRunAt) || now.Equal(*j.State.NextRunAt) {
 		return true
 	}
 
@@ -184,7 +189,13 @@ func (j *Job) CalculateNextRun(from time.Time) (time.Time, error) {
 		next = next.Add(j.Schedule.StaggerDuration)
 	}
 
-	j.State.NextRunAt = &next
+	// Only set NextRunAt if we found a valid time
+	if !next.IsZero() {
+		j.State.NextRunAt = &next
+	} else {
+		j.State.NextRunAt = nil
+	}
+
 	return next, nil
 }
 

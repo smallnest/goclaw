@@ -8,6 +8,7 @@ import (
 
 	"github.com/smallnest/goclaw/bus"
 	"github.com/smallnest/goclaw/channels"
+	"github.com/smallnest/goclaw/cron"
 	"github.com/smallnest/goclaw/internal/logger"
 	"github.com/smallnest/goclaw/session"
 	"go.uber.org/zap"
@@ -19,15 +20,17 @@ type Handler struct {
 	bus        *bus.MessageBus
 	sessionMgr *session.Manager
 	channelMgr *channels.Manager
+	cronSvc    *cron.Service
 }
 
 // NewHandler 创建处理器
-func NewHandler(messageBus *bus.MessageBus, sessionMgr *session.Manager, channelMgr *channels.Manager) *Handler {
+func NewHandler(messageBus *bus.MessageBus, sessionMgr *session.Manager, channelMgr *channels.Manager, cronSvc *cron.Service) *Handler {
 	h := &Handler{
 		registry:   NewMethodRegistry(),
 		bus:        messageBus,
 		sessionMgr: sessionMgr,
 		channelMgr: channelMgr,
+		cronSvc:    cronSvc,
 	}
 
 	// 注册系统方法
@@ -41,6 +44,9 @@ func NewHandler(messageBus *bus.MessageBus, sessionMgr *session.Manager, channel
 
 	// 注册 Browser 方法
 	h.registerBrowserMethods()
+
+	// 注册 Cron 方法
+	h.registerCronMethods()
 
 	return h
 }
@@ -346,4 +352,268 @@ func (h *Handler) BroadcastNotification(method string, data interface{}) ([]byte
 	}
 
 	return json.Marshal(notif)
+}
+
+// registerCronMethods 注册 Cron 方法
+func (h *Handler) registerCronMethods() {
+	// cron.status - 获取 cron 服务状态
+	h.registry.Register("cron.status", func(sessionID string, params map[string]interface{}) (interface{}, error) {
+		if h.cronSvc == nil {
+			return nil, fmt.Errorf("cron service is not available")
+		}
+
+		return h.cronSvc.GetStatus(), nil
+	})
+
+	// cron.list - 列出所有 cron 任务
+	h.registry.Register("cron.list", func(sessionID string, params map[string]interface{}) (interface{}, error) {
+		if h.cronSvc == nil {
+			return nil, fmt.Errorf("cron service is not available")
+		}
+
+		includeDisabled := false
+		if v, ok := params["include_disabled"].(bool); ok {
+			includeDisabled = v
+		}
+
+		jobs := h.cronSvc.ListJobs()
+
+		// Filter by enabled status if needed
+		var filteredJobs []*cron.Job
+		if includeDisabled {
+			filteredJobs = jobs
+		} else {
+			filteredJobs = make([]*cron.Job, 0)
+			for _, job := range jobs {
+				if job.State.Enabled {
+					filteredJobs = append(filteredJobs, job)
+				}
+			}
+		}
+
+		return map[string]interface{}{
+			"jobs":  filteredJobs,
+			"count": len(filteredJobs),
+		}, nil
+	})
+
+	// cron.add - 添加 cron 任务
+	h.registry.Register("cron.add", func(sessionID string, params map[string]interface{}) (interface{}, error) {
+		if h.cronSvc == nil {
+			return nil, fmt.Errorf("cron service is not available")
+		}
+
+		// Parse job parameters
+		name, ok := params["name"].(string)
+		if !ok {
+			return nil, fmt.Errorf("name parameter is required")
+		}
+
+		job := &cron.Job{
+			Name:      name,
+			State:     cron.JobState{Enabled: true},
+			CreatedAt: time.Now(),
+			UpdatedAt: time.Now(),
+		}
+
+		// Set default session target to main
+		job.SessionTarget = cron.SessionTargetMain
+
+		// Parse session target
+		if st, ok := params["session_target"].(string); ok {
+			job.SessionTarget = cron.SessionTarget(st)
+		}
+
+		// Parse schedule
+		if s, ok := params["schedule"].(map[string]interface{}); ok {
+			if typ, ok := s["type"].(string); ok {
+				job.Schedule.Type = cron.ScheduleType(typ)
+				if at, ok := s["at"].(string); ok {
+					t, err := time.Parse(time.RFC3339, at)
+					if err != nil {
+						return nil, fmt.Errorf("invalid at time: %w", err)
+					}
+					job.Schedule.At = t
+				}
+				if every, ok := s["every"].(string); ok {
+					dur, err := cron.ParseHumanDuration(every)
+					if err != nil {
+						return nil, fmt.Errorf("invalid every duration: %w", err)
+					}
+					job.Schedule.EveryDuration = dur
+				}
+				if expr, ok := s["cron"].(string); ok {
+					job.Schedule.CronExpression = expr
+				}
+			}
+		}
+
+		// Parse payload
+		if p, ok := params["payload"].(map[string]interface{}); ok {
+			if typ, ok := p["type"].(string); ok {
+				job.Payload.Type = cron.PayloadType(typ)
+				if msg, ok := p["message"].(string); ok {
+					job.Payload.Message = msg
+				}
+				if evt, ok := p["system_event_type"].(string); ok {
+					job.Payload.SystemEventType = evt
+				}
+			}
+		}
+
+		// Parse wake mode
+		if wm, ok := params["wake_mode"].(string); ok {
+			job.WakeMode = cron.WakeMode(wm)
+		}
+
+		// Parse delivery
+		if d, ok := params["delivery"].(map[string]interface{}); ok {
+			job.Delivery = &cron.Delivery{}
+			if mode, ok := d["mode"].(string); ok {
+				job.Delivery.Mode = cron.DeliveryMode(mode)
+			}
+			if url, ok := d["webhook_url"].(string); ok {
+				job.Delivery.WebhookURL = url
+			}
+			if token, ok := d["webhook_token"].(string); ok {
+				job.Delivery.WebhookToken = token
+			}
+			if bestEffort, ok := d["best_effort"].(bool); ok {
+				job.Delivery.BestEffort = bestEffort
+			}
+		}
+
+		// Add job (ID will be auto-generated if empty)
+		if err := h.cronSvc.AddJob(job); err != nil {
+			return nil, fmt.Errorf("failed to add job: %w", err)
+		}
+
+		return job, nil
+	})
+
+	// cron.update - 更新 cron 任务
+	h.registry.Register("cron.update", func(sessionID string, params map[string]interface{}) (interface{}, error) {
+		if h.cronSvc == nil {
+			return nil, fmt.Errorf("cron service is not available")
+		}
+
+		id, ok := params["id"].(string)
+		if !ok {
+			return nil, fmt.Errorf("id parameter is required")
+		}
+
+		// Apply patch
+		if err := h.cronSvc.UpdateJob(id, func(job *cron.Job) error {
+			if patch, ok := params["patch"].(map[string]interface{}); ok {
+				if name, ok := patch["name"].(string); ok {
+					job.Name = name
+				}
+				if enabled, ok := patch["enabled"].(bool); ok {
+					job.State.Enabled = enabled
+				}
+				if wm, ok := patch["wake_mode"].(string); ok {
+					job.WakeMode = cron.WakeMode(wm)
+				}
+			}
+			job.UpdatedAt = time.Now()
+			return nil
+		}); err != nil {
+			return nil, fmt.Errorf("failed to update job: %w", err)
+		}
+
+		// Get updated job
+		job, err := h.cronSvc.GetJob(id)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get updated job: %w", err)
+		}
+
+		return job, nil
+	})
+
+	// cron.remove - 删除 cron 任务
+	h.registry.Register("cron.remove", func(sessionID string, params map[string]interface{}) (interface{}, error) {
+		if h.cronSvc == nil {
+			return nil, fmt.Errorf("cron service is not available")
+		}
+
+		id, ok := params["id"].(string)
+		if !ok {
+			return nil, fmt.Errorf("id parameter is required")
+		}
+
+		if err := h.cronSvc.RemoveJob(id); err != nil {
+			return nil, fmt.Errorf("failed to remove job: %w", err)
+		}
+
+		return map[string]interface{}{
+			"status": "removed",
+			"id":     id,
+		}, nil
+	})
+
+	// cron.run - 运行 cron 任务
+	h.registry.Register("cron.run", func(sessionID string, params map[string]interface{}) (interface{}, error) {
+		if h.cronSvc == nil {
+			return nil, fmt.Errorf("cron service is not available")
+		}
+
+		id, ok := params["id"].(string)
+		if !ok {
+			return nil, fmt.Errorf("id parameter is required")
+		}
+
+		modeStr := "force"
+		if m, ok := params["mode"].(string); ok {
+			modeStr = m
+		}
+
+		var force bool
+		if modeStr == "force" {
+			force = true
+		}
+
+		if err := h.cronSvc.RunJob(context.Background(), id, force); err != nil {
+			return nil, fmt.Errorf("failed to run job: %w", err)
+		}
+
+		return map[string]interface{}{
+			"status": "run_requested",
+			"id":     id,
+			"mode":   modeStr,
+		}, nil
+	})
+
+	// cron.runs - 获取 cron 任务运行历史
+	h.registry.Register("cron.runs", func(sessionID string, params map[string]interface{}) (interface{}, error) {
+		if h.cronSvc == nil {
+			return nil, fmt.Errorf("cron service is not available")
+		}
+
+		id, ok := params["id"].(string)
+		if !ok {
+			return nil, fmt.Errorf("id parameter is required")
+		}
+
+		limit := 50
+		if l, ok := params["limit"].(float64); ok {
+			limit = int(l)
+			if limit <= 0 {
+				limit = 50
+			}
+		}
+
+		// Create filter
+		filter := cron.RunLogFilter{Limit: limit}
+
+		runs, err := h.cronSvc.GetRunLogs(id, filter)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get run logs: %w", err)
+		}
+
+		return map[string]interface{}{
+			"job_id": id,
+			"runs":   runs,
+			"count":  len(runs),
+		}, nil
+	})
 }

@@ -15,6 +15,7 @@ import (
 	"github.com/smallnest/goclaw/bus"
 	"github.com/smallnest/goclaw/channels"
 	"github.com/smallnest/goclaw/config"
+	"github.com/smallnest/goclaw/cron"
 	"github.com/smallnest/goclaw/internal/logger"
 	"github.com/smallnest/goclaw/session"
 	"go.uber.org/zap"
@@ -66,7 +67,7 @@ type WebSocketConfig struct {
 }
 
 // NewServer 创建网关服务器
-func NewServer(cfg *config.GatewayConfig, messageBus *bus.MessageBus, channelMgr *channels.Manager, sessionMgr *session.Manager) *Server {
+func NewServer(cfg *config.GatewayConfig, messageBus *bus.MessageBus, channelMgr *channels.Manager, sessionMgr *session.Manager, cronSvc *cron.Service) *Server {
 	// 从配置文件获取 WebSocket 设置，如果未配置则使用默认值
 	wsPort := cfg.WebSocket.Port
 	if wsPort == 0 {
@@ -114,7 +115,7 @@ func NewServer(cfg *config.GatewayConfig, messageBus *bus.MessageBus, channelMgr
 		bus:         messageBus,
 		channelMgr:  channelMgr,
 		sessionMgr:  sessionMgr,
-		handler:     NewHandler(messageBus, sessionMgr, channelMgr),
+		handler:     NewHandler(messageBus, sessionMgr, channelMgr, cronSvc),
 		connections: make(map[string]*Connection),
 	}
 }
@@ -164,6 +165,9 @@ func (s *Server) Start(ctx context.Context) error {
 func (s *Server) startHTTPServer(ctx context.Context) error {
 	// 创建 HTTP 路由
 	mux := http.NewServeMux()
+
+	// JSON-RPC 端点
+	mux.HandleFunc("/rpc", s.handleJSONRPC)
 
 	// 健康检查端点
 	mux.HandleFunc("/health", s.handleHealth)
@@ -690,6 +694,42 @@ func (s *Server) handleChannelsAPI(w http.ResponseWriter, r *http.Request) {
 			"count":    len(channels),
 		})
 	}
+}
+
+// handleJSONRPC 处理 JSON-RPC 请求
+func (s *Server) handleJSONRPC(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 读取请求体
+	body, err := io.ReadAll(r.Body)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	defer r.Body.Close()
+
+	// 解析请求
+	req, err := ParseRequest(body)
+	if err != nil {
+		logger.Error("Failed to parse JSON-RPC request", zap.Error(err))
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+
+	logger.Debug("HTTP JSON-RPC request",
+		zap.String("method", req.Method),
+		zap.String("id", req.ID))
+
+	// 处理请求
+	resp := s.handler.HandleRequest("", req)
+
+	// 发送响应
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // Close 关闭连接

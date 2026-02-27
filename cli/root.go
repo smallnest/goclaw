@@ -308,23 +308,24 @@ func runStart(cmd *cobra.Command, args []string) {
 		logger.Warn("Failed to setup channels from config", zap.Error(err))
 	}
 
-	// 创建网关服务器
-	gatewayServer := gateway.NewServer(&cfg.Gateway, messageBus, channelMgr, sessionMgr)
-	if err := gatewayServer.Start(ctx); err != nil {
-		logger.Warn("Failed to start gateway server", zap.Error(err))
-	}
-	defer func() { _ = gatewayServer.Stop() }()
-
-	// 创建 Cron 服务
+	// 创建 Cron 服务（需要在 Gateway 之前创建，因为 Handler 需要 cronService）
 	cronService, err := cron.NewService(cron.DefaultCronConfig(), messageBus)
 	if err != nil {
 		logger.Warn("Failed to create cron service", zap.Error(err))
-	} else {
+	}
+	if cronService != nil {
 		if err := cronService.Start(ctx); err != nil {
 			logger.Warn("Failed to start cron service", zap.Error(err))
 		}
 		defer func() { _ = cronService.Stop() }()
 	}
+
+	// 创建网关服务器
+	gatewayServer := gateway.NewServer(&cfg.Gateway, messageBus, channelMgr, sessionMgr, cronService)
+	if err := gatewayServer.Start(ctx); err != nil {
+		logger.Warn("Failed to start gateway server", zap.Error(err))
+	}
+	defer func() { _ = gatewayServer.Stop() }()
 
 	// 创建 AgentManager
 	agentManager := agent.NewAgentManager(&agent.NewAgentManagerConfig{

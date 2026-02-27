@@ -215,6 +215,7 @@ func findNextTime(from time.Time, secs, mins, hours, doms, months, dows []int) t
 	}
 
 	// Should never reach here with valid cron expressions
+	fmt.Printf("[CRON DEBUG] findNextTime failed after %d iterations, from=%s\n", maxIterations, from.Format("2006-01-02 15:04:05"))
 	return time.Time{}
 }
 

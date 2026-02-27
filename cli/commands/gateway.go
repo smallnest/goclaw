@@ -189,7 +189,7 @@ func runGateway(cmd *cobra.Command, args []string) {
 
 	// Create gateway server
 	// NewServer reads from cfg.Gateway.WebSocket, so we only override if CLI flags are explicitly provided
-	gatewayServer := gateway.NewServer(&cfg.Gateway, messageBus, channelMgr, sessionMgr)
+	gatewayServer := gateway.NewServer(&cfg.Gateway, messageBus, channelMgr, sessionMgr, nil)
 
 	// Only override WebSocket config if CLI flags are explicitly provided
 	// If no CLI flags are set, use config file settings (already loaded by NewServer)
