@@ -95,8 +95,9 @@ func TestHandleDirectCronOneShotRunsSingleEnabledJob(t *testing.T) {
 	}
 
 	mgr := &AgentManager{
-		bus:   messageBus,
-		tools: reg,
+		bus:            messageBus,
+		tools:          reg,
+		manualCronLast: make(map[string]time.Time),
 	}
 
 	handled, err := mgr.handleDirectCronOneShot(context.Background(), &bus.InboundMessage{

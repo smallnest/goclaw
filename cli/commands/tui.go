@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/ergochat/readline"
 	"github.com/smallnest/goclaw/agent"
 	"github.com/smallnest/goclaw/agent/tools"
 	"github.com/smallnest/goclaw/bus"
@@ -312,26 +311,33 @@ func runTUI(cmd *cobra.Command, args []string) {
 	fmt.Println("Press Ctrl+C to exit")
 	fmt.Println()
 	fmt.Println("Arrow keys: ↑/↓ for history, ←/→ for edit")
+	fmt.Println("Enter multi-line mode with Alt+M (or Esc M)")
 	fmt.Println()
 
-	// Create persistent readline instance for history navigation
-	rl, err := input.NewReadline("➤ ")
+	// Create multi-line editor
+	editor, err := input.NewLineEditor("➤ ", func() string {
+		// Tab handler - can be used for auto-completion
+		return ""
+	})
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to create readline: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Failed to create line editor: %v\n", err)
 		os.Exit(1)
 	}
-	defer rl.Close()
+	defer editor.Close()
 
 	// Initialize history from session
-	input.InitReadlineHistory(rl, getUserInputHistory(sess))
+	editor.InitHistory(getUserInputHistory(sess))
 
-	// Input loop with persistent readline
+	// Input loop with multi-line support
 	fmt.Println("Enter your message (or /help for commands):")
 	for {
-		line, err := rl.ReadLine()
+		line, err := editor.ReadLine()
 		if err != nil {
-			// ergochat/readline returns io.EOF for Ctrl+C
-			if err == readline.ErrInterrupt || err == io.EOF {
+			if err == input.ErrInterrupt {
+				fmt.Println("\nGoodbye!")
+				break
+			}
+			if err == io.EOF {
 				fmt.Println("\nGoodbye!")
 				break
 			}
@@ -341,7 +347,7 @@ func runTUI(cmd *cobra.Command, args []string) {
 
 		// Save non-empty input to history
 		if line != "" {
-			_ = rl.SaveToHistory(line)
+			editor.SaveToHistory(line)
 		}
 
 		if line == "" {
@@ -352,11 +358,14 @@ func runTUI(cmd *cobra.Command, args []string) {
 		result, isCommand, shouldExit := cmdRegistry.Execute(line)
 		if isCommand {
 			if shouldExit {
-				fmt.Println("Goodbye!")
+				fmt.Println("\nGoodbye!")
 				break
 			}
 			if result != "" {
+				// 暂停原始模式以正确输出多行内容
+				_ = editor.Suspend()
 				fmt.Println(result)
+				_ = editor.Resume()
 			}
 			continue
 		}
@@ -370,17 +379,18 @@ func runTUI(cmd *cobra.Command, args []string) {
 		// Run agent with orchestrator
 		timeout := time.Duration(tuiTimeoutMs) * time.Millisecond
 		msgCtx, msgCancel := context.WithTimeout(ctx, timeout)
-		defer msgCancel()
 
 		response := processTUIDialogue(msgCtx, sess, orchestrator, tuiHistoryLimit)
 
+		msgCancel()
+
 		if response != "" {
+			// 暂停原始模式以正确输出多行内容
+			_ = editor.Suspend()
 			fmt.Println("\n" + response + "\n")
 			_ = sessionMgr.Save(sess)
+			_ = editor.Resume()
 		}
-
-		// Force readline to refresh terminal state
-		rl.Refresh()
 	}
 }
 
