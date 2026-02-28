@@ -103,6 +103,17 @@
       "write_timeout": "10s"
     }
   },
+  "acp": {
+    "enabled": false,
+    "backend": "acp-go-sdk",
+    "agent_path": "/abs/path/to/acp-agent",
+    "agent_args": [],
+    "agent_env": [],
+    "allowed_agents": ["main", "coding"],
+    "default_agent": "main",
+    "max_concurrent_sessions": 5,
+    "idle_timeout_ms": 300000
+  },
   "tools": {
     "filesystem": {
       "allowed_paths": [],
