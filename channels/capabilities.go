@@ -28,10 +28,10 @@ const (
 type CapabilityScope string
 
 const (
-	CapabilityScopeOff      CapabilityScope = "off"      // disabled
-	CapabilityScopeDM       CapabilityScope = "dm"       // direct messages only
-	CapabilityScopeGroup    CapabilityScope = "group"    // groups only
-	CapabilityScopeAll      CapabilityScope = "all"      // everywhere
+	CapabilityScopeOff       CapabilityScope = "off"       // disabled
+	CapabilityScopeDM        CapabilityScope = "dm"        // direct messages only
+	CapabilityScopeGroup     CapabilityScope = "group"     // groups only
+	CapabilityScopeAll       CapabilityScope = "all"       // everywhere
 	CapabilityScopeAllowlist CapabilityScope = "allowlist" // whitelisted chats only
 )
 
@@ -58,11 +58,11 @@ func DefaultCapabilities() ChannelCapabilities {
 	return ChannelCapabilities{
 		Reactions:      CapabilityScopeAll,
 		InlineButtons:  CapabilityScopeOff,
-		Threads:         CapabilityScopeOff,
-		Polls:           CapabilityScopeOff,
-		Streaming:       CapabilityScopeOff,
-		Media:           CapabilityScopeAll,
-		NativeCommands:  CapabilityScopeAll,
+		Threads:        CapabilityScopeOff,
+		Polls:          CapabilityScopeOff,
+		Streaming:      CapabilityScopeOff,
+		Media:          CapabilityScopeAll,
+		NativeCommands: CapabilityScopeAll,
 	}
 }
 
@@ -166,51 +166,51 @@ func GetDefaultCapabilitiesForChannel(channelType string) ChannelCapabilities {
 		return ChannelCapabilities{
 			Reactions:      CapabilityScopeAll,
 			InlineButtons:  CapabilityScopeAll,
-			Threads:         CapabilityScopeAll,
-			Polls:           CapabilityScopeAll,
-			Streaming:       CapabilityScopeAll,
-			Media:           CapabilityScopeAll,
-			NativeCommands:  CapabilityScopeAll,
+			Threads:        CapabilityScopeAll,
+			Polls:          CapabilityScopeAll,
+			Streaming:      CapabilityScopeAll,
+			Media:          CapabilityScopeAll,
+			NativeCommands: CapabilityScopeAll,
 		}
 	case "telegram":
 		return ChannelCapabilities{
 			Reactions:      CapabilityScopeAll,
 			InlineButtons:  CapabilityScopeDM,
-			Threads:         CapabilityScopeGroup, // Topics
-			Polls:           CapabilityScopeAll,
-			Streaming:       CapabilityScopeDM,
-			Media:           CapabilityScopeAll,
-			NativeCommands:  CapabilityScopeAll,
+			Threads:        CapabilityScopeGroup, // Topics
+			Polls:          CapabilityScopeAll,
+			Streaming:      CapabilityScopeDM,
+			Media:          CapabilityScopeAll,
+			NativeCommands: CapabilityScopeAll,
 		}
 	case "slack":
 		return ChannelCapabilities{
 			Reactions:      CapabilityScopeAll,
 			InlineButtons:  CapabilityScopeAll,
-			Threads:         CapabilityScopeAll,
-			Polls:           CapabilityScopeOff,
-			Streaming:       CapabilityScopeOff,
-			Media:           CapabilityScopeAll,
-			NativeCommands:  CapabilityScopeAll,
+			Threads:        CapabilityScopeAll,
+			Polls:          CapabilityScopeOff,
+			Streaming:      CapabilityScopeOff,
+			Media:          CapabilityScopeAll,
+			NativeCommands: CapabilityScopeAll,
 		}
 	case "whatsapp":
 		return ChannelCapabilities{
 			Reactions:      CapabilityScopeAll,
 			InlineButtons:  CapabilityScopeOff,
-			Threads:         CapabilityScopeOff,
-			Polls:           CapabilityScopeAll,
-			Streaming:       CapabilityScopeOff,
-			Media:           CapabilityScopeAll,
-			NativeCommands:  CapabilityScopeOff,
+			Threads:        CapabilityScopeOff,
+			Polls:          CapabilityScopeAll,
+			Streaming:      CapabilityScopeOff,
+			Media:          CapabilityScopeAll,
+			NativeCommands: CapabilityScopeOff,
 		}
 	case "signal":
 		return ChannelCapabilities{
 			Reactions:      CapabilityScopeAll,
 			InlineButtons:  CapabilityScopeOff,
-			Threads:         CapabilityScopeOff,
-			Polls:           CapabilityScopeOff,
-			Streaming:       CapabilityScopeOff,
-			Media:           CapabilityScopeAll,
-			NativeCommands:  CapabilityScopeOff,
+			Threads:        CapabilityScopeOff,
+			Polls:          CapabilityScopeOff,
+			Streaming:      CapabilityScopeOff,
+			Media:          CapabilityScopeAll,
+			NativeCommands: CapabilityScopeOff,
 		}
 	default:
 		return DefaultCapabilities()
@@ -240,11 +240,11 @@ func ToCapabilities(cfg ChannelCapabilityConfig) ChannelCapabilities {
 	return ChannelCapabilities{
 		Reactions:      ParseCapabilityScope(cfg.Reactions),
 		InlineButtons:  ParseCapabilityScope(cfg.InlineButtons),
-		Threads:         ParseCapabilityScope(cfg.Threads),
-		Polls:           ParseCapabilityScope(cfg.Polls),
-		Streaming:       ParseCapabilityScope(cfg.Streaming),
-		Media:           ParseCapabilityScope(cfg.Media),
-		NativeCommands:  ParseCapabilityScope(cfg.NativeCommands),
+		Threads:        ParseCapabilityScope(cfg.Threads),
+		Polls:          ParseCapabilityScope(cfg.Polls),
+		Streaming:      ParseCapabilityScope(cfg.Streaming),
+		Media:          ParseCapabilityScope(cfg.Media),
+		NativeCommands: ParseCapabilityScope(cfg.NativeCommands),
 	}
 }
 
@@ -254,7 +254,7 @@ type ChatContext struct {
 	IsGroupMessage   bool
 	IsWhitelisted    bool
 	ChatType         string // "private", "group", "supergroup", etc.
-	ChatID            string
+	ChatID           string
 }
 
 // NewChatContext creates a ChatContext from metadata

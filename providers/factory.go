@@ -3,6 +3,7 @@ package providers
 import (
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/smallnest/goclaw/config"
 	"github.com/smallnest/goclaw/errors"
@@ -38,11 +39,14 @@ func NewSimpleProvider(cfg *config.Config) (Provider, error) {
 
 	switch providerType {
 	case ProviderTypeOpenAI:
-		return NewOpenAIProvider(cfg.Providers.OpenAI.APIKey, cfg.Providers.OpenAI.BaseURL, model, cfg.Agents.Defaults.MaxTokens)
+		timeout := time.Duration(cfg.Providers.OpenAI.Timeout) * time.Second
+		return NewOpenAIProviderWithTimeout(cfg.Providers.OpenAI.APIKey, cfg.Providers.OpenAI.BaseURL, model, cfg.Agents.Defaults.MaxTokens, timeout)
 	case ProviderTypeAnthropic:
-		return NewAnthropicProvider(cfg.Providers.Anthropic.APIKey, cfg.Providers.Anthropic.BaseURL, model, cfg.Agents.Defaults.MaxTokens)
+		timeout := time.Duration(cfg.Providers.Anthropic.Timeout) * time.Second
+		return NewAnthropicProviderWithTimeout(cfg.Providers.Anthropic.APIKey, cfg.Providers.Anthropic.BaseURL, model, cfg.Agents.Defaults.MaxTokens, timeout)
 	case ProviderTypeOpenRouter:
-		return NewOpenRouterProvider(cfg.Providers.OpenRouter.APIKey, cfg.Providers.OpenRouter.BaseURL, model, cfg.Agents.Defaults.MaxTokens)
+		timeout := time.Duration(cfg.Providers.OpenRouter.Timeout) * time.Second
+		return NewOpenRouterProviderWithTimeout(cfg.Providers.OpenRouter.APIKey, cfg.Providers.OpenRouter.BaseURL, model, cfg.Agents.Defaults.MaxTokens, timeout)
 	default:
 		return nil, fmt.Errorf("unsupported provider type: %s", providerType)
 	}

@@ -30,9 +30,7 @@ type Service struct {
 	wg       sync.WaitGroup
 
 	// Timer
-	timerMu    sync.Mutex
-	timerArmed bool
-	timerStop  chan struct{}
+	timerStop chan struct{}
 }
 
 // NewService creates a new cron service

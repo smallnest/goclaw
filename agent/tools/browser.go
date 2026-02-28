@@ -59,11 +59,11 @@ func (e *BrowserCDPExecutor) GetDirectClient() (*cdp.Client, error) {
 
 // BrowserTool Browser tool using Chrome DevTools Protocol or OpenClaw Relay
 type BrowserTool struct {
-	headless    bool
-	timeout     time.Duration
-	outputDir   string   // 固定输出目录，截图将保存到这里
-	relayURL    string   // OpenClaw Relay URL
-	relayMode   string   // Connection mode: "auto", "direct", "relay"
+	headless  bool
+	timeout   time.Duration
+	outputDir string // 固定输出目录，截图将保存到这里
+	relayURL  string // OpenClaw Relay URL
+	relayMode string // Connection mode: "auto", "direct", "relay"
 }
 
 // NewBrowserTool Create browser tool
@@ -290,10 +290,10 @@ func (b *BrowserTool) screenshotViaRelay(ctx context.Context, urlStr string, wid
 
 	// 设置视口大小
 	viewportParams := map[string]interface{}{
-		"width":  width,
-		"height": height,
+		"width":             width,
+		"height":            height,
 		"deviceScaleFactor": 1.0,
-		"mobile": false,
+		"mobile":            false,
 	}
 	_, err := relayClient.Execute(ctx, "Emulation.setDeviceMetricsOverride", viewportParams)
 	if err != nil {

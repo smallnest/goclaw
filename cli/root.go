@@ -286,12 +286,7 @@ func runStart(cmd *cobra.Command, args []string) {
 	}
 
 	// 注册 Cron 工具
-	cronTool := tools.NewCronTool(cfg.Tools.Cron.Enabled, cfg.Tools.Cron.StorePath, messageBus)
-	for _, tool := range cronTool.GetTools() {
-		if err := toolRegistry.RegisterExisting(tool); err != nil {
-			logger.Warn("Failed to register tool", zap.String("tool", tool.Name()))
-		}
-	}
+	// 注意：cronTool 将在创建 cronService 后注册
 
 	// 注意: ACP工具(spawn_acp)由agent.Manager内部直接使用
 	// 不需要通过toolRegistry注册，因为它是agent.Tool类型而不是tools.Tool类型
@@ -323,6 +318,24 @@ func runStart(cmd *cobra.Command, args []string) {
 			logger.Warn("Failed to start cron service", zap.Error(err))
 		}
 		defer func() { _ = cronService.Stop() }()
+	}
+
+	// 注册 Cron 工具（使用已创建并启动的 cronService）
+	if cfg.Tools.Cron.Enabled {
+		logger.Info("Registering cron tools",
+			zap.Bool("cron_service_nil", cronService == nil))
+		cronTool := tools.NewCronTool(cronService)
+		tools := cronTool.GetTools()
+		logger.Info("CronTool.GetTools returned",
+			zap.Int("count", len(tools)))
+		for _, tool := range tools {
+			if err := toolRegistry.RegisterExisting(tool); err != nil {
+				logger.Warn("Failed to register tool", zap.String("tool", tool.Name()), zap.Error(err))
+			} else {
+				logger.Info("Tool registered successfully", zap.String("tool", tool.Name()))
+			}
+		}
+		logger.Info("Cron tools registration completed")
 	}
 
 	// 创建 ACP 管理器（如果启用）

@@ -316,11 +316,11 @@ func runAcpClose(cmd *cobra.Command, cfg *config.Config, sessionKey string) {
 	}
 
 	result, err := manager.CloseSession(ctx, acp.CloseSessionInput{
-		Cfg:              cfg,
-		SessionKey:       sessionKey,
-		Reason:           "user_requested",
+		Cfg:               cfg,
+		SessionKey:        sessionKey,
+		Reason:            "user_requested",
 		RequireAcpSession: true,
-		ClearMeta:        true,
+		ClearMeta:         true,
 	})
 	if err != nil {
 		fmt.Printf("Error: %v\n", err)

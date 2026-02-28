@@ -96,7 +96,7 @@ func ResolveThreadBindingSpawnPolicy(cfg *config.Config, channel, accountID, kin
 		Kind:          kind,
 		Enabled:       true,
 		SpawnEnabled:  true,
-		IdleTimeoutMs: 5 * 60 * 1000, // Default 5 minutes
+		IdleTimeoutMs: 5 * 60 * 1000,  // Default 5 minutes
 		MaxAgeMs:      60 * 60 * 1000, // Default 1 hour
 	}
 

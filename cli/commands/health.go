@@ -45,10 +45,8 @@ func runHealth(cmd *cobra.Command, args []string) {
 
 	port := config.GetGatewayHTTPPort(cfg)
 	if len(args) > 0 {
-		// Use provided port
-		if _, err := fmt.Sscanf(args[0], "%d", &port); err == nil {
-			// port updated from args
-		}
+		// Use provided port if parsing succeeds
+		_, _ = fmt.Sscanf(args[0], "%d", &port)
 	}
 
 	url := fmt.Sprintf("http://localhost:%d/health", port)

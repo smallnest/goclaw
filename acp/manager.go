@@ -130,10 +130,10 @@ type Manager struct {
 
 // ActorQueue serializes operations per session.
 type ActorQueue struct {
-	mu            sync.Mutex
-	queues        map[string]*chan struct{}
-	pendingByKey  map[string]int
-	pendingCount  int // Track total pending operations
+	mu           sync.Mutex
+	queues       map[string]*chan struct{}
+	pendingByKey map[string]int
+	pendingCount int // Track total pending operations
 }
 
 // NewActorQueue creates a new actor queue.
@@ -433,15 +433,13 @@ func (m *Manager) InitializeSession(ctx context.Context, input InitializeSession
 		}
 
 		maxSessions := ResolveAcpMaxConcurrentSessions(input.Cfg)
-		releaseSlot := func() {}
 		if maxSessions > 0 {
 			release, acquireErr := m.acquireSessionInitSlot(maxSessions)
 			if acquireErr != nil {
 				resultErr = acquireErr
 				return acquireErr
 			}
-			releaseSlot = release
-			defer releaseSlot()
+			defer release()
 		}
 
 		// Get runtime backend

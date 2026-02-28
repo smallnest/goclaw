@@ -471,15 +471,25 @@ func (m *AgentManager) RouteInbound(ctx context.Context, msg *bus.InboundMessage
 
 // handleInboundMessage 处理入站消息
 func (m *AgentManager) handleInboundMessage(ctx context.Context, msg *bus.InboundMessage, agent *Agent) error {
+	logger.Info("[Manager] Processing inbound message",
+		zap.String("message_id", msg.ID),
+		zap.String("channel", msg.Channel),
+		zap.String("account_id", msg.AccountID),
+		zap.String("chat_id", msg.ChatID),
+		zap.String("content", msg.Content),
+	)
+
 	if handled, err := m.handleAcpThreadBindingInbound(ctx, msg); handled {
+		logger.Info("[Manager] Message handled by ACP thread binding", zap.String("message_id", msg.ID))
 		return err
 	}
 	if handled, err := m.handleDirectCronOneShot(ctx, msg); handled {
+		logger.Info("[Manager] Message handled by cron oneshot", zap.String("message_id", msg.ID))
 		return err
 	}
 
 	// 调用 Agent 处理消息（内部逻辑和 agent.go 中的 handleInboundMessage 类似）
-	logger.Debug("Processing inbound message",
+	logger.Debug("[Manager] Routing to agent",
 		zap.String("channel", msg.Channel),
 		zap.String("account_id", msg.AccountID),
 		zap.String("chat_id", msg.ChatID))
@@ -488,7 +498,7 @@ func (m *AgentManager) handleInboundMessage(ctx context.Context, msg *bus.Inboun
 	sessionKey := fmt.Sprintf("%s:%s:%s", msg.Channel, msg.AccountID, msg.ChatID)
 	if msg.ChatID == "default" || msg.ChatID == "" {
 		sessionKey = fmt.Sprintf("%s:%s:%d", msg.Channel, msg.AccountID, msg.Timestamp.Unix())
-		logger.Debug("Creating fresh session", zap.String("session_key", sessionKey))
+		logger.Debug("[Manager] Creating fresh session", zap.String("session_key", sessionKey))
 	}
 
 	// 获取或创建会话
@@ -531,7 +541,17 @@ func (m *AgentManager) handleInboundMessage(ctx context.Context, msg *bus.Inboun
 	allMessages := append(historyAgentMsgs, agentMsg)
 
 	// 执行 Agent
+	logger.Info("[Manager] Starting agent execution",
+		zap.String("message_id", msg.ID),
+		zap.Int("history_count", len(history)),
+		zap.Int("total_messages", len(allMessages)),
+	)
 	finalMessages, err := orchestrator.Run(ctx, allMessages)
+	logger.Info("[Manager] Agent execution completed",
+		zap.String("message_id", msg.ID),
+		zap.Int("final_messages", len(finalMessages)),
+		zap.Error(err),
+	)
 	if err != nil {
 		// Check if error is related to tool_call_id mismatch (old session format)
 		errStr := err.Error()
@@ -947,6 +967,11 @@ func (m *AgentManager) processMessages(ctx context.Context) {
 				continue
 			}
 
+			logger.Debug("[Manager] Consumed inbound message from bus",
+				zap.String("message_id", msg.ID),
+				zap.String("channel", msg.Channel),
+				zap.String("chat_id", msg.ChatID),
+			)
 			if err := m.RouteInbound(ctx, msg); err != nil {
 				logger.Error("Failed to route message",
 					zap.String("channel", msg.Channel),

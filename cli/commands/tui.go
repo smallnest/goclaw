@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
@@ -143,6 +144,14 @@ func TUICommand() *cobra.Command {
 
 // runTUI runs the terminal UI
 func runTUI(cmd *cobra.Command, args []string) {
+	// Check if running on Windows (TUI mode not supported)
+	if runtime.GOOS == "windows" {
+		fmt.Fprintf(os.Stderr, "Error: TUI mode is not supported on Windows.\n")
+		fmt.Fprintf(os.Stderr, "Please use the regular command-line mode instead:\n")
+		fmt.Fprintf(os.Stderr, "  goclaw 'your prompt here'\n")
+		os.Exit(1)
+	}
+
 	// 确保内置技能被复制到用户目录
 	if err := internal.EnsureBuiltinSkills(); err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: Failed to ensure builtin skills: %v\n", err)

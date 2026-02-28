@@ -26,9 +26,9 @@ const (
 type AcpRuntimeControl string
 
 const (
-	AcpControlSessionSetMode        AcpRuntimeControl = "session/set_mode"
+	AcpControlSessionSetMode         AcpRuntimeControl = "session/set_mode"
 	AcpControlSessionSetConfigOption AcpRuntimeControl = "session/set_config_option"
-	AcpControlSessionStatus         AcpRuntimeControl = "session/status"
+	AcpControlSessionStatus          AcpRuntimeControl = "session/status"
 )
 
 // AcpRuntimeHandle uniquely identifies an active ACP session.
@@ -159,7 +159,11 @@ func (e *AcpEventStatus) isAcpRuntimeEvent() {}
 
 // AcpEventToolCall is emitted when a tool is called.
 type AcpEventToolCall struct {
-	Text string // Tool call description
+	ID        string                 // Tool call ID
+	Name      string                 // Tool name/function name
+	Arguments map[string]interface{} // Tool arguments
+	Text      string                 // Tool call description (legacy)
+	Status    string                 // Tool status: "pending", "in_progress", "completed", "failed"
 }
 
 func (e *AcpEventToolCall) isAcpRuntimeEvent() {}

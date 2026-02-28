@@ -11,9 +11,9 @@ import (
 
 // RunLogger handles logging of job runs
 type RunLogger struct {
-	logDir      string
-	config      RunLogConfig
-	mu          sync.Mutex
+	logDir string
+	config RunLogConfig
+	mu     sync.Mutex
 }
 
 // NewRunLogger creates a new run logger
@@ -184,7 +184,9 @@ func (l *RunLogger) pruneLog(logFile string) error {
 
 	for _, log := range logs {
 		data, _ := json.Marshal(log)
-		file.Write(append(data, '\n'))
+		if _, err := file.Write(append(data, '\n')); err != nil {
+			return err
+		}
 	}
 
 	return nil

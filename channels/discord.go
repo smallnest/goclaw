@@ -449,10 +449,6 @@ func (c *DiscordChannel) GetReactions(channelID, messageID string, limit int) (m
 		return nil, fmt.Errorf("discord session is not initialized")
 	}
 
-	if limit <= 0 || limit > 100 {
-		limit = 100
-	}
-
 	// Get message to see current reactions
 	msg, err := c.session.ChannelMessage(channelID, messageID)
 	if err != nil {

@@ -121,7 +121,9 @@ func init() {
 	cronAddCmd.Flags().StringVar(&cronAddSystemEvent, "system-event", "", "System event type (system-event payload)")
 	cronAddCmd.Flags().StringVar(&cronAddWebhook, "webhook", "", "Webhook URL for delivery")
 	cronAddCmd.Flags().StringVar(&cronAddSession, "session", "main", "Session target (main or isolated)")
-	cronAddCmd.MarkFlagRequired("name")
+	if err := cronAddCmd.MarkFlagRequired("name"); err != nil {
+		panic(err)
+	}
 
 	// Run command flags
 	cronRunCmd.Flags().BoolVarP(&cronRunForce, "force", "f", false, "Force run even if disabled")

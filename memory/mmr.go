@@ -50,11 +50,6 @@ func jaccardSimilarity(setA, setB map[string]struct{}) float64 {
 	return float64(intersection) / float64(union)
 }
 
-// textSimilarity computes text similarity between two content strings using Jaccard
-func textSimilarity(contentA, contentB string) float64 {
-	return jaccardSimilarity(tokenize(contentA), tokenize(contentB))
-}
-
 // maxSimilarityToSelected computes the maximum similarity between an item and all selected items
 func maxSimilarityToSelected(item mmrItem, selectedItems []mmrItem) float64 {
 	if len(selectedItems) == 0 {

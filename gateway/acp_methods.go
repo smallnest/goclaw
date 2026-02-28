@@ -94,7 +94,7 @@ func handleAcpSpawn(cfg *config.Config, acpManager *acp.Manager, sessionID strin
 		AgentChannel:    spawnParams.AgentChannel,
 		AgentAccountID:  spawnParams.AgentAccountID,
 		AgentTo:         spawnParams.AgentTo,
-		AgentThreadID:    spawnParams.AgentThreadID,
+		AgentThreadID:   spawnParams.AgentThreadID,
 	}
 
 	// Build spawn params
@@ -116,12 +116,12 @@ func handleAcpSpawn(cfg *config.Config, acpManager *acp.Manager, sessionID strin
 
 	// Return result
 	return map[string]interface{}{
-		"status":           result.Status,
+		"status":            result.Status,
 		"child_session_key": result.ChildSessionKey,
-		"run_id":           result.RunID,
-		"mode":             string(result.Mode),
-		"note":             result.Note,
-		"error":            result.Error,
+		"run_id":            result.RunID,
+		"mode":              string(result.Mode),
+		"note":              result.Note,
+		"error":             result.Error,
 	}, nil
 }
 
@@ -196,9 +196,9 @@ func handleAcpSetMode(cfg *config.Config, acpManager *acp.Manager, sessionID str
 	// Set runtime mode
 	ctx := context.Background()
 	options, err := acpManager.SetSessionRuntimeMode(ctx, acp.SetSessionRuntimeModeInput{
-		Cfg:          cfg,
-		SessionKey:   setModeParams.SessionKey,
-		RuntimeMode:  setModeParams.RuntimeMode,
+		Cfg:         cfg,
+		SessionKey:  setModeParams.SessionKey,
+		RuntimeMode: setModeParams.RuntimeMode,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to set runtime mode: %w", err)
@@ -314,11 +314,11 @@ func handleAcpClose(cfg *config.Config, acpManager *acp.Manager, sessionID strin
 	// Close session
 	ctx := context.Background()
 	result, err := acpManager.CloseSession(ctx, acp.CloseSessionInput{
-		Cfg:             cfg,
-		SessionKey:      closeParams.SessionKey,
-		Reason:          closeParams.Reason,
+		Cfg:               cfg,
+		SessionKey:        closeParams.SessionKey,
+		Reason:            closeParams.Reason,
 		RequireAcpSession: closeParams.RequireAcpSession,
-		ClearMeta:       closeParams.ClearMeta,
+		ClearMeta:         closeParams.ClearMeta,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to close session: %w", err)
@@ -349,8 +349,8 @@ func handleAcpList(cfg *config.Config, acpManager *acp.Manager, sessionID string
 	snapshot := acpManager.GetObservabilitySnapshot()
 
 	return map[string]interface{}{
-		"runtime_cache": snapshot.RuntimeCache,
-		"turns":        snapshot.Turns,
+		"runtime_cache":  snapshot.RuntimeCache,
+		"turns":          snapshot.Turns,
 		"errors_by_code": snapshot.ErrorsByCode,
 	}, nil
 }

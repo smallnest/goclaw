@@ -21,11 +21,11 @@ type AcpSessionRouter interface {
 
 // Manager 通道管理器
 type Manager struct {
-	channels            map[string]BaseChannel
-	bus                 *bus.MessageBus
-	mu                  sync.RWMutex
+	channels             map[string]BaseChannel
+	bus                  *bus.MessageBus
+	mu                   sync.RWMutex
 	threadBindingService *ThreadBindingService
-	acpRouter           AcpSessionRouter
+	acpRouter            AcpSessionRouter
 }
 
 // NewManager 创建通道管理器

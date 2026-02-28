@@ -7,11 +7,11 @@ import (
 
 // LRUCache is a thread-safe LRU (Least Recently Used) cache
 type LRUCache struct {
-	mu         sync.RWMutex
-	maxSize    int
-	items      map[string]*list.Element // id -> list element
-	lruList    *list.List               // LRU order: front = most recent, back = least recent
-	onEvict    func(key string, value *VectorEmbedding)
+	mu      sync.RWMutex
+	maxSize int
+	items   map[string]*list.Element // id -> list element
+	lruList *list.List               // LRU order: front = most recent, back = least recent
+	onEvict func(key string, value *VectorEmbedding)
 }
 
 // lruEntry represents a cache entry with its key and value

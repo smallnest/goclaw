@@ -136,13 +136,13 @@ func (b *ContextBuilder) buildIdentityAndTools() string {
 		"read_file":              "Read file contents (supports line ranges for large files)",
 		"write_file":             "Create or overwrite files (creates directories as needed)",
 		"list_files":             "List directory contents (recursive with -r)",
-		"run_shell":              "Run shell commands (supports timeout, background, and PTY for interactive CLIs)",
+		"run_shell":              "Run shell commands. PROHIBITED: Never use 'crontab' commands for scheduled tasks - use the 'cron' tool instead (this is the ONLY way to manage scheduled tasks in goclaw)",
 		"process":                "Manage background shell sessions (poll, kill, list)",
 		"web_search":             "Search the web using API (Brave/Search APIs)",
 		"web_fetch":              "Fetch and extract readable content from a URL",
 		"use_skill":              "Load a specialized skill. SKILLS HAVE HIGHEST PRIORITY - always check Skills section first",
 		"message":                "Send messages and channel actions (polls, reactions, buttons)",
-		"cron":                   "Manage cron jobs and wake events (use for reminders; write systemEvent as readable reminder text)",
+		"cron":                   "Manage goclaw's built-in cron/scheduler service. This is the ONLY WAY to manage scheduled tasks. DO NOT use system 'crontab' commands. Supports: add (create), list/ls (view all), rm/remove (delete), enable, disable, run (execute immediately), status, runs (history)",
 		"session_status":         "Show session usage/time/model state (use for 'what model are we using?' questions)",
 	}
 

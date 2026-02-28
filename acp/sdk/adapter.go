@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
@@ -33,7 +34,7 @@ func init() {
 	defaultAdapter := NewAcpGoSDKAdapter("acp", []string{}, []string{})
 
 	// Register the ACP SDK backend
-	err := runtime.RegisterAcpRuntimeBackend(runtime.AcpRuntimeBackend{
+	_ = runtime.RegisterAcpRuntimeBackend(runtime.AcpRuntimeBackend{
 		ID:      DefaultBackendID,
 		Runtime: defaultAdapter,
 		Healthy: func() bool {
@@ -41,10 +42,7 @@ func init() {
 			return isAcpAgentAvailable(defaultAdapter.agentPath)
 		},
 	})
-	if err != nil {
-		// Log the error but don't fail initialization
-		// The backend may be configured later
-	}
+	// Error is intentionally ignored - the backend may be configured later
 }
 
 // NewAcpGoSDKAdapter creates a new ACP SDK adapter.
@@ -78,13 +76,12 @@ func (a *AcpGoSDKAdapter) SetAgentConfig(agentPath string, agentArgs []string, e
 
 // acpProcess manages a running ACP agent process.
 type acpProcess struct {
-	cmd     *exec.Cmd
-	stdin   io.WriteCloser
-	stdout  io.ReadCloser
-	stderr  io.ReadCloser
-	session string
-	mu      sync.Mutex
-	cancel  context.CancelFunc
+	cmd    *exec.Cmd
+	stdin  io.WriteCloser
+	stdout io.ReadCloser
+	stderr io.ReadCloser
+	mu     sync.Mutex
+	cancel context.CancelFunc
 }
 
 // acpSession represents an active ACP session.
@@ -94,7 +91,6 @@ type acpSession struct {
 	handle      runtime.AcpRuntimeHandle
 	cwd         string
 	initialized bool
-	mu          sync.Mutex
 }
 
 // processRegistry tracks running ACP agent processes by their session ID.
@@ -316,8 +312,8 @@ func (a *AcpGoSDKAdapter) RunTurn(ctx context.Context, input runtime.AcpRuntimeT
 	go func() {
 		defer close(eventChan)
 
-		resp, err := a.sendRequest(ctx, process, promptReq)
-		if err != nil {
+		// Send the request
+		if err := a.sendRequestNoResponse(process, promptReq); err != nil {
 			eventChan <- &runtime.AcpEventError{
 				Message:   fmt.Sprintf("prompt request failed: %v", err),
 				Code:      runtime.ErrCodeTurnFailed,
@@ -326,18 +322,40 @@ func (a *AcpGoSDKAdapter) RunTurn(ctx context.Context, input runtime.AcpRuntimeT
 			return
 		}
 
-		if resp.Error != nil {
+		// Read streaming responses from stdout
+		scanner := bufio.NewScanner(process.stdout)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if line == "" {
+				continue
+			}
+
+			// Parse the notification/response
+			events := a.parseACPResponse(line)
+			for _, event := range events {
+				select {
+				case eventChan <- event:
+				case <-ctx.Done():
+					eventChan <- &runtime.AcpEventError{
+						Message:   "turn execution canceled",
+						Code:      runtime.ErrCodeTurnCanceled,
+						Retryable: false,
+					}
+					return
+				}
+			}
+		}
+
+		if err := scanner.Err(); err != nil {
 			eventChan <- &runtime.AcpEventError{
-				Message:   resp.Error.Message,
+				Message:   fmt.Sprintf("error reading responses: %v", err),
 				Code:      runtime.ErrCodeTurnFailed,
 				Retryable: false,
 			}
 			return
 		}
 
-		// Process the response
-		// In a real implementation, this would stream events as they arrive
-		// For now, we send a done event
+		// Send completion event
 		eventChan <- &runtime.AcpEventDone{
 			StopReason: "completed",
 		}
@@ -578,14 +596,6 @@ func (a *AcpGoSDKAdapter) closeProcess(process *acpProcess) error {
 	return nil
 }
 
-// jsonRPCRequest represents a JSON-RPC 2.0 request.
-type jsonRPCRequest struct {
-	JSONRPC string      `json:"jsonrpc"`
-	ID      any         `json:"id"`
-	Method  string      `json:"method"`
-	Params  interface{} `json:"params,omitempty"`
-}
-
 // jsonRPCResponse represents a JSON-RPC 2.0 response.
 type jsonRPCResponse struct {
 	JSONRPC string          `json:"jsonrpc"`
@@ -678,4 +688,254 @@ func isAcpAgentAvailable(agentPath string) bool {
 
 	// Check if the specified path exists and is executable
 	return isExecutable(agentPath)
+}
+
+// sendRequestNoResponse sends a JSON-RPC request without waiting for response.
+func (a *AcpGoSDKAdapter) sendRequestNoResponse(process *acpProcess, req map[string]any) error {
+	process.mu.Lock()
+	defer process.mu.Unlock()
+
+	// Marshal request
+	reqData, err := json.Marshal(req)
+	if err != nil {
+		return fmt.Errorf("failed to marshal request: %w", err)
+	}
+
+	// Send request
+	if _, err := fmt.Fprintln(process.stdin, string(reqData)); err != nil {
+		return fmt.Errorf("failed to write request: %w", err)
+	}
+
+	return nil
+}
+
+// parseACPResponse parses a JSON-RPC response/notification from ACP agent
+// and returns one or more ACP runtime events.
+func (a *AcpGoSDKAdapter) parseACPResponse(line string) []runtime.AcpRuntimeEvent {
+	var events []runtime.AcpRuntimeEvent
+
+	// Parse as JSON-RPC message
+	var rawMsg json.RawMessage
+	if err := json.Unmarshal([]byte(line), &rawMsg); err != nil {
+		// Not valid JSON, skip
+		return events
+	}
+
+	// Try to parse as jsonRPCResponse
+	var resp struct {
+		JSONRPC string          `json:"jsonrpc"`
+		ID      any             `json:"id"`
+		Result  json.RawMessage `json:"result,omitempty"`
+		Error   *jsonRPCError   `json:"error,omitempty"`
+	}
+	if err := json.Unmarshal(rawMsg, &resp); err == nil && resp.JSONRPC == "2.0" {
+		// Handle response
+		if resp.Error != nil {
+			events = append(events, &runtime.AcpEventError{
+				Message:   resp.Error.Message,
+				Code:      runtime.ErrCodeTurnFailed,
+				Retryable: false,
+			})
+		} else if len(resp.Result) > 0 {
+			// Parse result - could be text content or structured data
+			var resultStr string
+			if err := json.Unmarshal(resp.Result, &resultStr); err == nil {
+				events = append(events, &runtime.AcpEventTextDelta{
+					Text:   resultStr,
+					Stream: "output",
+				})
+			} else {
+				// Try to parse as object with content field
+				var resultObj map[string]any
+				if err := json.Unmarshal(resp.Result, &resultObj); err == nil {
+					events = append(events, a.parseResultObject(resultObj)...)
+				}
+			}
+		}
+		return events
+	}
+
+	// Try to parse as jsonRPCNotification (session/update)
+	var notif struct {
+		JSONRPC string `json:"jsonrpc"`
+		Method  string `json:"method"`
+		Params  struct {
+			SessionID string `json:"sessionId"`
+			Update    struct {
+				SessionUpdate string `json:"sessionUpdate"`
+				Text          string `json:"text"`
+				Stream        string `json:"stream"`
+
+				// Tool call fields
+				ToolCallID string `json:"toolCallId"`
+				Title      string `json:"title"`
+				Kind       string `json:"kind"`
+				Status     string `json:"status"`
+
+				// Agent message/thought fields
+				Content string `json:"content"`
+			} `json:"update"`
+		} `json:"params"`
+	}
+	if err := json.Unmarshal(rawMsg, &notif); err == nil && notif.JSONRPC == "2.0" && notif.Method == "session/update" {
+		update := notif.Params.Update
+
+		switch update.SessionUpdate {
+		case "agent_message_chunk", "user_message_chunk":
+			events = append(events, &runtime.AcpEventTextDelta{
+				Text:   update.Content,
+				Stream: "output",
+			})
+		case "agent_thought_chunk":
+			events = append(events, &runtime.AcpEventTextDelta{
+				Text:   update.Content,
+				Stream: "thought",
+			})
+		case "tool_call":
+			// Extract tool call details from title or content
+			toolName, args := a.parseToolCallString(update.Content)
+			if toolName == "" {
+				toolName, args = a.parseToolCallString(update.Title)
+			}
+
+			// Map ACP tool names to goclaw tool names
+			mappedName := a.mapACPToolToGoclaw(toolName)
+			if mappedName != "" {
+				toolName = mappedName
+			}
+
+			events = append(events, &runtime.AcpEventToolCall{
+				ID:        update.ToolCallID,
+				Name:      toolName,
+				Arguments: args,
+				Text:      update.Title,
+				Status:    update.Status,
+			})
+		case "tool_call_update":
+			// Tool status update - could include result
+			events = append(events, &runtime.AcpEventToolCall{
+				ID:     update.ToolCallID,
+				Status: update.Status,
+				Text:   update.Content,
+			})
+		default:
+			// Unknown update type, try to send as text
+			if update.Content != "" {
+				events = append(events, &runtime.AcpEventTextDelta{
+					Text:   update.Content,
+					Stream: "output",
+				})
+			}
+		}
+	}
+
+	return events
+}
+
+// parseResultObject parses a result object and returns events.
+func (a *AcpGoSDKAdapter) parseResultObject(obj map[string]any) []runtime.AcpRuntimeEvent {
+	var events []runtime.AcpRuntimeEvent
+
+	// Check for content field
+	if content, ok := obj["content"].(string); ok {
+		events = append(events, &runtime.AcpEventTextDelta{
+			Text:   content,
+			Stream: "output",
+		})
+	}
+
+	// Check for tool_calls field (OpenAI-style format)
+	if toolCalls, ok := obj["tool_calls"].([]any); ok {
+		for _, tc := range toolCalls {
+			if tcMap, ok := tc.(map[string]any); ok {
+				if function, ok := tcMap["function"].(map[string]any); ok {
+					name, _ := function["name"].(string)
+					argsStr, _ := function["arguments"].(string)
+
+					var args map[string]any
+					if argsStr != "" {
+						_ = json.Unmarshal([]byte(argsStr), &args)
+					}
+
+					tcID, _ := tcMap["id"].(string)
+					events = append(events, &runtime.AcpEventToolCall{
+						ID:        tcID,
+						Name:      name,
+						Arguments: args,
+						Text:      fmt.Sprintf("%s(%s)", name, argsStr),
+						Status:    "pending",
+					})
+				}
+			}
+		}
+	}
+
+	return events
+}
+
+// parseToolCallString parses a tool call string and extracts name and arguments.
+// Supports formats like: "tool_name(arg1=value1, arg2=value2)" or JSON arguments.
+func (a *AcpGoSDKAdapter) parseToolCallString(s string) (string, map[string]any) {
+	if s == "" {
+		return "", nil
+	}
+
+	// Try to parse as JSON object first
+	var args map[string]any
+	if err := json.Unmarshal([]byte(s), &args); err == nil {
+		// If it's a simple object, we need the tool name from context
+		// This will be handled by the caller
+		return "", args
+	}
+
+	// Try to extract tool name from format like "tool_name(...)"
+	leftParen := strings.Index(s, "(")
+	rightParen := strings.LastIndex(s, ")")
+	if leftParen > 0 && rightParen > leftParen {
+		name := strings.TrimSpace(s[:leftParen])
+		argsStr := s[leftParen+1 : rightParen]
+
+		// Parse arguments
+		args = make(map[string]any)
+		if argsStr != "" {
+			// Split by comma (simple parsing)
+			parts := strings.Split(argsStr, ",")
+			for _, part := range parts {
+				kv := strings.SplitN(strings.TrimSpace(part), "=", 2)
+				if len(kv) == 2 {
+					args[strings.TrimSpace(kv[0])] = strings.TrimSpace(kv[1])
+				}
+			}
+		}
+
+		return name, args
+	}
+
+	return "", nil
+}
+
+// mapACPToolToGoclaw maps ACP tool names to goclaw tool names.
+// ACP agents may use different tool names than goclaw's internal tools.
+func (a *AcpGoSDKAdapter) mapACPToolToGoclaw(acpToolName string) string {
+	// Mapping of common ACP tool names to goclaw tool names
+	switch acpToolName {
+	case "exec", "execute", "run", "shell", "bash", "sh":
+		return "run_shell"
+	case "read_file", "read", "cat":
+		return "read_file"
+	case "write_file", "write":
+		return "write_file"
+	case "edit_file", "edit":
+		return "edit_file"
+	case "search", "find":
+		return "search"
+	case "http_request", "fetch", "curl":
+		return "http_request"
+	case "browser", "browse":
+		return "browser"
+	default:
+		// If no mapping found, return the original name
+		// The tool may already be a goclaw tool name
+		return acpToolName
+	}
 }

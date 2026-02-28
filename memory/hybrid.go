@@ -7,12 +7,12 @@ import (
 
 // HybridVectorResult represents a vector search result
 type HybridVectorResult struct {
-	ID         string
-	Path       string
-	StartLine  int
-	EndLine    int
-	Source     string
-	Snippet    string
+	ID          string
+	Path        string
+	StartLine   int
+	EndLine     int
+	Source      string
+	Snippet     string
 	VectorScore float64
 }
 
@@ -29,12 +29,12 @@ type HybridKeywordResult struct {
 
 // hybridItem represents an item in the merged results
 type hybridItem struct {
-	ID         string
-	Path       string
-	StartLine  int
-	EndLine    int
-	Source     string
-	Snippet    string
+	ID          string
+	Path        string
+	StartLine   int
+	EndLine     int
+	Source      string
+	Snippet     string
 	VectorScore float64
 	TextScore   float64
 }
@@ -109,12 +109,12 @@ func MergeHybridResults(vector []HybridVectorResult, keyword []HybridKeywordResu
 	// Add vector results
 	for _, v := range vector {
 		byID[v.ID] = &hybridItem{
-			ID:         v.ID,
-			Path:       v.Path,
-			StartLine:  v.StartLine,
-			EndLine:    v.EndLine,
-			Source:     v.Source,
-			Snippet:    v.Snippet,
+			ID:          v.ID,
+			Path:        v.Path,
+			StartLine:   v.StartLine,
+			EndLine:     v.EndLine,
+			Source:      v.Source,
+			Snippet:     v.Snippet,
 			VectorScore: v.VectorScore,
 			TextScore:   0,
 		}
@@ -129,12 +129,12 @@ func MergeHybridResults(vector []HybridVectorResult, keyword []HybridKeywordResu
 			}
 		} else {
 			byID[k.ID] = &hybridItem{
-				ID:       k.ID,
-				Path:     k.Path,
-				StartLine: k.StartLine,
-				EndLine:   k.EndLine,
-				Source:   k.Source,
-				Snippet:  k.Snippet,
+				ID:          k.ID,
+				Path:        k.Path,
+				StartLine:   k.StartLine,
+				EndLine:     k.EndLine,
+				Source:      k.Source,
+				Snippet:     k.Snippet,
 				VectorScore: 0,
 				TextScore:   k.TextScore,
 			}
@@ -172,8 +172,8 @@ func MergeHybridResults(vector []HybridVectorResult, keyword []HybridKeywordResu
 				Text:   item.Snippet,
 				Source: source,
 				Metadata: MemoryMetadata{
-					FilePath:     item.Path,
-					LineNumber:   item.StartLine,
+					FilePath:      item.Path,
+					LineNumber:    item.StartLine,
 					EndLineNumber: item.EndLine,
 				},
 			},
@@ -181,30 +181,6 @@ func MergeHybridResults(vector []HybridVectorResult, keyword []HybridKeywordResu
 			VectorScore: item.VectorScore,
 			TextScore:   item.TextScore,
 		})
-	}
-
-	return results
-}
-
-// applyKeywordBoost boosts scores for results with keyword matches
-// This is useful when pure vector search misses exact matches
-func applyKeywordBoost(results []*SearchResult, keywords []string, boost float64) []*SearchResult {
-	if len(keywords) == 0 || boost <= 0 {
-		return results
-	}
-
-	for _, r := range results {
-		textLower := strings.ToLower(r.Text)
-		hasMatch := false
-		for _, kw := range keywords {
-			if strings.Contains(textLower, strings.ToLower(kw)) {
-				hasMatch = true
-				break
-			}
-		}
-		if hasMatch {
-			r.Score = r.Score * (1 + boost)
-		}
 	}
 
 	return results

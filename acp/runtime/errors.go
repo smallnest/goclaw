@@ -36,6 +36,9 @@ const (
 	// ErrCodeTurnFailed indicates an ACP turn execution failed.
 	ErrCodeTurnFailed = "ACP_TURN_FAILED"
 
+	// ErrCodeTurnCanceled indicates an ACP turn was canceled.
+	ErrCodeTurnCanceled = "ACP_TURN_CANCELED"
+
 	// ErrCodeBackendUnsupportedControl indicates the backend doesn't support a control operation.
 	ErrCodeBackendUnsupportedControl = "ACP_BACKEND_UNSUPPORTED_CONTROL"
 

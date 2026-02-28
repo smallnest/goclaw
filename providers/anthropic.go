@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"time"
 
 	"github.com/smallnest/goclaw/internal/logger"
 	"github.com/tmc/langchaingo/llms"
@@ -16,10 +18,16 @@ type AnthropicProvider struct {
 	llm       llms.Model
 	model     string
 	maxTokens int
+	timeout   time.Duration
 }
 
 // NewAnthropicProvider 创建 Anthropic 提供商
 func NewAnthropicProvider(apiKey, baseURL, model string, maxTokens int) (*AnthropicProvider, error) {
+	return NewAnthropicProviderWithTimeout(apiKey, baseURL, model, maxTokens, 0)
+}
+
+// NewAnthropicProviderWithTimeout 创建带超时的 Anthropic 提供商
+func NewAnthropicProviderWithTimeout(apiKey, baseURL, model string, maxTokens int, timeout time.Duration) (*AnthropicProvider, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("API key is required")
 	}
@@ -42,6 +50,16 @@ func NewAnthropicProvider(apiKey, baseURL, model string, maxTokens int) (*Anthro
 		// nolint:staticcheck,emptybranch
 	}
 
+	// 设置超时
+	if timeout > 0 {
+		httpClient := &http.Client{
+			Timeout: timeout,
+		}
+		opts = append(opts, anthropic.WithHTTPClient(httpClient))
+		logger.Info("Anthropic provider configured with timeout",
+			zap.Duration("timeout", timeout))
+	}
+
 	llm, err := anthropic.New(opts...)
 	if err != nil {
 		return nil, err
@@ -51,6 +69,7 @@ func NewAnthropicProvider(apiKey, baseURL, model string, maxTokens int) (*Anthro
 		llm:       llm,
 		model:     model,
 		maxTokens: maxTokens,
+		timeout:   timeout,
 	}, nil
 }
 

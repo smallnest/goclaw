@@ -8,6 +8,8 @@ import (
 
 	"github.com/smallnest/goclaw/bus"
 	"github.com/smallnest/goclaw/cron"
+	"github.com/smallnest/goclaw/internal/logger"
+	"go.uber.org/zap"
 )
 
 // CronTool provides cron job management functionality
@@ -16,8 +18,21 @@ type CronTool struct {
 	service *cron.Service
 }
 
-// NewCronTool creates a new cron tool
-func NewCronTool(enabled bool, storePath string, messageBus *bus.MessageBus) *CronTool {
+// NewCronTool creates a new cron tool with an existing cron service
+func NewCronTool(service *cron.Service) *CronTool {
+	if service == nil {
+		return &CronTool{enabled: false}
+	}
+
+	return &CronTool{
+		enabled: true,
+		service: service,
+	}
+}
+
+// NewCronToolWithConfig creates a new cron tool and creates its own cron service
+// Use this when you want the tool to manage its own cron service
+func NewCronToolWithConfig(enabled bool, storePath string, messageBus *bus.MessageBus) *CronTool {
 	if !enabled {
 		return &CronTool{enabled: false}
 	}
@@ -49,32 +64,52 @@ func (t *CronTool) Exec(ctx context.Context, params map[string]interface{}) (str
 		return "", fmt.Errorf("command parameter is required")
 	}
 
-	// Parse the command
-	parts := strings.Fields(command)
+	logger.Info("[CronTool] Executing command",
+		zap.String("command", command))
+
+	// Parse the command using shell-style parsing to preserve quoted strings
+	parts, parseErr := parseCommandArgs(command)
+	if parseErr != nil {
+		return "", fmt.Errorf("failed to parse command: %w", parseErr)
+	}
 	if len(parts) == 0 {
 		return "", fmt.Errorf("empty command")
 	}
 
+	var result string
+	var err error
+
 	switch parts[0] {
 	case "add":
-		return t.execAdd(ctx, parts[1:])
+		result, err = t.execAdd(ctx, parts[1:])
 	case "list", "ls":
-		return t.execList(ctx)
+		result, err = t.execList(ctx)
 	case "rm", "remove":
-		return t.execRemove(ctx, parts[1:])
+		result, err = t.execRemove(ctx, parts[1:])
 	case "enable":
-		return t.execEnable(ctx, parts[1:])
+		result, err = t.execEnable(ctx, parts[1:])
 	case "disable":
-		return t.execDisable(ctx, parts[1:])
+		result, err = t.execDisable(ctx, parts[1:])
 	case "run":
-		return t.execRun(ctx, parts[1:])
+		result, err = t.execRun(ctx, parts[1:])
 	case "status":
-		return t.execStatus(ctx)
+		result, err = t.execStatus(ctx)
 	case "runs":
-		return t.execRuns(ctx, parts[1:])
+		result, err = t.execRuns(ctx, parts[1:])
 	default:
-		return "", fmt.Errorf("unknown cron command: %s (available: add, list, rm, enable, disable, run, status, runs)", parts[0])
+		err = fmt.Errorf("unknown cron command: %s (available: add, list, rm, enable, disable, run, status, runs)", parts[0])
 	}
+
+	logger.Info("[CronTool] Command execution completed",
+		zap.String("command", command),
+		zap.Int("result_length", len(result)),
+		zap.Bool("has_error", err != nil),
+		zap.Error(err))
+
+	if err != nil {
+		return "", err
+	}
+	return result, nil
 }
 
 // execAdd adds a new cron job
@@ -360,13 +395,13 @@ func (t *CronTool) GetTools() []Tool {
 	return []Tool{
 		NewBaseTool(
 			"cron",
-			"Manage scheduled cron jobs. Use this tool to create, list, modify, and execute scheduled tasks. Supported commands: add (create job), list/ls (list jobs), rm/remove (delete job), enable (enable job), disable (disable job), run (execute job immediately), status (show service status), runs (show run history).",
+			"Manage goclaw's built-in cron/scheduler service. This is the ONLY WAY to manage scheduled tasks in goclaw. DO NOT use system 'crontab' commands or any other scheduling methods. All scheduled task operations (create, list, view, edit, delete, enable, disable, run) MUST be done through this tool. Supported commands: add (create job), list/ls (list all jobs), rm/remove (delete job), enable (enable job), disable (disable job), run (execute job immediately), status (show service status), runs (show run history).",
 			map[string]interface{}{
 				"type": "object",
 				"properties": map[string]interface{}{
 					"command": map[string]interface{}{
 						"type":        "string",
-						"description": "Cron command to execute. Examples: 'add --name \"daily backup\" --every \"1d\" --message \"run backup.sh\"', 'list', 'rm job-abc123', 'enable job-abc123', 'run job-abc123 --force', 'status', 'runs job-abc123'",
+						"description": "Cron command to execute. Examples: 'add --name \"daily backup\" --every \"1d\" --message \"run backup.sh\"', 'add --name \"daily check\" --cron \"0 8,20 * * *\" --message \"check GitHub issues\"', 'list' (view all jobs), 'rm job-abc123' (delete), 'enable job-abc123', 'disable job-abc123', 'run job-abc123 --force', 'status', 'runs job-abc123'",
 					},
 				},
 				"required": []string{"command"},
@@ -407,4 +442,55 @@ func formatTimePtr(t *time.Time) string {
 		return "-"
 	}
 	return t.Format(time.RFC3339)
+}
+
+// parseCommandArgs parses a command string with support for quoted arguments
+// This handles shell-style quoting to preserve spaces within quoted strings
+func parseCommandArgs(command string) ([]string, error) {
+	var args []string
+	var current strings.Builder
+	inQuote := false
+	quoteChar := rune(0)
+
+	for i, ch := range command {
+		switch {
+		case ch == '"' || ch == '\'':
+			if !inQuote {
+				// Start of quoted section
+				inQuote = true
+				quoteChar = ch
+			} else if ch == quoteChar {
+				// End of quoted section
+				inQuote = false
+				quoteChar = 0
+			} else {
+				// Different quote character inside quotes
+				current.WriteRune(ch)
+			}
+		case ch == ' ' || ch == '\t':
+			if inQuote {
+				// Space inside quotes - preserve it
+				current.WriteRune(ch)
+			} else if current.Len() > 0 {
+				// Space outside quotes - end of argument
+				args = append(args, current.String())
+				current.Reset()
+			}
+		default:
+			current.WriteRune(ch)
+		}
+		_ = i // avoid unused variable warning
+	}
+
+	// Add final argument if any
+	if current.Len() > 0 {
+		args = append(args, current.String())
+	}
+
+	// Check for unclosed quote
+	if inQuote {
+		return nil, fmt.Errorf("unclosed quote in command")
+	}
+
+	return args, nil
 }

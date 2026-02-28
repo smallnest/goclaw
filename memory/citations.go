@@ -37,27 +37,6 @@ func formatCitation(ve *VectorEmbedding) string {
 	return strings.Join(parts, "#")
 }
 
-// formatSnippetWithCitation appends citation to a snippet
-func formatSnippetWithCitation(snippet string, ve *VectorEmbedding) string {
-	citation := formatCitation(ve)
-	if citation == "" {
-		return snippet
-	}
-	return fmt.Sprintf("%s\n\nSource: %s", snippet, citation)
-}
-
-// formatResultsWithCitations adds citations to search results
-func formatResultsWithCitations(results []*SearchResult) []*SearchResult {
-	for _, r := range results {
-		r.Citation = formatCitation(&r.VectorEmbedding)
-		// Update snippet to include citation
-		if r.Text != "" && r.Citation != "" {
-			r.Text = fmt.Sprintf("%s\n\nSource: %s", r.Text, r.Citation)
-		}
-	}
-	return results
-}
-
 // FormatCitationForDisplay formats citation for display in responses
 // Returns empty string if citations should be hidden
 func FormatCitationForDisplay(ve *VectorEmbedding, mode CitationsMode, isGroupChat bool) string {

@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"time"
 
 	"github.com/smallnest/goclaw/internal/logger"
 	"github.com/tmc/langchaingo/llms"
@@ -16,10 +18,16 @@ type OpenAIProvider struct {
 	llm       *openai.LLM
 	model     string
 	maxTokens int
+	timeout   time.Duration
 }
 
 // NewOpenAIProvider 创建 OpenAI 提供商
 func NewOpenAIProvider(apiKey, baseURL, model string, maxTokens int) (*OpenAIProvider, error) {
+	return NewOpenAIProviderWithTimeout(apiKey, baseURL, model, maxTokens, 0)
+}
+
+// NewOpenAIProviderWithTimeout 创建带超时的 OpenAI 提供商
+func NewOpenAIProviderWithTimeout(apiKey, baseURL, model string, maxTokens int, timeout time.Duration) (*OpenAIProvider, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("API key is required")
 	}
@@ -37,6 +45,16 @@ func NewOpenAIProvider(apiKey, baseURL, model string, maxTokens int) (*OpenAIPro
 		opts = append(opts, openai.WithBaseURL(baseURL))
 	}
 
+	// 设置超时
+	if timeout > 0 {
+		httpClient := &http.Client{
+			Timeout: timeout,
+		}
+		opts = append(opts, openai.WithHTTPClient(httpClient))
+		logger.Info("OpenAI provider configured with timeout",
+			zap.Duration("timeout", timeout))
+	}
+
 	llm, err := openai.New(opts...)
 	if err != nil {
 		return nil, err
@@ -46,6 +64,7 @@ func NewOpenAIProvider(apiKey, baseURL, model string, maxTokens int) (*OpenAIPro
 		llm:       llm,
 		model:     model,
 		maxTokens: maxTokens,
+		timeout:   timeout,
 	}, nil
 }
 

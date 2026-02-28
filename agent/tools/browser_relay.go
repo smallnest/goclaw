@@ -15,11 +15,10 @@ import (
 // RelayClient OpenClaw Browser Relay 客户端
 // OpenClaw 使用 WebSocket + JSON 文本帧协议进行通信
 type RelayClient struct {
-	mu             sync.RWMutex
-	conn           *websocket.Conn
-	url            string
-	connected      bool
-	requestID      int64
+	mu              sync.RWMutex
+	conn            *websocket.Conn
+	url             string
+	connected       bool
 	pendingRequests map[string]chan *RelayResponse
 }
 
@@ -53,7 +52,7 @@ func NewRelayClient(url string) *RelayClient {
 		url = "ws://127.0.0.1:18789"
 	}
 	return &RelayClient{
-		url:            url,
+		url:             url,
 		pendingRequests: make(map[string]chan *RelayResponse),
 	}
 }

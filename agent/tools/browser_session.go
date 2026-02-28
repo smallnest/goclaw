@@ -36,9 +36,9 @@ type BrowserSessionManager struct {
 	ready          bool
 	chromePath     string
 	userDataDir    string
-	remoteURL      string          // 远程 Chrome 实例 URL
-	connectionMode ConnectionMode  // 连接模式
-	relayURL       string          // OpenClaw Relay URL
+	remoteURL      string               // 远程 Chrome 实例 URL
+	connectionMode ConnectionMode       // 连接模式
+	relayURL       string               // OpenClaw Relay URL
 	relaySession   *RelaySessionManager // Relay 会话
 }
 

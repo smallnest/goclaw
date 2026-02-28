@@ -13,9 +13,9 @@ import (
 
 // JobExecutor handles execution of cron jobs
 type JobExecutor struct {
-	bus        *bus.MessageBus
-	runLogger  *RunLogger
-	timeout    time.Duration
+	bus       *bus.MessageBus
+	runLogger *RunLogger
+	timeout   time.Duration
 }
 
 // NewJobExecutor creates a new job executor
@@ -138,10 +138,10 @@ func (e *JobExecutor) executeSystemEvent(ctx context.Context, job *Job) error {
 		SenderID: job.ID,
 		Content:  job.Payload.SystemEventType,
 		Metadata: map[string]interface{}{
-			"job_id":         job.ID,
-			"job_name":       job.Name,
-			"scheduled":      true,
-			"event_type":     job.Payload.SystemEventType,
+			"job_id":          job.ID,
+			"job_name":        job.Name,
+			"scheduled":       true,
+			"event_type":      job.Payload.SystemEventType,
 			"is_system_event": true,
 		},
 		Timestamp: time.Now(),
@@ -194,13 +194,13 @@ func (e *JobExecutor) deliverAnnounce(ctx context.Context, job *Job, runLog *Run
 	}
 
 	msg := &bus.OutboundMessage{
-		ChatID:   job.ID, // Use job ID as chat ID for announce
-		Content:  content,
+		ChatID:  job.ID, // Use job ID as chat ID for announce
+		Content: content,
 		Metadata: map[string]interface{}{
-			"job_id":    job.ID,
-			"run_id":    runLog.RunID,
-			"status":    runLog.Status,
-			"duration":  runLog.Duration.String(),
+			"job_id":   job.ID,
+			"run_id":   runLog.RunID,
+			"status":   runLog.Status,
+			"duration": runLog.Duration.String(),
 		},
 	}
 

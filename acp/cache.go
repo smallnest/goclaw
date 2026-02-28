@@ -9,22 +9,21 @@ import (
 
 // RuntimeCache caches active runtime handles.
 type RuntimeCache struct {
-	mu     sync.RWMutex
-	states map[string]*CachedRuntimeState
-	evictedTotal int
+	mu            sync.RWMutex
+	states        map[string]*CachedRuntimeState
+	evictedTotal  int
 	lastEvictedAt *int64
 }
 
 // CachedRuntimeState represents a cached runtime state.
 type CachedRuntimeState struct {
-	runtime runtime.AcpRuntime
-	handle  runtime.AcpRuntimeHandle
-	backend string
-	agent   string
-	mode    runtime.AcpRuntimeSessionMode
-	cwd     string
+	runtime       runtime.AcpRuntime
+	handle        runtime.AcpRuntimeHandle
+	backend       string
+	agent         string
+	mode          runtime.AcpRuntimeSessionMode
+	cwd           string
 	lastTouchedAt time.Time
-	appliedControlSignature string
 }
 
 // NewRuntimeCache creates a new runtime cache.
@@ -101,9 +100,9 @@ func (c *RuntimeCache) GetLastTouchedAt(sessionKey string) time.Time {
 
 // IdleCandidate represents a candidate for idle eviction.
 type IdleCandidate struct {
-	SessionKey   string
+	SessionKey    string
 	LastTouchedAt time.Time
-	Handle      *runtime.AcpRuntimeHandle
+	Handle        *runtime.AcpRuntimeHandle
 }
 
 // CollectIdleCandidates collects sessions that have been idle longer than maxIdleMs.
@@ -116,9 +115,9 @@ func (c *RuntimeCache) CollectIdleCandidates(maxIdle time.Duration, now time.Tim
 		idleTime := now.Sub(state.lastTouchedAt)
 		if idleTime >= maxIdle {
 			candidates = append(candidates, IdleCandidate{
-				SessionKey:   sessionKey,
+				SessionKey:    sessionKey,
 				LastTouchedAt: state.lastTouchedAt,
-				Handle:      &state.handle,
+				Handle:        &state.handle,
 			})
 		}
 	}

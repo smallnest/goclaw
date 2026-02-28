@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"time"
 
 	"github.com/smallnest/goclaw/internal/logger"
 	"github.com/tmc/langchaingo/llms"
@@ -16,10 +18,16 @@ type OpenRouterProvider struct {
 	llm       llms.Model
 	model     string
 	maxTokens int
+	timeout   time.Duration
 }
 
 // NewOpenRouterProvider 创建 OpenRouter 提供商
 func NewOpenRouterProvider(apiKey, baseURL, model string, maxTokens int) (*OpenRouterProvider, error) {
+	return NewOpenRouterProviderWithTimeout(apiKey, baseURL, model, maxTokens, 0)
+}
+
+// NewOpenRouterProviderWithTimeout 创建带超时的 OpenRouter 提供商
+func NewOpenRouterProviderWithTimeout(apiKey, baseURL, model string, maxTokens int, timeout time.Duration) (*OpenRouterProvider, error) {
 	if apiKey == "" {
 		return nil, fmt.Errorf("API key is required")
 	}
@@ -32,11 +40,23 @@ func NewOpenRouterProvider(apiKey, baseURL, model string, maxTokens int) (*OpenR
 		baseURL = "https://openrouter.ai/api/v1"
 	}
 
-	llm, err := openai.New(
+	opts := []openai.Option{
 		openai.WithToken(apiKey),
 		openai.WithModel(model),
 		openai.WithBaseURL(baseURL),
-	)
+	}
+
+	// 设置超时
+	if timeout > 0 {
+		httpClient := &http.Client{
+			Timeout: timeout,
+		}
+		opts = append(opts, openai.WithHTTPClient(httpClient))
+		logger.Info("OpenRouter provider configured with timeout",
+			zap.Duration("timeout", timeout))
+	}
+
+	llm, err := openai.New(opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -45,6 +65,7 @@ func NewOpenRouterProvider(apiKey, baseURL, model string, maxTokens int) (*OpenR
 		llm:       llm,
 		model:     model,
 		maxTokens: maxTokens,
+		timeout:   timeout,
 	}, nil
 }
 

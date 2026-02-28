@@ -140,7 +140,7 @@
     },
     "cron": {
       "enabled": true,
-      "store_path": ""
+      "store_path": "~/.goclaw/cron/jobs.json"
     }
   },
   "memory": {

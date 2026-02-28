@@ -12,7 +12,7 @@ import (
 func TestRegisterAcpRuntimeBackend(t *testing.T) {
 	// Create a mock backend
 	mockBackend := &AcpRuntimeBackend{
-		ID: "test-backend",
+		ID:      "test-backend",
 		Runtime: &mockRuntime{},
 		Healthy: func() bool {
 			return true

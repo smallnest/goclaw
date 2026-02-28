@@ -71,5 +71,5 @@ func TestExecuteJobRejectsConcurrentRun(t *testing.T) {
 		t.Fatalf("expected concurrent execution rejection")
 	}
 
-	_ = <-firstDone
+	<-firstDone
 }

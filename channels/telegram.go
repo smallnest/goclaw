@@ -24,8 +24,8 @@ type TelegramChannel struct {
 // TelegramConfig Telegram 配置
 type TelegramConfig struct {
 	BaseChannelConfig
-	Token             string                       `mapstructure:"token" json:"token"`
-	InlineButtonsScope string                       `mapstructure:"inline_buttons_scope" json:"inline_buttons_scope"`
+	Token              string `mapstructure:"token" json:"token"`
+	InlineButtonsScope string `mapstructure:"inline_buttons_scope" json:"inline_buttons_scope"`
 }
 
 // TelegramInlineButtonsScope controls inline button availability
@@ -56,7 +56,7 @@ func NewTelegramChannel(accountID string, cfg TelegramConfig, bus *bus.MessageBu
 	}
 
 	// Parse inline buttons scope
-	inlineScope := TelegramInlineButtonsOff
+	var inlineScope TelegramInlineButtonsScope
 	switch strings.ToLower(strings.TrimSpace(cfg.InlineButtonsScope)) {
 	case "dm":
 		inlineScope = TelegramInlineButtonsDM
@@ -71,7 +71,7 @@ func NewTelegramChannel(accountID string, cfg TelegramConfig, bus *bus.MessageBu
 	}
 
 	return &TelegramChannel{
-		BaseChannelImpl:   NewBaseChannelImpl("telegram", accountID, cfg.BaseChannelConfig, bus),
+		BaseChannelImpl:    NewBaseChannelImpl("telegram", accountID, cfg.BaseChannelConfig, bus),
 		bot:                bot,
 		token:              cfg.Token,
 		inlineButtonsScope: inlineScope,
@@ -450,7 +450,7 @@ func (c *TelegramChannel) EditMessageReplyMarkup(
 func (c *TelegramChannel) AnswerCallbackQuery(
 	callbackQueryID string,
 	text string,
- showAlert bool,
+	showAlert bool,
 ) error {
 	if !c.IsRunning() {
 		return fmt.Errorf("telegram channel is not running")

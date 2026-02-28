@@ -163,7 +163,7 @@ func (t *SpawnAcpTool) Execute(ctx context.Context, params map[string]any, onUpd
 	var message string
 	switch result.Status {
 	case "accepted":
-		message = fmt.Sprintf("✅ ACP session spawned successfully\n\n")
+		message = "✅ ACP session spawned successfully\n\n"
 		if result.Note != "" {
 			message += fmt.Sprintf("**Note:** %s\n\n", result.Note)
 		}
@@ -183,12 +183,12 @@ func (t *SpawnAcpTool) Execute(ctx context.Context, params map[string]any, onUpd
 
 	// Format result as JSON for machine readability
 	resultJSON, _ := json.Marshal(map[string]any{
-		"status":           result.Status,
+		"status":            result.Status,
 		"child_session_key": result.ChildSessionKey,
-		"run_id":           result.RunID,
-		"mode":             string(result.Mode),
-		"note":             result.Note,
-		"error":            result.Error,
+		"run_id":            result.RunID,
+		"mode":              string(result.Mode),
+		"note":              result.Note,
+		"error":             result.Error,
 	})
 
 	// Build content blocks
@@ -205,13 +205,13 @@ func (t *SpawnAcpTool) Execute(ctx context.Context, params map[string]any, onUpd
 	agentResult := ToolResult{
 		Content: content,
 		Details: map[string]any{
-			"status":           result.Status,
+			"status":            result.Status,
 			"child_session_key": result.ChildSessionKey,
-			"run_id":           result.RunID,
-			"mode":             string(result.Mode),
-			"note":             result.Note,
-			"raw_error":        result.Error,
-			"json":             string(resultJSON),
+			"run_id":            result.RunID,
+			"mode":              string(result.Mode),
+			"note":              result.Note,
+			"raw_error":         result.Error,
+			"json":              string(resultJSON),
 		},
 		Error: toolErr,
 	}

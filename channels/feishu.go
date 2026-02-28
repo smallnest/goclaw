@@ -351,15 +351,11 @@ func (c *FeishuChannel) handleMessageReceived(ctx context.Context, event *larkim
 			zap.String("message_id", messageID),
 			zap.Error(err))
 		// 清除 typing indicator
-		c.removeTypingIndicator(messageID)
+		if err := c.removeTypingIndicator(messageID); err != nil {
+			logger.Debug("failed to remove typing indicator", zap.Error(err))
+		}
 		return
 	}
-}
-
-// extractMessageContent 从消息中提取文本内容
-func (c *FeishuChannel) extractMessageContent(msg *larkim.EventMessage) string {
-	content, _ := c.extractMessageContentAndMedia(msg)
-	return content
 }
 
 // extractMessageContentAndMedia 从消息中提取文本内容和媒体文件

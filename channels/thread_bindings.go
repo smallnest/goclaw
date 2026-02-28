@@ -119,41 +119,6 @@ func (s *ThreadBindingService) loadFromStorage() {
 	}
 }
 
-// saveToStorage saves the current state to persistent storage.
-func (s *ThreadBindingService) saveToStorage() error {
-	if s.storage == nil {
-		return nil
-	}
-
-	// Convert bindings map to slice
-	bindings := make([]*ThreadBindingRecord, 0, len(s.bindings))
-	for _, record := range s.bindings {
-		bindings = append(bindings, record)
-	}
-
-	// Save all bindings
-	dataDir := ""
-	if s.cfg != nil {
-		dataDir = s.cfg.Workspace.Path
-	}
-	storage, err := NewJSONFileStorage(dataDir)
-	if err != nil {
-		return err
-	}
-
-	// Write directly to avoid circular calls
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	for _, record := range bindings {
-		if err := storage.Save(record); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 // GetCapabilities returns the thread binding capabilities for a channel/account.
 func (s *ThreadBindingService) GetCapabilities(channel, accountID string) ThreadBindingCapabilities {
 	// Default capabilities - in a real implementation, this would check
@@ -210,10 +175,7 @@ func (s *ThreadBindingService) Bind(input BindInput) (*ThreadBindingRecord, erro
 
 	// Persist to storage
 	if s.storage != nil {
-		if err := s.storage.Save(record); err != nil {
-			// Log error but don't fail the operation
-			// Storage failure shouldn't prevent binding
-		}
+		_ = s.storage.Save(record)
 	}
 
 	return record, nil
@@ -249,9 +211,7 @@ func (s *ThreadBindingService) Unbind(bindingID string) error {
 
 	// Delete from persistent storage
 	if s.storage != nil {
-		if err := s.storage.Delete(bindingID); err != nil {
-			// Log error but don't fail the operation
-		}
+		_ = s.storage.Delete(bindingID)
 	}
 
 	return nil
@@ -388,7 +348,7 @@ func ResolveThreadBindingThreadName(agentID, label string) string {
 
 // ResolveThreadBindingIntroText generates intro text for a thread binding.
 func ResolveThreadBindingIntroText(agentID, label string, idleTimeoutMs, maxAgeMs int, sessionCwd string, sessionDetails []string) string {
-	intro := fmt.Sprintf("📌 **Thread-bound ACP session created**\n\n")
+	intro := "📌 **Thread-bound ACP session created**\n\n"
 	intro += fmt.Sprintf("**Agent:** %s\n", agentID)
 	if label != "" {
 		intro += fmt.Sprintf("**Label:** %s\n", label)
@@ -396,11 +356,11 @@ func ResolveThreadBindingIntroText(agentID, label string, idleTimeoutMs, maxAgeM
 	if sessionCwd != "" {
 		intro += fmt.Sprintf("**Working Directory:** `%s`\n", sessionCwd)
 	}
-	intro += fmt.Sprintf("\n**Session Settings:**\n")
+	intro += "\n**Session Settings:**\n"
 	intro += fmt.Sprintf("- Idle timeout: %s\n", formatDuration(idleTimeoutMs))
 	intro += fmt.Sprintf("- Max age: %s\n", formatDuration(maxAgeMs))
 	if len(sessionDetails) > 0 {
-		intro += fmt.Sprintf("\n**Details:**\n")
+		intro += "\n**Details:**\n"
 		for _, detail := range sessionDetails {
 			intro += fmt.Sprintf("- %s\n", detail)
 		}

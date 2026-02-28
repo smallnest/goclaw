@@ -9,7 +9,7 @@ import (
 
 // SessionIdentity tracks the identity of an ACP session from the runtime.
 type SessionIdentity struct {
-	State            string `json:"state"` // "pending" or "resolved"
+	State            string `json:"state"`  // "pending" or "resolved"
 	Source           string `json:"source"` // "ensure" or "status"
 	LastUpdatedAt    int64  `json:"last_updated_at"`
 	BackendSessionID string `json:"backend_session_id,omitempty"`

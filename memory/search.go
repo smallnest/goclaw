@@ -9,11 +9,11 @@ import (
 
 // MemoryManager manages memory storage and retrieval with LRU caching
 type MemoryManager struct {
-	store        Store
-	provider     EmbeddingProvider
-	mu           sync.RWMutex
-	cache        *LRUCache
-	initialized  bool
+	store       Store
+	provider    EmbeddingProvider
+	mu          sync.RWMutex
+	cache       *LRUCache
+	initialized bool
 }
 
 // ManagerConfig configures the memory manager
@@ -372,8 +372,8 @@ func (m *MemoryManager) GetStats(ctx context.Context) (*MemoryStats, error) {
 
 // MemoryStats contains statistics about the memory store
 type MemoryStats struct {
-	TotalCount int                  `json:"total_count"`
-	CacheSize  int                  `json:"cache_size"`
+	TotalCount int `json:"total_count"`
+	CacheSize  int `json:"cache_size"`
 }
 
 // ClearCache clears the in-memory cache
