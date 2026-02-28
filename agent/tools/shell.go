@@ -225,7 +225,7 @@ func (t *ShellTool) GetTools() []Tool {
 
 	return []Tool{
 		NewBaseTool(
-			"exec",
+			"run_shell",
 			desc.String(),
 			map[string]interface{}{
 				"type": "object",

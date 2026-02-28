@@ -838,7 +838,7 @@ func (r *CommandRegistry) handleTools(args []string) string {
 		toolEntry := fmt.Sprintf("  %-20s  %s", name, desc)
 
 		// 简单分类
-		if strings.Contains(name, "read") || strings.Contains(name, "write") || strings.Contains(name, "exec") || strings.Contains(name, "file") {
+		if strings.Contains(name, "read") || strings.Contains(name, "write") || strings.Contains(name, "exec") || strings.Contains(name, "file") || strings.Contains(name, "shell") {
 			fileTools = append(fileTools, toolEntry)
 		} else if strings.Contains(name, "web") || strings.Contains(name, "search") {
 			webTools = append(webTools, toolEntry)
