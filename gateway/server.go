@@ -32,7 +32,7 @@ var upgrader = websocket.Upgrader{
 
 // Server HTTP 网关服务器
 type Server struct {
-	config        *config.GatewayConfig
+	config        *config.Config
 	wsConfig      *WebSocketConfig
 	bus           *bus.MessageBus
 	channelMgr    *channels.Manager
@@ -46,6 +46,7 @@ type Server struct {
 	connectionsMu sync.RWMutex
 	enableAuth    bool
 	authToken     string
+	acpMgr        interface{} // ACP manager - will be set if ACP is enabled
 }
 
 // WebSocketConfig WebSocket 配置
@@ -67,33 +68,33 @@ type WebSocketConfig struct {
 }
 
 // NewServer 创建网关服务器
-func NewServer(cfg *config.GatewayConfig, messageBus *bus.MessageBus, channelMgr *channels.Manager, sessionMgr *session.Manager, cronSvc *cron.Service) *Server {
+func NewServer(cfg *config.Config, messageBus *bus.MessageBus, channelMgr *channels.Manager, sessionMgr *session.Manager, cronSvc *cron.Service, acpMgr interface{}) *Server {
 	// 从配置文件获取 WebSocket 设置，如果未配置则使用默认值
-	wsPort := cfg.WebSocket.Port
+	wsPort := cfg.Gateway.WebSocket.Port
 	if wsPort == 0 {
 		wsPort = 28789 // 默认端口
 	}
-	wsHost := cfg.WebSocket.Host
+	wsHost := cfg.Gateway.WebSocket.Host
 	if wsHost == "" {
 		wsHost = "0.0.0.0" // 默认监听地址
 	}
-	wsPath := cfg.WebSocket.Path
+	wsPath := cfg.Gateway.WebSocket.Path
 	if wsPath == "" {
 		wsPath = "/ws" // 默认路径
 	}
-	pingInterval := cfg.WebSocket.PingInterval
+	pingInterval := cfg.Gateway.WebSocket.PingInterval
 	if pingInterval == 0 {
 		pingInterval = 30 * time.Second
 	}
-	pongTimeout := cfg.WebSocket.PongTimeout
+	pongTimeout := cfg.Gateway.WebSocket.PongTimeout
 	if pongTimeout == 0 {
 		pongTimeout = 60 * time.Second
 	}
-	readTimeout := cfg.WebSocket.ReadTimeout
+	readTimeout := cfg.Gateway.WebSocket.ReadTimeout
 	if readTimeout == 0 {
 		readTimeout = 60 * time.Second
 	}
-	writeTimeout := cfg.WebSocket.WriteTimeout
+	writeTimeout := cfg.Gateway.WebSocket.WriteTimeout
 	if writeTimeout == 0 {
 		writeTimeout = 10 * time.Second
 	}
@@ -104,8 +105,8 @@ func NewServer(cfg *config.GatewayConfig, messageBus *bus.MessageBus, channelMgr
 			Host:           wsHost,
 			Port:           wsPort,
 			Path:           wsPath,
-			EnableAuth:     cfg.WebSocket.EnableAuth,
-			AuthToken:      cfg.WebSocket.AuthToken,
+			EnableAuth:     cfg.Gateway.WebSocket.EnableAuth,
+			AuthToken:      cfg.Gateway.WebSocket.AuthToken,
 			PingInterval:   pingInterval,
 			PongTimeout:    pongTimeout,
 			ReadTimeout:    readTimeout,
@@ -115,8 +116,9 @@ func NewServer(cfg *config.GatewayConfig, messageBus *bus.MessageBus, channelMgr
 		bus:         messageBus,
 		channelMgr:  channelMgr,
 		sessionMgr:  sessionMgr,
-		handler:     NewHandler(messageBus, sessionMgr, channelMgr, cronSvc),
+		handler:     NewHandler(messageBus, sessionMgr, channelMgr, cronSvc, acpMgr, cfg),
 		connections: make(map[string]*Connection),
+		acpMgr:      acpMgr,
 	}
 }
 
@@ -183,10 +185,10 @@ func (s *Server) startHTTPServer(ctx context.Context) error {
 
 	// 创建 HTTP 服务器
 	s.server = &http.Server{
-		Addr:         fmt.Sprintf("%s:%d", s.config.Host, s.config.Port),
+		Addr:         fmt.Sprintf("%s:%d", s.config.Gateway.Host, s.config.Gateway.Port),
 		Handler:      mux,
-		ReadTimeout:  time.Duration(s.config.ReadTimeout) * time.Second,
-		WriteTimeout: time.Duration(s.config.WriteTimeout) * time.Second,
+		ReadTimeout:  time.Duration(s.config.Gateway.ReadTimeout) * time.Second,
+		WriteTimeout: time.Duration(s.config.Gateway.WriteTimeout) * time.Second,
 	}
 
 	// 启动服务器

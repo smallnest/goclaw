@@ -8,6 +8,7 @@ import (
 
 	"github.com/smallnest/goclaw/bus"
 	"github.com/smallnest/goclaw/channels"
+	"github.com/smallnest/goclaw/config"
 	"github.com/smallnest/goclaw/cron"
 	"github.com/smallnest/goclaw/internal/logger"
 	"github.com/smallnest/goclaw/session"
@@ -21,16 +22,20 @@ type Handler struct {
 	sessionMgr *session.Manager
 	channelMgr *channels.Manager
 	cronSvc    *cron.Service
+	acpMgr     interface{} // ACP manager - will be set if ACP is enabled
+	cfg        *config.Config
 }
 
 // NewHandler 创建处理器
-func NewHandler(messageBus *bus.MessageBus, sessionMgr *session.Manager, channelMgr *channels.Manager, cronSvc *cron.Service) *Handler {
+func NewHandler(messageBus *bus.MessageBus, sessionMgr *session.Manager, channelMgr *channels.Manager, cronSvc *cron.Service, acpMgr interface{}, cfg *config.Config) *Handler {
 	h := &Handler{
 		registry:   NewMethodRegistry(),
 		bus:        messageBus,
 		sessionMgr: sessionMgr,
 		channelMgr: channelMgr,
 		cronSvc:    cronSvc,
+		acpMgr:     acpMgr,
+		cfg:        cfg,
 	}
 
 	// 注册系统方法
@@ -47,6 +52,9 @@ func NewHandler(messageBus *bus.MessageBus, sessionMgr *session.Manager, channel
 
 	// 注册 Cron 方法
 	h.registerCronMethods()
+
+	// 注册 ACP 方法
+	h.registerAcpMethods()
 
 	return h
 }
@@ -562,9 +570,12 @@ func (h *Handler) registerCronMethods() {
 			return nil, fmt.Errorf("id parameter is required")
 		}
 
-		modeStr := "force"
+		modeStr := "normal"
 		if m, ok := params["mode"].(string); ok {
 			modeStr = m
+		}
+		if modeStr != "normal" && modeStr != "force" {
+			return nil, fmt.Errorf("invalid mode: %s (expected normal or force)", modeStr)
 		}
 
 		var force bool

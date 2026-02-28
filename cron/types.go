@@ -2,6 +2,7 @@ package cron
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 )
 
@@ -43,25 +44,25 @@ const (
 
 // Delivery configuration
 type Delivery struct {
-	Mode       DeliveryMode `json:"mode"`
-	WebhookURL string       `json:"webhook_url,omitempty"`
-	WebhookToken string     `json:"webhook_token,omitempty"`
-	BestEffort bool         `json:"best_effort,omitempty"` // Don't fail job on delivery error
+	Mode         DeliveryMode `json:"mode"`
+	WebhookURL   string       `json:"webhook_url,omitempty"`
+	WebhookToken string       `json:"webhook_token,omitempty"`
+	BestEffort   bool         `json:"best_effort,omitempty"` // Don't fail job on delivery error
 }
 
 // SessionTarget defines where the job runs
 type SessionTarget string
 
 const (
-	SessionTargetMain      SessionTarget = "main"      // Run in main session
-	SessionTargetIsolated  SessionTarget = "isolated"  // Run in dedicated isolated session
+	SessionTargetMain     SessionTarget = "main"     // Run in main session
+	SessionTargetIsolated SessionTarget = "isolated" // Run in dedicated isolated session
 )
 
 // WakeMode defines when to wake up for scheduled jobs
 type WakeMode string
 
 const (
-	WakeModeNow         WakeMode = "now"           // Wake immediately
+	WakeModeNow           WakeMode = "now"            // Wake immediately
 	WakeModeNextHeartbeat WakeMode = "next-heartbeat" // Wake on next heartbeat
 )
 
@@ -86,29 +87,29 @@ type Payload struct {
 
 // JobState represents the current state of a job
 type JobState struct {
-	Enabled          bool       `json:"enabled"`
-	RunningAt        *time.Time `json:"running_at,omitempty"`         // Set when job is running
-	LastRunAt        *time.Time `json:"last_run_at,omitempty"`         // Last successful run
-	NextRunAt        *time.Time `json:"next_run_at,omitempty"`         // Next scheduled run
-	ConsecutiveErrors int       `json:"consecutive_errors"`            // Count of consecutive errors
-	RunCount         int        `json:"run_count"`                     // Total successful runs
+	Enabled           bool       `json:"enabled"`
+	RunningAt         *time.Time `json:"running_at,omitempty"`          // Set when job is running
+	LastRunAt         *time.Time `json:"last_run_at,omitempty"`         // Last successful run
+	NextRunAt         *time.Time `json:"next_run_at,omitempty"`         // Next scheduled run
+	ConsecutiveErrors int        `json:"consecutive_errors"`            // Count of consecutive errors
+	RunCount          int        `json:"run_count"`                     // Total successful runs
 	ErrorBackoffUntil *time.Time `json:"error_backoff_until,omitempty"` // Backoff for failed jobs
-	LastStatus       string     `json:"last_status"`                   // Last run status: "ok", "error", "skipped"
-	LastError        string     `json:"last_error,omitempty"`          // Last error message
+	LastStatus        string     `json:"last_status"`                   // Last run status: "ok", "error", "skipped"
+	LastError         string     `json:"last_error,omitempty"`          // Last error message
 }
 
 // Job represents a scheduled cron job
 type Job struct {
-	ID            string      `json:"id"`
-	Name          string      `json:"name"`
-	Schedule      Schedule    `json:"schedule"`
+	ID            string        `json:"id"`
+	Name          string        `json:"name"`
+	Schedule      Schedule      `json:"schedule"`
 	SessionTarget SessionTarget `json:"session_target"`
-	WakeMode      WakeMode    `json:"wake_mode"`
-	Payload       Payload     `json:"payload"`
-	Delivery      *Delivery   `json:"delivery,omitempty"`
-	State         JobState    `json:"state"`
-	CreatedAt     time.Time   `json:"created_at"`
-	UpdatedAt     time.Time   `json:"updated_at"`
+	WakeMode      WakeMode      `json:"wake_mode"`
+	Payload       Payload       `json:"payload"`
+	Delivery      *Delivery     `json:"delivery,omitempty"`
+	State         JobState      `json:"state"`
+	CreatedAt     time.Time     `json:"created_at"`
+	UpdatedAt     time.Time     `json:"updated_at"`
 }
 
 // IsRunning checks if the job is currently running
@@ -176,17 +177,29 @@ func (j *Job) CalculateNextRun(from time.Time) (time.Time, error) {
 		// One-shot jobs don't have next runs
 		next = time.Time{}
 	case ScheduleTypeEvery:
+		if j.Schedule.EveryDuration <= 0 {
+			return time.Time{}, fmt.Errorf("invalid every schedule: duration must be > 0")
+		}
 		next = from.Add(j.Schedule.EveryDuration)
 	case ScheduleTypeCron:
+		if j.Schedule.CronExpression == "" {
+			return time.Time{}, fmt.Errorf("invalid cron schedule: cron_expression is empty")
+		}
 		next, err = parseCronExpression(j.Schedule.CronExpression, from)
 		if err != nil {
 			return time.Time{}, err
 		}
+	default:
+		return time.Time{}, fmt.Errorf("invalid schedule type: %s", j.Schedule.Type)
 	}
 
 	// Apply stagger if configured
 	if j.Schedule.StaggerDuration > 0 && !next.IsZero() {
 		next = next.Add(j.Schedule.StaggerDuration)
+	}
+
+	if !next.IsZero() && !next.After(from) {
+		return time.Time{}, fmt.Errorf("calculated next run (%s) is not after current time (%s)", next.Format(time.RFC3339), from.Format(time.RFC3339))
 	}
 
 	// Only set NextRunAt if we found a valid time
@@ -235,43 +248,43 @@ func GetBackoffDelay(consecutiveErrors int) time.Duration {
 
 // RunLog represents a single run of a job
 type RunLog struct {
-	RunID       string                 `json:"run_id"`
-	JobID       string                 `json:"job_id"`
-	JobName     string                 `json:"job_name"`
-	StartedAt   time.Time              `json:"started_at"`
-	FinishedAt  time.Time              `json:"finished_at"`
-	Status      string                 `json:"status"` // "ok", "error", "skipped"
-	Error       string                 `json:"error,omitempty"`
-	Duration    time.Duration          `json:"duration"`
-	Metadata    map[string]interface{} `json:"metadata,omitempty"`
+	RunID      string                 `json:"run_id"`
+	JobID      string                 `json:"job_id"`
+	JobName    string                 `json:"job_name"`
+	StartedAt  time.Time              `json:"started_at"`
+	FinishedAt time.Time              `json:"finished_at"`
+	Status     string                 `json:"status"` // "ok", "error", "skipped"
+	Error      string                 `json:"error,omitempty"`
+	Duration   time.Duration          `json:"duration"`
+	Metadata   map[string]interface{} `json:"metadata,omitempty"`
 	// Additional telemetry
-	Timestamp   time.Time              `json:"timestamp"`
+	Timestamp time.Time `json:"timestamp"`
 }
 
 // RunLogFilter defines filters for querying run logs
 type RunLogFilter struct {
-	JobID   string    `json:"job_id,omitempty"`
-	After   time.Time `json:"after,omitempty"`
-	Before  time.Time `json:"before,omitempty"`
-	Status  string    `json:"status,omitempty"`
-	Limit   int       `json:"limit,omitempty"`
-	Offset  int       `json:"offset,omitempty"`
+	JobID  string    `json:"job_id,omitempty"`
+	After  time.Time `json:"after,omitempty"`
+	Before time.Time `json:"before,omitempty"`
+	Status string    `json:"status,omitempty"`
+	Limit  int       `json:"limit,omitempty"`
+	Offset int       `json:"offset,omitempty"`
 }
 
 // CronConfig represents cron configuration
 type CronConfig struct {
-	Enabled           bool            `json:"enabled"`
-	StorePath         string          `json:"store_path,omitempty"`
-	MaxConcurrentRuns int             `json:"max_concurrent_runs,omitempty"`
-	SessionRetention  time.Duration   `json:"session_retention,omitempty"` // Session cleanup retention
-	RunLogConfig      RunLogConfig    `json:"run_log_config"`
-	DefaultTimeout    time.Duration   `json:"default_timeout"` // Default job timeout
+	Enabled           bool          `json:"enabled"`
+	StorePath         string        `json:"store_path,omitempty"`
+	MaxConcurrentRuns int           `json:"max_concurrent_runs,omitempty"`
+	SessionRetention  time.Duration `json:"session_retention,omitempty"` // Session cleanup retention
+	RunLogConfig      RunLogConfig  `json:"run_log_config"`
+	DefaultTimeout    time.Duration `json:"default_timeout"` // Default job timeout
 }
 
 // RunLogConfig represents run log configuration
 type RunLogConfig struct {
-	MaxBytes int64 `json:"max_bytes,omitempty"` // Max file size before rotation
-	KeepLines int  `json:"keep_lines,omitempty"` // Max lines to keep per job
+	MaxBytes  int64 `json:"max_bytes,omitempty"`  // Max file size before rotation
+	KeepLines int   `json:"keep_lines,omitempty"` // Max lines to keep per job
 }
 
 // DefaultCronConfig returns default cron configuration
@@ -281,7 +294,7 @@ func DefaultCronConfig() CronConfig {
 		MaxConcurrentRuns: 1,
 		SessionRetention:  24 * time.Hour,
 		RunLogConfig: RunLogConfig{
-			MaxBytes: 2 * 1024 * 1024, // 2MB
+			MaxBytes:  2 * 1024 * 1024, // 2MB
 			KeepLines: 2000,
 		},
 		DefaultTimeout: 10 * time.Minute,
@@ -292,9 +305,9 @@ func DefaultCronConfig() CronConfig {
 func (s Schedule) MarshalJSON() ([]byte, error) {
 	type Alias Schedule
 	aux := &struct {
-		EveryDurationMs int64  `json:"every_duration_ms,omitempty"`
-		StaggerDurationMs int64 `json:"stagger_duration_ms,omitempty"`
-		AtISO           string `json:"at_iso,omitempty"`
+		EveryDurationMs   int64  `json:"every_duration_ms,omitempty"`
+		StaggerDurationMs int64  `json:"stagger_duration_ms,omitempty"`
+		AtISO             string `json:"at_iso,omitempty"`
 		*Alias
 	}{
 		Alias: (*Alias)(&s),
@@ -319,9 +332,9 @@ func (s Schedule) MarshalJSON() ([]byte, error) {
 func (s *Schedule) UnmarshalJSON(data []byte) error {
 	type Alias Schedule
 	aux := &struct {
-		EveryDurationMs int64  `json:"every_duration_ms,omitempty"`
-		StaggerDurationMs int64 `json:"stagger_duration_ms,omitempty"`
-		AtISO           string `json:"at_iso,omitempty"`
+		EveryDurationMs   int64  `json:"every_duration_ms,omitempty"`
+		StaggerDurationMs int64  `json:"stagger_duration_ms,omitempty"`
+		AtISO             string `json:"at_iso,omitempty"`
 		*Alias
 	}{
 		Alias: (*Alias)(s),

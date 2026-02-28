@@ -10,8 +10,9 @@ import (
 
 // ParseCronExpression parses a cron expression and returns the next occurrence
 // Supports standard 5-field and optional 6-field (with seconds) formats:
-//   sec min hour dom mon dow
-//   min hour dom mon dow (seconds default to 0)
+//
+//	sec min hour dom mon dow
+//	min hour dom mon dow (seconds default to 0)
 func parseCronExpression(expr string, from time.Time) (time.Time, error) {
 	fields := strings.Fields(expr)
 	if len(fields) < 5 || len(fields) > 6 {
@@ -244,7 +245,8 @@ func beginningOfDay(t time.Time) time.Time {
 
 func nextHour(t time.Time) time.Time {
 	if t.Hour() == 23 {
-		return t.Add(24 * time.Hour)
+		nextDay := t.AddDate(0, 0, 1)
+		return time.Date(nextDay.Year(), nextDay.Month(), nextDay.Day(), 0, 0, 0, 0, t.Location())
 	}
 	return time.Date(t.Year(), t.Month(), t.Day(), t.Hour()+1, 0, 0, 0, t.Location())
 }

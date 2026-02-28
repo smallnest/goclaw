@@ -24,15 +24,15 @@ type Service struct {
 	runLogger *RunLogger
 
 	// Execution control
-	executor   *JobExecutor
-	running    bool
-	stopChan   chan struct{}
-	wg         sync.WaitGroup
+	executor *JobExecutor
+	running  bool
+	stopChan chan struct{}
+	wg       sync.WaitGroup
 
 	// Timer
-	timerMu      sync.Mutex
-	timerArmed   bool
-	timerStop    chan struct{}
+	timerMu    sync.Mutex
+	timerArmed bool
+	timerStop  chan struct{}
 }
 
 // NewService creates a new cron service
@@ -356,12 +356,18 @@ func (s *Service) checkAndRunJobs(ctx context.Context, now time.Time) {
 
 // executeJob executes a single job
 func (s *Service) executeJob(ctx context.Context, job *Job) error {
-	// Mark as running
-	now := time.Now()
-	job.MarkRunning(now)
-
-	// Update state
 	s.jobsMutex.Lock()
+	current, exists := s.jobs[job.ID]
+	if exists {
+		job = current
+	}
+	if job.IsRunning() {
+		s.jobsMutex.Unlock()
+		return fmt.Errorf("job is already running: %s", job.ID)
+	}
+	// Mark as running
+	startedAt := time.Now()
+	job.MarkRunning(startedAt)
 	s.jobs[job.ID] = job
 	s.jobsMutex.Unlock()
 
@@ -370,25 +376,41 @@ func (s *Service) executeJob(ctx context.Context, job *Job) error {
 	runCtx, cancel := context.WithTimeout(ctx, timeout)
 	defer cancel()
 
-	// Execute the job (don't block - runs in executor)
+	// Execute the job
+	execStatus := "ok"
+	execErrMsg := ""
 	if err := s.executor.Execute(runCtx, job); err != nil {
 		logger.Error("Job execution failed",
 			zap.String("job_id", job.ID),
 			zap.Error(err),
 		)
-		// Mark as error
-		job.MarkCompleted(now, "error", err.Error())
-	} else {
-		job.MarkCompleted(now, "ok", "")
+		execStatus = "error"
+		execErrMsg = err.Error()
 	}
 
-	// Calculate next run time
-	nextRun, err := job.CalculateNextRun(now)
-	if err != nil {
+	s.jobsMutex.Lock()
+	// Re-fetch latest pointer before final state mutation.
+	if current, exists := s.jobs[job.ID]; exists {
+		job = current
+	}
+	// Mark completion while holding lock to keep state mutation atomic.
+	job.MarkCompleted(time.Now(), execStatus, execErrMsg)
+	// Ensure running marker is always cleared.
+	job.State.RunningAt = nil
+
+	// Calculate next run time using completion time.
+	calcFrom := time.Now()
+	nextRun, nextErr := job.CalculateNextRun(calcFrom)
+	if nextErr != nil {
 		logger.Error("Failed to calculate next run",
 			zap.String("job_id", job.ID),
-			zap.Error(err),
+			zap.Error(nextErr),
 		)
+		// Avoid runaway retries for malformed schedules.
+		job.State.Enabled = false
+		job.State.NextRunAt = nil
+		job.State.LastStatus = "error"
+		job.State.LastError = fmt.Sprintf("invalid schedule: %v", nextErr)
 	}
 
 	// Disable one-shot jobs after completion
@@ -398,15 +420,12 @@ func (s *Service) executeJob(ctx context.Context, job *Job) error {
 	} else if job.State.LastStatus == "error" && job.State.ConsecutiveErrors > 0 {
 		// Apply exponential backoff
 		backoffDelay := GetBackoffDelay(job.State.ConsecutiveErrors)
-		backoffUntil := now.Add(backoffDelay)
+		backoffUntil := calcFrom.Add(backoffDelay)
 		job.State.ErrorBackoffUntil = &backoffUntil
-		if nextRun.Before(backoffUntil) {
+		if !nextRun.IsZero() && nextRun.Before(backoffUntil) {
 			job.State.NextRunAt = &backoffUntil
 		}
 	}
-
-	// Update state
-	s.jobsMutex.Lock()
 	s.jobs[job.ID] = job
 	s.jobsMutex.Unlock()
 
@@ -476,12 +495,12 @@ func (s *Service) GetStatus() map[string]interface{} {
 	}
 
 	return map[string]interface{}{
-		"running":        s.running,
-		"total_jobs":     len(s.jobs),
-		"enabled_jobs":   enabledCount,
-		"running_jobs":   runningCount,
-		"disabled_jobs":  len(s.jobs) - enabledCount,
-		"config":         s.config,
+		"running":       s.running,
+		"total_jobs":    len(s.jobs),
+		"enabled_jobs":  enabledCount,
+		"running_jobs":  runningCount,
+		"disabled_jobs": len(s.jobs) - enabledCount,
+		"config":        s.config,
 	}
 }
 

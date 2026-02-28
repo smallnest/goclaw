@@ -12,11 +12,20 @@ import (
 	"go.uber.org/zap"
 )
 
+// AcpSessionRouter is an interface for routing messages to ACP sessions.
+// This avoids circular dependency between channels and acp packages.
+type AcpSessionRouter interface {
+	RouteToAcpSession(channel, accountID, conversationID string) string
+	IsACPThreadBinding(channel, accountID, conversationID string) bool
+}
+
 // Manager 通道管理器
 type Manager struct {
-	channels map[string]BaseChannel
-	bus      *bus.MessageBus
-	mu       sync.RWMutex
+	channels            map[string]BaseChannel
+	bus                 *bus.MessageBus
+	mu                  sync.RWMutex
+	threadBindingService *ThreadBindingService
+	acpRouter           AcpSessionRouter
 }
 
 // NewManager 创建通道管理器
@@ -25,6 +34,65 @@ func NewManager(bus *bus.MessageBus) *Manager {
 		channels: make(map[string]BaseChannel),
 		bus:      bus,
 	}
+}
+
+// SetAcpRouter sets the ACP session router for thread-bound routing.
+func (m *Manager) SetAcpRouter(router AcpSessionRouter) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.acpRouter = router
+}
+
+// SetThreadBindingService sets the thread binding service.
+func (m *Manager) SetThreadBindingService(service *ThreadBindingService) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.threadBindingService = service
+}
+
+// RouteToAcpSession checks if there's a thread-bound ACP session for this conversation
+// and returns the ACP session key if found.
+func (m *Manager) RouteToAcpSession(channel, accountID, conversationID string) string {
+	m.mu.RLock()
+	router := m.acpRouter
+	service := m.threadBindingService
+	m.mu.RUnlock()
+
+	if router != nil {
+		if sessionKey := router.RouteToAcpSession(channel, accountID, conversationID); sessionKey != "" {
+			return sessionKey
+		}
+	}
+
+	if service == nil {
+		return ""
+	}
+
+	binding := service.GetByConversation(channel, accountID, conversationID)
+	if binding != nil && binding.TargetKind == "session" {
+		return binding.TargetSessionKey
+	}
+
+	return ""
+}
+
+// IsACPThreadBinding checks if a conversation has an active ACP thread binding.
+func (m *Manager) IsACPThreadBinding(channel, accountID, conversationID string) bool {
+	m.mu.RLock()
+	router := m.acpRouter
+	service := m.threadBindingService
+	m.mu.RUnlock()
+
+	if router != nil && router.IsACPThreadBinding(channel, accountID, conversationID) {
+		return true
+	}
+
+	if service == nil {
+		return false
+	}
+
+	binding := service.GetByConversation(channel, accountID, conversationID)
+	return binding != nil && binding.TargetKind == "session"
 }
 
 // Register 注册通道

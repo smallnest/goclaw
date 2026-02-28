@@ -16,6 +16,7 @@ import (
 	"text/template"
 	"time"
 
+	"github.com/smallnest/goclaw/acp"
 	"github.com/smallnest/goclaw/bus"
 	"github.com/smallnest/goclaw/channels"
 	"github.com/smallnest/goclaw/config"
@@ -187,9 +188,17 @@ func runGateway(cmd *cobra.Command, args []string) {
 		logger.Warn("Failed to setup channels from config", zap.Error(err))
 	}
 
+	// Create ACP manager if enabled
+	var acpMgr interface{}
+	if cfg.ACP.Enabled {
+		// Use the global ACP manager singleton
+		acpMgr = acp.GetOrCreateGlobalManager(cfg)
+		logger.Info("ACP manager created")
+	}
+
 	// Create gateway server
 	// NewServer reads from cfg.Gateway.WebSocket, so we only override if CLI flags are explicitly provided
-	gatewayServer := gateway.NewServer(&cfg.Gateway, messageBus, channelMgr, sessionMgr, nil)
+	gatewayServer := gateway.NewServer(cfg, messageBus, channelMgr, sessionMgr, nil, acpMgr)
 
 	// Only override WebSocket config if CLI flags are explicitly provided
 	// If no CLI flags are set, use config file settings (already loaded by NewServer)

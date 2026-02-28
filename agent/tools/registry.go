@@ -37,6 +37,97 @@ func (r *Registry) Register(tool Tool) error {
 	return nil
 }
 
+// AgentToolInterface defines the interface for agent tools without importing agent package.
+// This avoids circular dependency between agent/tools and agent packages.
+type AgentToolInterface interface {
+	Name() string
+	Description() string
+	Label() string
+	Parameters() map[string]any
+	Execute(ctx context.Context, params map[string]any, onUpdate func(AgentToolResult)) (AgentToolResult, error)
+}
+
+// AgentToolResult represents the result of an agent tool execution.
+type AgentToolResult struct {
+	Content []AgentContentBlock
+	Details map[string]any
+	Error   error
+}
+
+// AgentContentBlock represents a content block from agent tools.
+type AgentContentBlock interface {
+	ContentType() string
+}
+
+// AgentTextContent is a text content block.
+type AgentTextContent struct {
+	Text string
+}
+
+func (a AgentTextContent) ContentType() string { return "text" }
+
+// RegisterAgentTool 注册 agent.Tool 类型的工具（使用接口避免循环导入）
+func (r *Registry) RegisterAgentTool(tool AgentToolInterface) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	name := tool.Name()
+	if _, ok := r.tools[name]; ok {
+		return fmt.Errorf("tool %s already registered", name)
+	}
+
+	// Wrap agent tool as tools.Tool using adapter
+	wrapped := &AgentToolAdapter{tool: tool}
+	r.tools[name] = wrapped
+	logger.Info("Agent tool registered", zap.String("tool", name))
+	return nil
+}
+
+// AgentToolAdapter 将 AgentToolInterface 适配为 tools.Tool
+type AgentToolAdapter struct {
+	tool AgentToolInterface
+}
+
+func (a *AgentToolAdapter) Name() string {
+	return a.tool.Name()
+}
+
+func (a *AgentToolAdapter) Description() string {
+	return a.tool.Description()
+}
+
+func (a *AgentToolAdapter) Parameters() map[string]interface{} {
+	return a.tool.Parameters()
+}
+
+func (a *AgentToolAdapter) Execute(ctx context.Context, params map[string]interface{}) (string, error) {
+	result, err := a.tool.Execute(ctx, params, nil)
+
+	// Convert AgentToolResult to string
+	if err != nil {
+		return "", err
+	}
+
+	// Serialize content blocks
+	var output string
+	for _, block := range result.Content {
+		switch b := block.(type) {
+		case AgentTextContent:
+			output += b.Text
+		default:
+			if block != nil {
+				output += fmt.Sprintf("[%s content]", block.ContentType())
+			}
+		}
+	}
+
+	if output == "" {
+		output = "Tool executed successfully"
+	}
+
+	return output, nil
+}
+
 // Unregister 注销工具
 func (r *Registry) Unregister(name string) {
 	r.mu.Lock()

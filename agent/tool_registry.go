@@ -24,6 +24,13 @@ func (r *ToolRegistry) RegisterExisting(tool tools.Tool) error {
 	return r.registry.Register(tool)
 }
 
+// RegisterAgentTool registers an agent.Tool (with onUpdate callback support)
+func (r *ToolRegistry) RegisterAgentTool(tool Tool) {
+	// Adapt agent.Tool to tools.Tool and register into the shared registry.
+	// Ignore duplicate registration errors to keep startup resilient.
+	_ = r.registry.Register(&reverseToolAdapter{tool: tool})
+}
+
 // Unregister removes a tool
 func (r *ToolRegistry) Unregister(name string) {
 	r.registry.Unregister(name)

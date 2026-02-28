@@ -99,9 +99,9 @@ var (
 	cronRunForce bool // force run even if disabled
 
 	// runs flags
-	cronRunsID   string
+	cronRunsID    string
 	cronRunsLimit int
-	cronRunsJSON bool
+	cronRunsJSON  bool
 )
 
 func init() {
@@ -197,7 +197,7 @@ func runCronList(cmd *cobra.Command, args []string) {
 	}
 
 	data := result.(map[string]interface{})
-	jobs := data["jobs"].([]interface{})
+	jobs, _ := data["jobs"].([]interface{})
 
 	if len(jobs) == 0 {
 		fmt.Println("No jobs found.")
@@ -250,9 +250,9 @@ func runCronAdd(cmd *cobra.Command, args []string) {
 
 	// Build job params
 	params := map[string]interface{}{
-		"name":          cronAddName,
-		"schedule":      schedule,
-		"payload":       payload,
+		"name":           cronAddName,
+		"schedule":       schedule,
+		"payload":        payload,
 		"session_target": cronAddSession,
 	}
 
@@ -403,9 +403,14 @@ func runCronRun(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
+	mode := "normal"
+	if cronRunForce {
+		mode = "force"
+	}
+
 	result, err := callGatewayRPC(cfg, "cron.run", map[string]interface{}{
 		"id":   id,
-		"mode": "force",
+		"mode": mode,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -423,7 +428,13 @@ func runCronRun(cmd *cobra.Command, args []string) {
 func printJob(job map[string]interface{}) {
 	fmt.Printf("ID: %s\n", job["id"])
 	fmt.Printf("Name: %s\n", job["name"])
-	fmt.Printf("Enabled: %v\n", job["state"].(map[string]interface{})["enabled"])
+	enabled := "-"
+	if state, ok := job["state"].(map[string]interface{}); ok {
+		if v, exists := state["enabled"]; exists {
+			enabled = fmt.Sprintf("%v", v)
+		}
+	}
+	fmt.Printf("Enabled: %s\n", enabled)
 	fmt.Printf("Schedule: %s\n", formatScheduleFromMap(job))
 
 	if payload, ok := job["payload"].(map[string]interface{}); ok {
@@ -464,13 +475,50 @@ func formatScheduleFromMap(job map[string]interface{}) string {
 	typ, _ := schedule["type"].(string)
 	switch typ {
 	case "at":
-		return "at " + formatTimeStr(schedule["at"])
+		if at, ok := schedule["at"]; ok && at != nil {
+			return "at " + formatTimeStr(at)
+		}
+		if atISO, ok := schedule["at_iso"]; ok && atISO != nil {
+			return "at " + formatTimeStr(atISO)
+		}
+		return "at <invalid>"
 	case "every":
-		return "every " + schedule["every"].(string)
+		if every, ok := schedule["every"].(string); ok && every != "" {
+			return "every " + every
+		}
+		if everyMs, ok := schedule["every_duration_ms"]; ok && everyMs != nil {
+			if ms, ok := toInt64(everyMs); ok && ms > 0 {
+				return "every " + (time.Duration(ms) * time.Millisecond).String()
+			}
+		}
+		return "every <invalid>"
 	case "cron":
-		return schedule["cron"].(string)
+		if cronExpr, ok := schedule["cron_expression"].(string); ok && cronExpr != "" {
+			return cronExpr
+		}
+		if cronExpr, ok := schedule["cron"].(string); ok && cronExpr != "" {
+			return cronExpr
+		}
+		return "<invalid cron>"
 	default:
 		return "unknown"
+	}
+}
+
+func toInt64(v interface{}) (int64, bool) {
+	switch n := v.(type) {
+	case int:
+		return int64(n), true
+	case int32:
+		return int64(n), true
+	case int64:
+		return n, true
+	case float32:
+		return int64(n), true
+	case float64:
+		return int64(n), true
+	default:
+		return 0, false
 	}
 }
 

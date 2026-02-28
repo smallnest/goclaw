@@ -3,18 +3,26 @@ package agent
 import (
 	"context"
 	"fmt"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/smallnest/goclaw/acp"
+	acpruntime "github.com/smallnest/goclaw/acp/runtime"
 	"github.com/smallnest/goclaw/agent/tools"
 	"github.com/smallnest/goclaw/bus"
+	"github.com/smallnest/goclaw/channels"
 	"github.com/smallnest/goclaw/config"
 	"github.com/smallnest/goclaw/internal/logger"
 	"github.com/smallnest/goclaw/providers"
 	"github.com/smallnest/goclaw/session"
 	"go.uber.org/zap"
 )
+
+var cronJobIDPattern = regexp.MustCompile(`\bjob-[a-zA-Z0-9]+\b`)
+var cronListLinePattern = regexp.MustCompile(`^(job-[a-zA-Z0-9]+)\s+\((enabled|disabled)\)$`)
 
 // AgentManager 管理多个 Agent 实例
 type AgentManager struct {
@@ -30,6 +38,10 @@ type AgentManager struct {
 	contextBuilder *ContextBuilder
 	skillsLoader   *SkillsLoader
 	helper         *AgentHelper
+	channelMgr     *channels.Manager
+	acpManager     *acp.Manager
+	manualCronMu   sync.Mutex
+	manualCronLast map[string]time.Time
 	// 分身支持
 	subagentRegistry  *SubagentRegistry
 	subagentAnnouncer *SubagentAnnouncer
@@ -53,6 +65,8 @@ type NewAgentManagerConfig struct {
 	DataDir        string          // 数据目录，用于存储分身注册表
 	ContextBuilder *ContextBuilder // 上下文构建器
 	SkillsLoader   *SkillsLoader   // 技能加载器
+	ChannelMgr     *channels.Manager
+	AcpManager     *acp.Manager
 }
 
 // NewAgentManager 创建 Agent 管理器
@@ -76,6 +90,9 @@ func NewAgentManager(cfg *NewAgentManagerConfig) *AgentManager {
 		contextBuilder:    cfg.ContextBuilder,
 		skillsLoader:      cfg.SkillsLoader,
 		helper:            NewAgentHelper(cfg.SessionMgr),
+		channelMgr:        cfg.ChannelMgr,
+		acpManager:        cfg.AcpManager,
+		manualCronLast:    make(map[string]time.Time),
 	}
 }
 
@@ -359,15 +376,15 @@ func (m *AgentManager) createAgent(cfg config.AgentConfig, contextBuilder *Conte
 
 	// 创建 Agent
 	agent, err := NewAgent(&NewAgentConfig{
-		Bus:               m.bus,
-		Provider:          m.provider,
-		SessionMgr:        m.sessionMgr,
-		Tools:             m.tools,
-		Context:           contextBuilder,
-		Workspace:         workspace,
-		MaxIteration:      maxIterations,
+		Bus:                m.bus,
+		Provider:           m.provider,
+		SessionMgr:         m.sessionMgr,
+		Tools:              m.tools,
+		Context:            contextBuilder,
+		Workspace:          workspace,
+		MaxIteration:       maxIterations,
 		MaxHistoryMessages: maxHistoryMessages,
-		SkillsLoader:      m.skillsLoader,
+		SkillsLoader:       m.skillsLoader,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to create agent %s: %w", cfg.ID, err)
@@ -454,6 +471,13 @@ func (m *AgentManager) RouteInbound(ctx context.Context, msg *bus.InboundMessage
 
 // handleInboundMessage 处理入站消息
 func (m *AgentManager) handleInboundMessage(ctx context.Context, msg *bus.InboundMessage, agent *Agent) error {
+	if handled, err := m.handleAcpThreadBindingInbound(ctx, msg); handled {
+		return err
+	}
+	if handled, err := m.handleDirectCronOneShot(ctx, msg); handled {
+		return err
+	}
+
 	// 调用 Agent 处理消息（内部逻辑和 agent.go 中的 handleInboundMessage 类似）
 	logger.Debug("Processing inbound message",
 		zap.String("channel", msg.Channel),
@@ -562,6 +586,222 @@ func (m *AgentManager) handleInboundMessage(ctx context.Context, msg *bus.Inboun
 	return nil
 }
 
+func (m *AgentManager) handleDirectCronOneShot(ctx context.Context, msg *bus.InboundMessage) (bool, error) {
+	if msg == nil || m.tools == nil {
+		return false, nil
+	}
+
+	content := strings.TrimSpace(msg.Content)
+	if !isCronOneShotRequest(content) {
+		return false, nil
+	}
+
+	jobID, err := m.resolveCronJobIDForOneShot(ctx, content)
+	if err != nil {
+		m.publishAcpThreadBindingError(ctx, msg, "已识别为一次性测试请求，但未找到可执行任务："+err.Error())
+		return true, nil
+	}
+	if ok, wait := m.allowManualCronRun(jobID, time.Now()); !ok {
+		m.publishAcpThreadBindingError(ctx, msg, fmt.Sprintf("任务 `%s` 刚刚手工触发过，请 %d 秒后再试。", jobID, wait))
+		return true, nil
+	}
+
+	ack := AgentMessage{
+		Role:      RoleAssistant,
+		Content:   []ContentBlock{TextContent{Text: fmt.Sprintf("收到，开始手工执行一次任务 `%s`。", jobID)}},
+		Timestamp: time.Now().UnixMilli(),
+	}
+	m.publishToBus(ctx, msg.Channel, msg.ChatID, ack, msg.ID)
+
+	go func(channel, chatID, replyTo, id string) {
+		runCtx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+		defer cancel()
+		_, runErr := m.tools.Execute(runCtx, "cron", map[string]interface{}{
+			"command": fmt.Sprintf("run %s", id),
+		})
+
+		text := fmt.Sprintf("已手工执行一次任务 `%s`。", id)
+		if runErr != nil {
+			text = fmt.Sprintf("手工执行任务 `%s` 失败：%v", id, runErr)
+		}
+
+		done := AgentMessage{
+			Role:      RoleAssistant,
+			Content:   []ContentBlock{TextContent{Text: text}},
+			Timestamp: time.Now().UnixMilli(),
+		}
+		m.publishToBus(context.Background(), channel, chatID, done, replyTo)
+	}(msg.Channel, msg.ChatID, msg.ID, jobID)
+
+	return true, nil
+}
+
+func (m *AgentManager) allowManualCronRun(jobID string, now time.Time) (bool, int) {
+	const cooldown = 60 * time.Second
+	m.manualCronMu.Lock()
+	defer m.manualCronMu.Unlock()
+
+	if last, ok := m.manualCronLast[jobID]; ok {
+		if delta := now.Sub(last); delta < cooldown {
+			wait := int((cooldown - delta).Round(time.Second).Seconds())
+			if wait < 1 {
+				wait = 1
+			}
+			return false, wait
+		}
+	}
+	m.manualCronLast[jobID] = now
+	return true, 0
+}
+
+func isCronOneShotRequest(text string) bool {
+	if text == "" {
+		return false
+	}
+	normalized := strings.ToLower(strings.TrimSpace(text))
+	if strings.Contains(normalized, "cron run") {
+		return true
+	}
+	keywords := []string{
+		"执行一次定时任务",
+		"只测试一次定时任务",
+		"手工执行一次定时任务",
+		"临时执行一次定时任务",
+		"测试一次定时任务",
+	}
+	for _, kw := range keywords {
+		if strings.Contains(normalized, kw) {
+			return true
+		}
+	}
+	return false
+}
+
+func (m *AgentManager) resolveCronJobIDForOneShot(ctx context.Context, text string) (string, error) {
+	if id := cronJobIDPattern.FindString(text); id != "" {
+		return id, nil
+	}
+
+	listOut, err := m.tools.Execute(ctx, "cron", map[string]interface{}{"command": "list"})
+	if err != nil {
+		return "", fmt.Errorf("获取任务列表失败: %w", err)
+	}
+
+	enabledIDs := extractEnabledCronJobIDs(listOut)
+	switch len(enabledIDs) {
+	case 0:
+		return "", fmt.Errorf("没有启用中的任务")
+	case 1:
+		return enabledIDs[0], nil
+	default:
+		return "", fmt.Errorf("存在多个启用任务，请在消息中指定 job-id")
+	}
+}
+
+func extractEnabledCronJobIDs(listOutput string) []string {
+	lines := strings.Split(listOutput, "\n")
+	ids := make([]string, 0)
+	for _, raw := range lines {
+		line := strings.TrimSpace(raw)
+		if line == "" {
+			continue
+		}
+		matches := cronListLinePattern.FindStringSubmatch(line)
+		if len(matches) != 3 {
+			continue
+		}
+		if matches[2] == "enabled" {
+			ids = append(ids, matches[1])
+		}
+	}
+	return ids
+}
+
+func (m *AgentManager) resolveAcpThreadBindingSession(msg *bus.InboundMessage) string {
+	if m.channelMgr == nil || m.acpManager == nil || msg == nil {
+		return ""
+	}
+	return m.channelMgr.RouteToAcpSession(msg.Channel, msg.AccountID, msg.ChatID)
+}
+
+func (m *AgentManager) handleAcpThreadBindingInbound(ctx context.Context, msg *bus.InboundMessage) (bool, error) {
+	sessionKey := m.resolveAcpThreadBindingSession(msg)
+	if sessionKey == "" {
+		return false, nil
+	}
+
+	go m.runAcpThreadBindingTurn(ctx, sessionKey, msg)
+	return true, nil
+}
+
+func (m *AgentManager) runAcpThreadBindingTurn(ctx context.Context, sessionKey string, msg *bus.InboundMessage) {
+	requestID := msg.ID
+	if requestID == "" {
+		requestID = uuid.NewString()
+	}
+
+	result, err := m.acpManager.RunTrackedTurn(ctx, acp.RunTrackedTurnInput{
+		Cfg:        m.cfg,
+		SessionKey: sessionKey,
+		Text:       msg.Content,
+		Mode:       acpruntime.AcpPromptModePrompt,
+		RequestID:  requestID,
+	})
+	if err != nil {
+		logger.Error("Failed to run ACP turn for thread binding",
+			zap.String("session_key", sessionKey),
+			zap.String("channel", msg.Channel),
+			zap.String("account_id", msg.AccountID),
+			zap.String("chat_id", msg.ChatID),
+			zap.Error(err))
+		m.publishAcpThreadBindingError(ctx, msg, "ACP session is currently unavailable. Please retry.")
+		return
+	}
+
+	var response strings.Builder
+	for event := range result.EventChan {
+		switch e := event.(type) {
+		case *acpruntime.AcpEventTextDelta:
+			if e.Stream == "" || e.Stream == "output" {
+				response.WriteString(e.Text)
+			}
+		case *acpruntime.AcpEventError:
+			logger.Error("ACP turn failed for thread binding",
+				zap.String("session_key", sessionKey),
+				zap.String("channel", msg.Channel),
+				zap.String("account_id", msg.AccountID),
+				zap.String("chat_id", msg.ChatID),
+				zap.String("error_message", e.Message))
+			m.publishAcpThreadBindingError(ctx, msg, "ACP session failed to complete this request.")
+			return
+		}
+	}
+
+	reply := response.String()
+	if strings.TrimSpace(reply) == "" {
+		reply = "ACP task finished."
+	}
+
+	outbound := AgentMessage{
+		Role:      RoleAssistant,
+		Content:   []ContentBlock{TextContent{Text: reply}},
+		Timestamp: time.Now().UnixMilli(),
+	}
+	m.publishToBus(ctx, msg.Channel, msg.ChatID, outbound, msg.ID)
+}
+
+func (m *AgentManager) publishAcpThreadBindingError(ctx context.Context, msg *bus.InboundMessage, text string) {
+	if msg == nil || strings.TrimSpace(text) == "" {
+		return
+	}
+	outbound := AgentMessage{
+		Role:      RoleAssistant,
+		Content:   []ContentBlock{TextContent{Text: text}},
+		Timestamp: time.Now().UnixMilli(),
+	}
+	m.publishToBus(ctx, msg.Channel, msg.ChatID, outbound, msg.ID)
+}
+
 // updateSession 更新会话
 func (m *AgentManager) updateSession(sess *session.Session, messages []AgentMessage, historyLen int) {
 	// 只保存新产生的消息（不包括历史消息）
@@ -663,14 +903,9 @@ func (m *AgentManager) Start(ctx context.Context) error {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 
-	for id, agent := range m.agents {
-		if err := agent.Start(ctx); err != nil {
-			logger.Error("Failed to start agent",
-				zap.String("agent_id", id),
-				zap.Error(err))
-		} else {
-			logger.Info("Agent started", zap.String("agent_id", id))
-		}
+	for id := range m.agents {
+		logger.Info("Agent registered under manager (inbound loop handled by AgentManager)",
+			zap.String("agent_id", id))
 	}
 
 	// 启动消息处理器

@@ -18,6 +18,8 @@ type Config struct {
 	Skills map[string]interface{} `mapstructure:"skills" json:"skills"`
 	// Agent 绑定配置
 	Bindings []BindingConfig `mapstructure:"bindings" json:"bindings"`
+	// ACP (Agent Client Protocol) configuration
+	ACP ACPConfig `mapstructure:"acp" json:"acp"`
 }
 
 // WorkspaceConfig Workspace 配置
@@ -399,4 +401,26 @@ type QMDLimits struct {
 	MaxResults      int `mapstructure:"max_results" json:"max_results"`             // 默认 6
 	MaxSnippetChars int `mapstructure:"max_snippet_chars" json:"max_snippet_chars"` // 默认 700
 	TimeoutMs       int `mapstructure:"timeout_ms" json:"timeout_ms"`               // 默认 4000
+}
+
+// ACPConfig ACP (Agent Client Protocol) 配置
+type ACPConfig struct {
+	Enabled               bool                           `mapstructure:"enabled" json:"enabled"`                                 // 是否启用 ACP
+	Backend               string                         `mapstructure:"backend" json:"backend"`                                 // ACP 运行时后端 (如 "acp-go-sdk")
+	AgentPath             string                         `mapstructure:"agent_path" json:"agent_path"`                           // ACP agent 可执行文件路径
+	AgentArgs             []string                       `mapstructure:"agent_args" json:"agent_args"`                           // ACP agent 启动参数
+	AgentEnv              []string                       `mapstructure:"agent_env" json:"agent_env"`                             // ACP agent 额外环境变量 ("K=V")
+	DefaultAgent          string                         `mapstructure:"default_agent" json:"default_agent"`                     // 默认 Agent ID
+	MaxConcurrentSessions int                            `mapstructure:"max_concurrent_sessions" json:"max_concurrent_sessions"` // 最大并发会话数
+	IdleTimeoutMs         int                            `mapstructure:"idle_timeout_ms" json:"idle_timeout_ms"`                 // 空闲超时 (毫秒)
+	ThreadBindings        map[string]ThreadBindingConfig `mapstructure:"thread_bindings" json:"thread_bindings"`                 // 线程绑定配置
+	AllowedAgents         []string                       `mapstructure:"allowed_agents" json:"allowed_agents"`                   // 允许使用 ACP 的 Agent 列表
+}
+
+// ThreadBindingConfig 线程绑定配置
+type ThreadBindingConfig struct {
+	Enabled       bool `mapstructure:"enabled" json:"enabled"`                 // 是否启用线程绑定
+	SpawnEnabled  bool `mapstructure:"spawn_enabled" json:"spawn_enabled"`     // 是否允许通过 spawn 创建绑定
+	IdleTimeoutMs int  `mapstructure:"idle_timeout_ms" json:"idle_timeout_ms"` // 空闲超时 (毫秒)
+	MaxAgeMs      int  `mapstructure:"max_age_ms" json:"max_age_ms"`           // 最大存活时间 (毫秒)
 }
