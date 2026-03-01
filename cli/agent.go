@@ -27,17 +27,18 @@ var agentCmd = &cobra.Command{
 
 // Flags for agent command
 var (
-	agentMessage   string
-	agentTo        string
-	agentID        string
-	agentSessionID string
-	agentThinking  string
-	agentVerbose   bool
-	agentChannel   string
-	agentLocal     bool
-	agentDeliver   bool
-	agentJSON      bool
-	agentTimeout   int
+	agentMessage      string
+	agentTo           string
+	agentID           string
+	agentSessionID    string
+	agentThinking     string
+	agentVerbose      bool
+	agentChannel      string
+	agentLocal        bool
+	agentDeliver      bool
+	agentJSON         bool
+	agentTimeout      int
+	agentMaxIterations int
 )
 
 func init() {
@@ -52,6 +53,7 @@ func init() {
 	agentCmd.Flags().BoolVar(&agentDeliver, "deliver", false, "Send the agent's reply back to the selected channel")
 	agentCmd.Flags().BoolVar(&agentJSON, "json", false, "Output result as JSON")
 	agentCmd.Flags().IntVar(&agentTimeout, "timeout", 600, "Override agent command timeout (seconds)")
+	agentCmd.Flags().IntVar(&agentMaxIterations, "max-iterations", 15, "Maximum agent loop iterations")
 
 	_ = agentCmd.MarkFlagRequired("message")
 }
@@ -237,7 +239,7 @@ func runAgent(cmd *cobra.Command, args []string) {
 		Tools:        toolRegistry,
 		Context:      contextBuilder,
 		Workspace:    workspace,
-		MaxIteration: cfg.Agents.Defaults.MaxIterations,
+		MaxIteration: agentMaxIterations,
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to create agent: %v\n", err)

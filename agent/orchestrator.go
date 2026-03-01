@@ -83,6 +83,11 @@ func (o *Orchestrator) Run(ctx context.Context, prompts []AgentMessage) ([]Agent
 // runLoop implements the main agent loop logic
 func (o *Orchestrator) runLoop(ctx context.Context, state *AgentState) ([]AgentMessage, error) {
 	firstTurn := true
+	iteration := 0
+	maxIterations := o.config.MaxIterations
+	if maxIterations <= 0 {
+		maxIterations = 15 // default
+	}
 
 	// Check for steering messages at start
 	pendingMessages := o.fetchSteeringMessages()
@@ -94,6 +99,21 @@ func (o *Orchestrator) runLoop(ctx context.Context, state *AgentState) ([]AgentM
 
 		// Inner loop: process tool calls and steering messages
 		for hasMoreToolCalls || len(pendingMessages) > 0 {
+			// Check context cancellation (timeout or stop)
+			select {
+			case <-ctx.Done():
+				logger.Warn("Agent loop interrupted", zap.Error(ctx.Err()))
+				return state.Messages, ctx.Err()
+			default:
+			}
+
+			// Check max iterations
+			iteration++
+			if iteration > maxIterations {
+				logger.Warn("Max iterations reached", zap.Int("iterations", iteration), zap.Int("max", maxIterations))
+				return state.Messages, fmt.Errorf("max iterations (%d) reached", maxIterations)
+			}
+
 			if !firstTurn {
 				o.emit(NewEvent(EventTurnStart))
 			} else {
