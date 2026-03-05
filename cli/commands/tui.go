@@ -69,7 +69,7 @@ func NewTUIAgent(
 	}
 
 	// Register web tool
-	webTool := tools.NewWebTool("", "", 30)
+	webTool := tools.NewWebTool("", "", "", 5, 30)
 	for _, tool := range webTool.GetTools() {
 		_ = toolRegistry.RegisterExisting(tool)
 	}

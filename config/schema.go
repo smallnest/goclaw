@@ -340,9 +340,11 @@ type SandboxConfig struct {
 
 // WebToolConfig Web 工具配置
 type WebToolConfig struct {
-	SearchAPIKey string `mapstructure:"search_api_key" json:"search_api_key"`
-	SearchEngine string `mapstructure:"search_engine" json:"search_engine"`
-	Timeout      int    `mapstructure:"timeout" json:"timeout"`
+	SearchAPIKey    string `mapstructure:"search_api_key" json:"search_api_key"`
+	SearchEngine    string `mapstructure:"search_engine" json:"search_engine"`
+	SearXNGEndpoint string `mapstructure:"searxng_endpoint" json:"searxng_endpoint"` // SearXNG 搜索端点
+	MaxResults      int    `mapstructure:"max_results" json:"max_results"`           // 搜索结果数量
+	Timeout         int    `mapstructure:"timeout" json:"timeout"`
 }
 
 // BrowserToolConfig 浏览器工具配置

@@ -156,6 +156,8 @@ func runAgent(cmd *cobra.Command, args []string) {
 	webTool := tools.NewWebTool(
 		cfg.Tools.Web.SearchAPIKey,
 		cfg.Tools.Web.SearchEngine,
+		cfg.Tools.Web.SearXNGEndpoint,
+		cfg.Tools.Web.MaxResults,
 		cfg.Tools.Web.Timeout,
 	)
 	for _, tool := range webTool.GetTools() {

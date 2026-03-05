@@ -14,14 +14,16 @@ import (
 
 // WebTool Web 工具
 type WebTool struct {
-	searchAPIKey string
-	searchEngine string
-	timeout      time.Duration
-	client       *http.Client
+	searchAPIKey    string
+	searchEngine    string
+	searxngEndpoint string
+	maxResults      int
+	timeout         time.Duration
+	client          *http.Client
 }
 
 // NewWebTool 创建 Web 工具
-func NewWebTool(searchAPIKey, searchEngine string, timeout int) *WebTool {
+func NewWebTool(searchAPIKey, searchEngine, searxngEndpoint string, maxResults, timeout int) *WebTool {
 	var t time.Duration
 	if timeout > 0 {
 		t = time.Duration(timeout) * time.Second
@@ -29,10 +31,17 @@ func NewWebTool(searchAPIKey, searchEngine string, timeout int) *WebTool {
 		t = 10 * time.Second
 	}
 
+	// 默认结果数量为 5
+	if maxResults <= 0 {
+		maxResults = 5
+	}
+
 	return &WebTool{
-		searchAPIKey: searchAPIKey,
-		searchEngine: searchEngine,
-		timeout:      t,
+		searchAPIKey:    searchAPIKey,
+		searchEngine:    searchEngine,
+		searxngEndpoint: searxngEndpoint,
+		maxResults:      maxResults,
+		timeout:         t,
 		client: &http.Client{
 			Timeout: t,
 		},
@@ -46,29 +55,107 @@ func (t *WebTool) WebSearch(ctx context.Context, params map[string]interface{}) 
 		return "", fmt.Errorf("query parameter is required")
 	}
 
-	if t.searchAPIKey == "" {
-		return fmt.Sprintf("Search results for: %s\n\n[Warning: Search API Key not configured. Please set search_api_key in config to get actual results.]", query), nil
+	// 从参数中获取结果数量，如果没有则使用配置的默认值
+	maxResults := t.maxResults
+	if mr, ok := params["max_results"].(float64); ok && int(mr) > 0 {
+		maxResults = int(mr)
 	}
 
-	// 默认使用 travily
-	if t.searchEngine == "travily" || t.searchEngine == "tavily" || t.searchEngine == "" {
-		return t.searchTavily(ctx, query)
+	// 默认使用 SearXNG
+	engine := t.searchEngine
+	if engine == "" {
+		engine = "searxng"
 	}
 
-	if t.searchEngine == "serper" {
+	switch engine {
+	case "searxng":
+		return t.searchSearXNG(ctx, query, maxResults)
+	case "travily", "tavily":
+		if t.searchAPIKey == "" {
+			return fmt.Sprintf("Search results for: %s\n\n[Warning: Search API Key not configured. Please set search_api_key in config to get actual results.]", query), nil
+		}
+		return t.searchTavily(ctx, query, maxResults)
+	case "serper":
+		if t.searchAPIKey == "" {
+			return fmt.Sprintf("Search results for: %s\n\n[Warning: Search API Key not configured. Please set search_api_key in config to get actual results.]", query), nil
+		}
 		return t.searchSerper(ctx, query)
-	}
-
-	if t.searchEngine == "google" {
+	case "google":
+		if t.searchAPIKey == "" {
+			return fmt.Sprintf("Search results for: %s\n\n[Warning: Search API Key not configured. Please set search_api_key in config to get actual results.]", query), nil
+		}
 		return t.searchGoogle(ctx, query)
+	default:
+		return fmt.Sprintf("Search results for: %s\n\n[Warning: Search engine '%s' is not fully implemented. Using mock results.]", query, engine), nil
 	}
-
-	return fmt.Sprintf("Search results for: %s\n\n[Warning: Search engine '%s' is not fully implemented. Using mock results.]", query, t.searchEngine), nil
 }
 
-func (t *WebTool) searchTavily(ctx context.Context, query string) (string, error) {
+func (t *WebTool) searchSearXNG(ctx context.Context, query string, maxResults int) (string, error) {
+	// 使用配置的 endpoint，如果未配置则使用默认值
+	endpoint := t.searxngEndpoint
+	if endpoint == "" {
+		endpoint = "https://searx.be"
+	}
+
+	// 构建 SearXNG 搜索 URL
+	searchURL := fmt.Sprintf("%s/search?q=%s&format=json", endpoint, url.QueryEscape(query))
+
+	req, err := http.NewRequestWithContext(ctx, "GET", searchURL, nil)
+	if err != nil {
+		return "", fmt.Errorf("failed to create SearXNG request: %w", err)
+	}
+
+	req.Header.Set("Accept", "application/json")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (compatible; goclaw/1.0)")
+
+	resp, err := t.client.Do(req)
+	if err != nil {
+		return "", fmt.Errorf("failed to perform SearXNG search: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("SearXNG API returned status %d: %s", resp.StatusCode, string(body))
+	}
+
+	var result struct {
+		Results []struct {
+			Title   string `json:"title"`
+			URL     string `json:"url"`
+			Content string `json:"content"`
+		} `json:"results"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return "", fmt.Errorf("failed to decode SearXNG response: %w", err)
+	}
+
+	var sb bytes.Buffer
+	sb.WriteString(fmt.Sprintf("Search results for: %s\n\n", query))
+
+	count := 0
+	for _, item := range result.Results {
+		if count >= maxResults {
+			break
+		}
+		sb.WriteString(fmt.Sprintf("Title: %s\nURL: %s\n", item.Title, item.URL))
+		if item.Content != "" {
+			sb.WriteString(fmt.Sprintf("Content: %s\n", item.Content))
+		}
+		sb.WriteString("\n")
+		count++
+	}
+
+	if sb.Len() == 0 {
+		return "No results found.", nil
+	}
+
+	return sb.String(), nil
+}
+
+func (t *WebTool) searchTavily(ctx context.Context, query string, maxResults int) (string, error) {
 	apiURL := "https://api.tavily.com/search"
-	maxResults := 5 // Default limit
 
 	requestBody, err := json.Marshal(map[string]any{
 		"query":          query,
@@ -280,6 +367,10 @@ func (t *WebTool) GetTools() []Tool {
 					"query": map[string]interface{}{
 						"type":        "string",
 						"description": "Search query",
+					},
+					"max_results": map[string]interface{}{
+						"type":        "integer",
+						"description": "Maximum number of results to return (optional, default is configured value)",
 					},
 				},
 				"required": []string{"query"},
