@@ -126,9 +126,21 @@ func Execute() error {
 
 // runStart 启动 Agent
 func runStart(cmd *cobra.Command, args []string) {
-	// 确保内置技能被复制到用户目录
-	if err := internal.EnsureBuiltinSkills(); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: Failed to ensure builtin skills: %v\n", err)
+	// 先加载配置以获取禁用技能列表
+	cfg, err := config.Load("")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to load config: %v\n", err)
+	}
+
+	// 确保内置技能被复制到用户目录（跳过被禁用的技能）
+	if cfg != nil {
+		if err := internal.EnsureBuiltinSkills(cfg.DisabledSkills); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: Failed to ensure builtin skills: %v\n", err)
+		}
+	} else {
+		if err := internal.EnsureBuiltinSkills(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: Failed to ensure builtin skills: %v\n", err)
+		}
 	}
 
 	// 确保配置文件存在
@@ -142,11 +154,13 @@ func runStart(cmd *cobra.Command, args []string) {
 		fmt.Println()
 	}
 
-	// 加载配置
-	cfg, err := config.Load("")
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
-		os.Exit(1)
+	// 重新加载配置（如果刚创建的话）
+	if cfg == nil {
+		cfg, err = config.Load("")
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
+			os.Exit(1)
+		}
 	}
 
 	// 初始化日志

@@ -7,6 +7,8 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+
+	"github.com/smallnest/goclaw/config"
 )
 
 //go:embed builtin_skills config.example.json
@@ -33,8 +35,23 @@ func GetConfigPath() string {
 	return filepath.Join(GetGoclawDir(), "config.json")
 }
 
+// isSkillDisabled 检查技能是否被禁用
+func isSkillDisabled(skillName string) bool {
+	cfg, err := config.Load("")
+	if err != nil {
+		return false
+	}
+	for _, disabled := range cfg.DisabledSkills {
+		if disabled == skillName {
+			return true
+		}
+	}
+	return false
+}
+
 // EnsureBuiltinSkills 确保内置技能被复制到用户目录
 // 支持增量复制：只复制缺失的技能，不会覆盖已存在的技能
+// 跳过在配置文件 disabled_skills 列表中的技能
 func EnsureBuiltinSkills() error {
 	goclawDir := GetGoclawDir()
 	skillsDir := filepath.Join(goclawDir, "skills")
@@ -57,6 +74,12 @@ func EnsureBuiltinSkills() error {
 		}
 
 		skillName := entry.Name()
+
+		// 跳过被禁用的技能
+		if isSkillDisabled(skillName) {
+			continue
+		}
+
 		dstDir := filepath.Join(skillsDir, skillName)
 
 		// 如果技能目录不存在，则复制

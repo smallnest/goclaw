@@ -67,7 +67,7 @@ func runOnboard(cmd *cobra.Command, args []string) {
 	}
 
 	// Ensure built-in skills exist
-	if err := internal.EnsureBuiltinSkills(); err != nil {
+	if err := internal.EnsureBuiltinSkills(cfg.DisabledSkills); err != nil {
 		fmt.Fprintf(os.Stderr, "  Warning: Failed to ensure built-in skills: %v\n", err)
 	} else {
 		fmt.Println("  ✓ Built-in skills ready")

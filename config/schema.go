@@ -20,6 +20,8 @@ type Config struct {
 	Bindings []BindingConfig `mapstructure:"bindings" json:"bindings"`
 	// ACP (Agent Client Protocol) configuration
 	ACP ACPConfig `mapstructure:"acp" json:"acp"`
+	// DisabledSkills 禁用的内置技能列表，这些技能不会被 EnsureBuiltinSkills 自动恢复
+	DisabledSkills []string `mapstructure:"disabled_skills" json:"disabled_skills"`
 }
 
 // WorkspaceConfig Workspace 配置

@@ -149,16 +149,16 @@ func runTUI(cmd *cobra.Command, args []string) {
 		os.Exit(1)
 	}
 
-	// 确保内置技能被复制到用户目录
-	if err := internal.EnsureBuiltinSkills(); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: Failed to ensure builtin skills: %v\n", err)
-	}
-
-	// Load configuration
+	// Load configuration first to get disabled skills list
 	cfg, err := config.Load("")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
 		os.Exit(1)
+	}
+
+	// 确保内置技能被复制到用户目录（跳过被禁用的技能）
+	if err := internal.EnsureBuiltinSkills(cfg.DisabledSkills); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to ensure builtin skills: %v\n", err)
 	}
 
 	// Use gateway URL from config if not specified via flag

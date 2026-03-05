@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -99,6 +100,20 @@ var skillsSearchCmd = &cobra.Command{
 	Run:   runSkillsSearch,
 }
 
+var skillsDisableCmd = &cobra.Command{
+	Use:   "disable [skill-name]",
+	Short: "Disable a builtin skill (prevent auto-restore on startup)",
+	Args:  cobra.ExactArgs(1),
+	Run:   runSkillsDisable,
+}
+
+var skillsEnableCmd = &cobra.Command{
+	Use:   "enable [skill-name]",
+	Short: "Re-enable a disabled builtin skill",
+	Args:  cobra.ExactArgs(1),
+	Run:   runSkillsEnable,
+}
+
 func init() {
 	rootCmd.AddCommand(skillsCmd)
 
@@ -133,18 +148,30 @@ func init() {
 
 	// install-deps 命令
 	skillsCmd.AddCommand(skillsInstallDepsCmd)
+
+	// disable 命令
+	skillsCmd.AddCommand(skillsDisableCmd)
+
+	// enable 命令
+	skillsCmd.AddCommand(skillsEnableCmd)
 }
 
 func runSkillsList(cmd *cobra.Command, args []string) {
-	// 确保内置技能被复制到用户目录
-	if err := internal.EnsureBuiltinSkills(); err != nil {
-		fmt.Fprintf(os.Stderr, "Warning: Failed to ensure builtin skills: %v\n", err)
-	}
-
 	// 加载配置
-	_, err := config.Load("")
+	cfg, err := config.Load("")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Warning: Failed to load config: %v\n", err)
+	}
+
+	// 确保内置技能被复制到用户目录（跳过被禁用的技能）
+	if cfg != nil {
+		if err := internal.EnsureBuiltinSkills(cfg.DisabledSkills); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: Failed to ensure builtin skills: %v\n", err)
+		}
+	} else {
+		if err := internal.EnsureBuiltinSkills(); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: Failed to ensure builtin skills: %v\n", err)
+		}
 	}
 
 	// 初始化日志
@@ -837,4 +864,121 @@ func runSkillsSearch(cmd *cobra.Command, args []string) {
 
 	fmt.Println("\nTo install a skill:")
 	fmt.Println("  goclaw skills install <url>")
+}
+
+func runSkillsDisable(cmd *cobra.Command, args []string) {
+	skillName := args[0]
+
+	// 加载配置
+	cfg, err := config.Load("")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
+		os.Exit(1)
+	}
+
+	// 检查是否已经禁用
+	for _, disabled := range cfg.DisabledSkills {
+		if disabled == skillName {
+			fmt.Printf("⚠️  Skill '%s' is already disabled\n", skillName)
+			return
+		}
+	}
+
+	// 添加到禁用列表
+	cfg.DisabledSkills = append(cfg.DisabledSkills, skillName)
+
+	// 保存配置
+	if err := saveDisabledSkills(cfg.DisabledSkills); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to save config: %v\n", err)
+		os.Exit(1)
+	}
+
+	// 删除技能目录
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to get home directory: %v\n", err)
+		os.Exit(1)
+	}
+	skillPath := filepath.Join(homeDir, ".goclaw", "skills", skillName)
+	if _, err := os.Stat(skillPath); err == nil {
+		if err := os.RemoveAll(skillPath); err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: Failed to remove skill directory: %v\n", err)
+		}
+	}
+
+	fmt.Printf("✅ Skill '%s' has been disabled\n", skillName)
+	fmt.Println("   It will not be auto-restored on startup.")
+}
+
+func runSkillsEnable(cmd *cobra.Command, args []string) {
+	skillName := args[0]
+
+	// 加载配置
+	cfg, err := config.Load("")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to load config: %v\n", err)
+		os.Exit(1)
+	}
+
+	// 从禁用列表中移除
+	found := false
+	newDisabled := make([]string, 0, len(cfg.DisabledSkills))
+	for _, disabled := range cfg.DisabledSkills {
+		if disabled == skillName {
+			found = true
+			continue
+		}
+		newDisabled = append(newDisabled, disabled)
+	}
+
+	if !found {
+		fmt.Printf("⚠️  Skill '%s' is not disabled\n", skillName)
+		return
+	}
+
+	cfg.DisabledSkills = newDisabled
+
+	// 保存配置
+	if err := saveDisabledSkills(cfg.DisabledSkills); err != nil {
+		fmt.Fprintf(os.Stderr, "Failed to save config: %v\n", err)
+		os.Exit(1)
+	}
+
+	// 立即恢复技能
+	if err := internal.EnsureBuiltinSkills(newDisabled); err != nil {
+		fmt.Fprintf(os.Stderr, "Warning: Failed to restore skill: %v\n", err)
+	}
+
+	fmt.Printf("✅ Skill '%s' has been re-enabled\n", skillName)
+}
+
+// saveDisabledSkills 保存禁用技能列表到配置文件
+func saveDisabledSkills(disabledSkills []string) error {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return err
+	}
+	configPath := filepath.Join(homeDir, ".goclaw", "config.json")
+
+	// 读取现有配置
+	data, err := os.ReadFile(configPath)
+	if err != nil {
+		return err
+	}
+
+	// 使用 map 来修改 JSON
+	var cfgMap map[string]interface{}
+	if err := json.Unmarshal(data, &cfgMap); err != nil {
+		return err
+	}
+
+	cfgMap["disabled_skills"] = disabledSkills
+
+	// 写回配置文件
+	newData, err := json.MarshalIndent(cfgMap, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(configPath, newData, 0644)
 }
