@@ -113,11 +113,26 @@ func (o *Orchestrator) runLoop(ctx context.Context, state *AgentState) ([]AgentM
 			default:
 			}
 
-			// Check max iterations
+			// Check max iterations - give LLM a chance to respond
 			iteration++
 			if iteration > maxIterations {
-				logger.Warn("Max iterations reached", zap.Int("iterations", iteration), zap.Int("max", maxIterations))
-				return state.Messages, fmt.Errorf("max iterations (%d) reached", maxIterations)
+				logger.Warn("Max iterations reached, allowing final response", zap.Int("iterations", iteration), zap.Int("max", maxIterations))
+				// Add a system message to inform the LLM about the limit
+				finalPrompt := AgentMessage{
+					Role:      RoleUser,
+					Content:   []ContentBlock{TextContent{Text: fmt.Sprintf("\n\n[SYSTEM NOTICE: You have reached the maximum iteration limit (%d). Please provide a final response to the user based on the previous tool results. Do not make any further tool calls.]", maxIterations)}},
+					Timestamp: time.Now().UnixMilli(),
+				}
+				state.AddMessage(finalPrompt)
+				// Stream one final response without iteration check
+				assistantMsg, err := o.streamAssistantResponse(ctx, state)
+				if err != nil {
+					o.emitErrorEnd(state, err)
+					return state.Messages, err
+				}
+				state.AddMessage(assistantMsg)
+				// Return successfully with the final response
+				return state.Messages, nil
 			}
 
 			if !firstTurn {
