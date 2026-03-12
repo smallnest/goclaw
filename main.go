@@ -3,9 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
-	"os/signal"
 	"runtime"
-	"syscall"
 
 	"github.com/smallnest/goclaw/cli"
 )
@@ -38,7 +36,7 @@ func main() {
 // Based on: https://colobu.com/2016/12/21/how-to-dump-goroutine-stack-traces/
 func setupStackDumpSignal() {
 	ch := make(chan os.Signal, 1)
-	signal.Notify(ch, syscall.SIGUSR1, syscall.SIGQUIT)
+	notifyStackDumpSignal(ch)
 
 	go func() {
 		for range ch {

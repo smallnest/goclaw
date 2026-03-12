@@ -7,7 +7,6 @@ import (
 	"os/exec"
 	"strings"
 	"sync"
-	"syscall"
 	"time"
 
 	"github.com/docker/docker/api/types/container"
@@ -87,6 +86,11 @@ func (t *ShellTool) Exec(ctx context.Context, params map[string]interface{}) (st
 	return t.execDirect(ctx, command)
 }
 
+type result struct {
+	output []byte
+	err    error
+}
+
 // execDirect 直接执行命令
 func (t *ShellTool) execDirect(ctx context.Context, command string) (string, error) {
 	// 执行命令
@@ -96,9 +100,9 @@ func (t *ShellTool) execDirect(ctx context.Context, command string) (string, err
 	}
 
 	// 设置进程组，确保能够杀死整个进程树
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		Setpgid: true,
-	}
+	// cmd.SysProcAttr = &syscall.SysProcAttr{
+	// 	Setpgid: true,
+	// }
 
 	// 获取输出管道
 	stdout, err := cmd.StdoutPipe()
@@ -119,11 +123,6 @@ func (t *ShellTool) execDirect(ctx context.Context, command string) (string, err
 	}
 
 	// 使用 channel 和 goroutine 实现超时控制
-	type result struct {
-		output []byte
-		err    error
-	}
-
 	resultCh := make(chan result, 1)
 	go func() {
 		defer close(resultCh)
@@ -170,30 +169,7 @@ func (t *ShellTool) execDirect(ctx context.Context, command string) (string, err
 	}()
 
 	// 等待结果或超时
-	select {
-	case res := <-resultCh:
-		if res.err != nil {
-			return "", fmt.Errorf("command failed: %w, output: %s", res.err, string(res.output))
-		}
-		return string(res.output), nil
-	case <-time.After(t.timeout):
-		// 超时：强制杀死进程组
-		if cmd.Process != nil {
-			// 先尝试优雅关闭（SIGTERM）
-			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGTERM)
-			// 给进程一点时间清理
-			time.Sleep(100 * time.Millisecond)
-			// 再强制杀死（SIGKILL）
-			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-		}
-		return "", fmt.Errorf("command timed out after %v", t.timeout)
-	case <-ctx.Done():
-		// 父 context 被取消
-		if cmd.Process != nil {
-			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
-		}
-		return "", ctx.Err()
-	}
+	return t.waitForCommandResult(ctx, cmd, resultCh)
 }
 
 // execInSandbox 在 Docker 容器中执行命令
