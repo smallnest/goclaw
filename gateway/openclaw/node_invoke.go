@@ -17,23 +17,23 @@ type NodeInvokeManager struct {
 
 // InvokeManager 调用管理器
 type InvokeManager struct {
-	mu         sync.RWMutex
-	invokes    map[string]*InvokeState // invokeID -> state
-	seq        int64
+	mu      sync.RWMutex
+	invokes map[string]*InvokeState // invokeID -> state
+	seq     int64
 }
 
 // InvokeState 调用状态
 type InvokeState struct {
-	InvokeID    string
-	NodeID      string
-	Method      string
-	Params      json.RawMessage
-	ConnID      string
-	CreatedAt   time.Time
-	ExpiresAt   time.Time
-	Status      string // "pending" | "delivered" | "running" | "completed" | "failed" | "timeout"
-	Result      json.RawMessage
-	Error       string
+	InvokeID  string
+	NodeID    string
+	Method    string
+	Params    json.RawMessage
+	ConnID    string
+	CreatedAt time.Time
+	ExpiresAt time.Time
+	Status    string // "pending" | "delivered" | "running" | "completed" | "failed" | "timeout"
+	Result    json.RawMessage
+	Error     string
 }
 
 // NewNodeInvokeManager 创建 Node 调用管理器
@@ -227,12 +227,12 @@ func (nim *NodeInvokeManager) DescribeNode(nodeID string) (map[string]interface{
 	}
 
 	return map[string]interface{}{
-		"node_id":     pair.NodeID,
-		"name":        pair.Name,
+		"node_id":      pair.NodeID,
+		"name":         pair.Name,
 		"capabilities": pair.Capabilities,
-		"metadata":    pair.Metadata,
-		"paired_at":   pair.PairedAt,
-		"last_seen":   pair.LastSeenAt,
+		"metadata":     pair.Metadata,
+		"paired_at":    pair.PairedAt,
+		"last_seen":    pair.LastSeenAt,
 	}, nil
 }
 
@@ -243,11 +243,11 @@ func (nim *NodeInvokeManager) ListNode() []map[string]interface{} {
 
 	for _, pair := range pairs {
 		result = append(result, map[string]interface{}{
-			"node_id":     pair.NodeID,
-			"name":        pair.Name,
+			"node_id":      pair.NodeID,
+			"name":         pair.Name,
 			"capabilities": pair.Capabilities,
-			"paired_at":   pair.PairedAt,
-			"last_seen":   pair.LastSeenAt,
+			"paired_at":    pair.PairedAt,
+			"last_seen":    pair.LastSeenAt,
 		})
 	}
 
@@ -357,8 +357,8 @@ func RegisterNodeInvokeMethods(mh *MessageHandler, nim *NodeInvokeManager) {
 	// node.rename
 	mh.Register("node.rename", func(conn *Connection, req *Request) (interface{}, *ErrorInfo) {
 		var params struct {
-			NodeID   string `json:"nodeId"`
-			NewName  string `json:"newName"`
+			NodeID  string `json:"nodeId"`
+			NewName string `json:"newName"`
 		}
 		if err := parseParams(req.Params, &params); err != nil {
 			return nil, NewErrorInfo(ErrorInvalidParams, err.Error())

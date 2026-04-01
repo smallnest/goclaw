@@ -50,11 +50,11 @@ type AllowStore struct {
 
 // PairingStore manages pairing requests and allowlist
 type PairingStore struct {
-	channel      string       // e.g., "feishu", "telegram"
-	accountID    string       // empty for default account
-	dataDir      string       // e.g., ~/.goclaw/credentials/
-	requestsFile string       // path to pending requests JSON
-	allowFile    string       // path to allowlist JSON
+	channel      string // e.g., "feishu", "telegram"
+	accountID    string // empty for default account
+	dataDir      string // e.g., ~/.goclaw/credentials/
+	requestsFile string // path to pending requests JSON
+	allowFile    string // path to allowlist JSON
 	mu           sync.RWMutex
 	requests     []*PairingRequest
 	allowStore   *AllowStore
@@ -65,12 +65,12 @@ type PairingStore struct {
 
 // Config options for PairingStore
 type Config struct {
-	Channel     string
-	AccountID   string // empty for default account
-	DataDir     string
-	CodeLength  int           // default 8
-	CodeExpiry  time.Duration // default 1 hour
-	MaxPending  int           // max pending requests, default 3
+	Channel    string
+	AccountID  string // empty for default account
+	DataDir    string
+	CodeLength int           // default 8
+	CodeExpiry time.Duration // default 1 hour
+	MaxPending int           // max pending requests, default 3
 }
 
 // NewPairingStore creates a new pairing store

@@ -14,11 +14,11 @@ func RegisterAgentMethods(mh *MessageHandler) {
 	// agents.create
 	mh.Register("agents.create", func(conn *Connection, req *Request) (interface{}, *ErrorInfo) {
 		var params struct {
-			ID       string                 `json:"id"`
-			Name     string                 `json:"name"`
-			Instructions string              `json:"instructions"`
-			Model    string                 `json:"model"`
-			Metadata map[string]interface{} `json:"metadata,omitempty"`
+			ID           string                 `json:"id"`
+			Name         string                 `json:"name"`
+			Instructions string                 `json:"instructions"`
+			Model        string                 `json:"model"`
+			Metadata     map[string]interface{} `json:"metadata,omitempty"`
 		}
 		if err := parseParams(req.Params, &params); err != nil {
 			return nil, NewErrorInfo(ErrorInvalidParams, err.Error())
@@ -30,19 +30,19 @@ func RegisterAgentMethods(mh *MessageHandler) {
 
 		// 实际应该创建 agent
 		return map[string]interface{}{
-			"id":      params.ID,
-			"status":  "created",
+			"id":     params.ID,
+			"status": "created",
 		}, nil
 	})
 
 	// agents.update
 	mh.Register("agents.update", func(conn *Connection, req *Request) (interface{}, *ErrorInfo) {
 		var params struct {
-			ID       string                 `json:"id"`
-			Name     string                 `json:"name,omitempty"`
-			Instructions string              `json:"instructions,omitempty"`
-			Model    string                 `json:"model,omitempty"`
-			Metadata map[string]interface{} `json:"metadata,omitempty"`
+			ID           string                 `json:"id"`
+			Name         string                 `json:"name,omitempty"`
+			Instructions string                 `json:"instructions,omitempty"`
+			Model        string                 `json:"model,omitempty"`
+			Metadata     map[string]interface{} `json:"metadata,omitempty"`
 		}
 		if err := parseParams(req.Params, &params); err != nil {
 			return nil, NewErrorInfo(ErrorInvalidParams, err.Error())
@@ -54,8 +54,8 @@ func RegisterAgentMethods(mh *MessageHandler) {
 
 		// 实际应该更新 agent
 		return map[string]interface{}{
-			"id":      params.ID,
-			"status":  "updated",
+			"id":     params.ID,
+			"status": "updated",
 		}, nil
 	})
 
@@ -166,9 +166,9 @@ func RegisterAgentMethods(mh *MessageHandler) {
 	// agent.identity.get
 	mh.Register("agent.identity.get", func(conn *Connection, req *Request) (interface{}, *ErrorInfo) {
 		return map[string]interface{}{
-			"id":       "default",
-			"name":     "Default Agent",
-			"version":  "1.0.0",
+			"id":      "default",
+			"name":    "Default Agent",
+			"version": "1.0.0",
 		}, nil
 	})
 

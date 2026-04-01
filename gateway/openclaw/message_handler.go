@@ -10,10 +10,10 @@ type MethodHandler func(conn *Connection, req *Request) (interface{}, *ErrorInfo
 
 // MessageHandler 消息处理器
 type MessageHandler struct {
-	methods       map[string]MethodHandler
-	authContext   *AuthContext
-	snapshotMgr   *SnapshotManager
-	rateLimiter   *RateLimiter
+	methods     map[string]MethodHandler
+	authContext *AuthContext
+	snapshotMgr *SnapshotManager
+	rateLimiter *RateLimiter
 }
 
 // NewMessageHandler 创建消息处理器

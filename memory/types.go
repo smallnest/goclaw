@@ -83,6 +83,8 @@ type SearchResult struct {
 
 // SearchOptions configures memory search behavior
 type SearchOptions struct {
+	// QueryText is the text query for full-text search (optional)
+	QueryText string `json:"query_text,omitempty"`
 	// Limit is the maximum number of results to return
 	Limit int `json:"limit"`
 	// MinScore is the minimum similarity score (0-1)

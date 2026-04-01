@@ -23,38 +23,38 @@ const (
 
 // AuthContext 认证上下文
 type AuthContext struct {
-	mu                  sync.RWMutex
-	authMode            AuthMode
-	authToken           string
-	authPassword        string
-	trustedProxies      []string
-	devicePairs         map[string]*DevicePair // deviceID -> pair
-	pendingDevicePairs  map[string]*PendingPair
-	nodePairs           map[string]*NodePair // nodeID -> pair
-	pendingNodePairs    map[string]*PendingPair
-	challengeNonces     map[string]time.Time // nonce -> expiry
+	mu                 sync.RWMutex
+	authMode           AuthMode
+	authToken          string
+	authPassword       string
+	trustedProxies     []string
+	devicePairs        map[string]*DevicePair // deviceID -> pair
+	pendingDevicePairs map[string]*PendingPair
+	nodePairs          map[string]*NodePair // nodeID -> pair
+	pendingNodePairs   map[string]*PendingPair
+	challengeNonces    map[string]time.Time // nonce -> expiry
 }
 
 // DevicePair 设备配对
 type DevicePair struct {
-	DeviceID    string
-	PublicKey   string
-	Name        string
-	Roles       []string
-	Scopes      []string
-	Metadata    map[string]string
-	PairedAt    time.Time
-	LastSeenAt  time.Time
+	DeviceID   string
+	PublicKey  string
+	Name       string
+	Roles      []string
+	Scopes     []string
+	Metadata   map[string]string
+	PairedAt   time.Time
+	LastSeenAt time.Time
 }
 
 // NodePair Node 配对
 type NodePair struct {
-	NodeID      string
-	Name        string
+	NodeID       string
+	Name         string
 	Capabilities []string
-	Metadata    map[string]string
-	PairedAt    time.Time
-	LastSeenAt  time.Time
+	Metadata     map[string]string
+	PairedAt     time.Time
+	LastSeenAt   time.Time
 }
 
 // PendingPair 待处理的配对请求

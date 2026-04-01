@@ -191,12 +191,7 @@ func (r *SubagentRegistry) ReleaseRun(runID string) {
 	delete(r.runs, runID)
 
 	// 如果没有运行记录了，停止清理器
-	// 先置 nil 再关闭，防止多次关闭导致 panic
-	if len(r.runs) == 0 && r.sweeperStop != nil {
-		ch := r.sweeperStop
-		r.sweeperStop = nil
-		close(ch)
-	}
+	r.stopSweeper()
 
 	_ = r.saveToDisk()
 }
@@ -321,12 +316,19 @@ func (r *SubagentRegistry) sweep() {
 	_ = r.saveToDisk()
 
 	// 如果没有运行记录了，停止清理器
-	// 先置 nil 再关闭，防止多次关闭导致 panic
-	if len(r.runs) == 0 && r.sweeperStop != nil {
-		ch := r.sweeperStop
-		r.sweeperStop = nil
-		close(ch)
+	r.stopSweeper()
+}
+
+// stopSweeper 安全地停止清理器
+func (r *SubagentRegistry) stopSweeper() {
+	if len(r.runs) != 0 {
+		return
 	}
+	r.sweeperOnce.Do(func() {
+		if r.sweeperStop != nil {
+			close(r.sweeperStop)
+		}
+	})
 }
 
 // Cleanup 标记清理已完成
@@ -348,12 +350,8 @@ func (r *SubagentRegistry) Cleanup(runID string, cleanup string, didAnnounce boo
 
 	if cleanup == "delete" {
 		delete(r.runs, runID)
-		// 先置 nil 再关闭，防止多次关闭导致 panic
-		if len(r.runs) == 0 && r.sweeperStop != nil {
-			ch := r.sweeperStop
-			r.sweeperStop = nil
-			close(ch)
-		}
+		// 如果没有运行记录了，停止清理器
+		r.stopSweeper()
 	} else {
 		now := time.Now().UnixMilli()
 		record.CleanupCompletedAt = &now

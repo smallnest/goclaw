@@ -23,10 +23,10 @@ func RegisterSessionMethods(mh *MessageHandler) {
 		previews := make([]map[string]interface{}, 0)
 		for _, key := range params.Keys {
 			previews = append(previews, map[string]interface{}{
-				"key":         key,
+				"key":          key,
 				"messageCount": 0,
-				"createdAt":   0,
-				"updatedAt":   0,
+				"createdAt":    0,
+				"updatedAt":    0,
 			})
 		}
 
@@ -36,7 +36,7 @@ func RegisterSessionMethods(mh *MessageHandler) {
 	// sessions.patch
 	mh.Register("sessions.patch", func(conn *Connection, req *Request) (interface{}, *ErrorInfo) {
 		var params struct {
-			Key     string                 `json:"key"`
+			Key      string                 `json:"key"`
 			Metadata map[string]interface{} `json:"metadata,omitempty"`
 		}
 		if err := parseParams(req.Params, &params); err != nil {
@@ -354,8 +354,8 @@ func RegisterWizardVoiceMethods(mh *MessageHandler) {
 	// tts.convert
 	mh.Register("tts.convert", func(conn *Connection, req *Request) (interface{}, *ErrorInfo) {
 		var params struct {
-			Text    string `json:"text"`
-			Voice   string `json:"voice,omitempty"`
+			Text  string `json:"text"`
+			Voice string `json:"voice,omitempty"`
 		}
 		if err := parseParams(req.Params, &params); err != nil {
 			return nil, NewErrorInfo(ErrorInvalidParams, err.Error())
@@ -598,9 +598,9 @@ func RegisterChannelsMethods(mh *MessageHandler) {
 	// send
 	mh.Register("send", func(conn *Connection, req *Request) (interface{}, *ErrorInfo) {
 		var params struct {
-			Channel string                 `json:"channel"`
-			ChatID  string                 `json:"chat_id"`
-			Content string                 `json:"content"`
+			Channel  string                 `json:"channel"`
+			ChatID   string                 `json:"chat_id"`
+			Content  string                 `json:"content"`
 			Metadata map[string]interface{} `json:"metadata,omitempty"`
 		}
 		if err := parseParams(req.Params, &params); err != nil {

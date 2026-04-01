@@ -184,29 +184,15 @@ func (c *TelegramChannel) handleUpdate(ctx context.Context, update *telegrambot.
 func (c *TelegramChannel) handleCommand(ctx context.Context, message *telegrambot.Message, command string) error {
 	chatID := message.Chat.ID
 
-	switch command {
-	case "/start":
-		msg := telegrambot.NewMessage(chatID, "👋 欢迎使用 goclaw!\n\n我可以帮助你完成各种任务。发送 /help 查看可用命令。")
-		if _, err := c.bot.Send(msg); err != nil {
-			return err
-		}
-	case "/help":
-		helpText := `🐾 goclaw 命令列表：
+	// Use shared command response helper
+	response := GetDefaultCommandResponse(command, c.IsRunning())
+	if response == "" {
+		return nil
+	}
 
-/start - 开始使用
-/help - 显示帮助
-
-你可以直接与我对话，我会尽力帮助你！`
-		msg := telegrambot.NewMessage(chatID, helpText)
-		if _, err := c.bot.Send(msg); err != nil {
-			return err
-		}
-	case "/status":
-		statusText := fmt.Sprintf("✅ goclaw 运行中\n\n通道状态: %s", map[bool]string{true: "🟢 在线", false: "🔴 离线"}[c.IsRunning()])
-		msg := telegrambot.NewMessage(chatID, statusText)
-		if _, err := c.bot.Send(msg); err != nil {
-			return err
-		}
+	msg := telegrambot.NewMessage(chatID, response)
+	if _, err := c.bot.Send(msg); err != nil {
+		return err
 	}
 
 	return nil

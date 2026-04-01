@@ -8,13 +8,13 @@ import (
 
 // BroadcastManager 广播管理器
 type BroadcastManager struct {
-	mu              sync.RWMutex
-	connections     map[string]*Connection
-	snapshotMgr     *SnapshotManager
-	eventSeq        int64
+	mu                sync.RWMutex
+	connections       map[string]*Connection
+	snapshotMgr       *SnapshotManager
+	eventSeq          int64
 	nodeSubscriptions map[string]map[string]string // nodeID -> sessionKey -> connID
-	ctx             context.Context
-	cancel          context.CancelFunc
+	ctx               context.Context
+	cancel            context.CancelFunc
 }
 
 // NewBroadcastManager 创建广播管理器
@@ -223,10 +223,10 @@ func (bm *BroadcastManager) BroadcastNodePairResolved(requestID string, approved
 // BroadcastNodeInvokeRequest 广播 Node 调用请求
 func (bm *BroadcastManager) BroadcastNodeInvokeRequest(nodeID string, invokeID string, method string, params interface{}) error {
 	payload := map[string]interface{}{
-		"node_id":    nodeID,
-		"invoke_id":  invokeID,
-		"method":     method,
-		"params":     params,
+		"node_id":   nodeID,
+		"invoke_id": invokeID,
+		"method":    method,
+		"params":    params,
 	}
 	return bm.Broadcast("node.invoke.request", payload, nil)
 }
@@ -293,7 +293,7 @@ func (bm *BroadcastManager) BroadcastUpdateAvailable(currentVersion, latestVersi
 // BroadcastShutdown 广播关闭事件
 func (bm *BroadcastManager) BroadcastShutdown(reason string) error {
 	payload := map[string]interface{}{
-		"reason":   reason,
+		"reason":    reason,
 		"timestamp": time.Now().Unix(),
 	}
 	return bm.Broadcast("shutdown", payload, nil)
@@ -428,9 +428,9 @@ func (bm *BroadcastManager) Stop() {
 
 // BroadcastOptions 广播选项
 type BroadcastOptions struct {
-	DropIfSlow           bool
-	IncludeStateVersion  bool
-	StateVersion         *StateVersion
+	DropIfSlow          bool
+	IncludeStateVersion bool
+	StateVersion        *StateVersion
 }
 
 // GetConnectionCount 获取连接数

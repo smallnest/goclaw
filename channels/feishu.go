@@ -43,7 +43,7 @@ type FeishuChannel struct {
 	// bot open_id for mention checking
 	botOpenId string
 	// pairing store for DM access control
-	pairingStore    *pairing.PairingStore
+	pairingStore     *pairing.PairingStore
 	cronOutputChatID string // cron output target chat ID
 }
 
@@ -97,7 +97,7 @@ func NewFeishuChannel(cfg config.FeishuChannelConfig, bus *bus.MessageBus) (*Fei
 		httpClient:        client,
 		typingReactions:   make(map[string]string),
 		pairingStore:      pairingStore,
-		cronOutputChatID:   cfg.CronOutputChatID,
+		cronOutputChatID:  cfg.CronOutputChatID,
 	}, nil
 }
 
@@ -827,7 +827,6 @@ func (c *FeishuChannel) sendCardMessage(msg *bus.OutboundMessage, receiveIDType 
 	return nil
 }
 
-
 // Stop 停止飞书通道
 func (c *FeishuChannel) Stop() error {
 	logger.Info("Stopping Feishu channel")
@@ -985,4 +984,3 @@ func jsonEscape(s string) string {
 func (c *FeishuChannel) GetCronOutputChatID() string {
 	return c.cronOutputChatID
 }
-

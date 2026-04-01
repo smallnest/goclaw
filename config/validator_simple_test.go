@@ -13,7 +13,9 @@ func TestValidatorValidConfig(t *testing.T) {
 		},
 		Agents: AgentsConfig{
 			Defaults: AgentDefaults{
-				Model:         "qianfan:test-model",
+				Model: ModelSelection{
+					Primary: "qianfan:test-model",
+				},
 				MaxIterations: 11,
 				Temperature:   1.7,
 				MaxTokens:     4096,

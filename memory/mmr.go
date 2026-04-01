@@ -2,52 +2,36 @@ package memory
 
 import (
 	"math"
-	"regexp"
-	"strings"
 )
 
 // mmrItem represents an item for MMR processing
 type mmrItem struct {
-	id      string
-	score   float64
-	content string
-	tokens  map[string]struct{}
+	id        string
+	score     float64
+	content   string
+	vector    []float32
+	embedding *VectorEmbedding
 }
 
-// tokenize extracts alphanumeric tokens from text and normalizes to lowercase
-func tokenize(text string) map[string]struct{} {
-	re := regexp.MustCompile(`[a-z0-9_]+`)
-	matches := re.FindAllString(strings.ToLower(text), -1)
-	tokens := make(map[string]struct{}, len(matches))
-	for _, m := range matches {
-		tokens[m] = struct{}{}
-	}
-	return tokens
-}
-
-// jaccardSimilarity computes Jaccard similarity between two token sets
-// Returns a value in [0, 1] where 1 means identical sets
-func jaccardSimilarity(setA, setB map[string]struct{}) float64 {
-	if len(setA) == 0 && len(setB) == 0 {
-		return 1
-	}
-	if len(setA) == 0 || len(setB) == 0 {
+// cosineSimilarity computes cosine similarity between two vectors
+// Returns a value in [-1, 1] where 1 means identical direction
+func cosineSimilarity(vecA, vecB []float32) float64 {
+	if len(vecA) == 0 || len(vecB) == 0 || len(vecA) != len(vecB) {
 		return 0
 	}
 
-	// Find intersection size
-	intersection := 0
-	for token := range setA {
-		if _, exists := setB[token]; exists {
-			intersection++
-		}
+	var dotProduct, normA, normB float64
+	for i := range vecA {
+		dotProduct += float64(vecA[i]) * float64(vecB[i])
+		normA += float64(vecA[i]) * float64(vecA[i])
+		normB += float64(vecB[i]) * float64(vecB[i])
 	}
 
-	union := len(setA) + len(setB) - intersection
-	if union == 0 {
+	if normA == 0 || normB == 0 {
 		return 0
 	}
-	return float64(intersection) / float64(union)
+
+	return dotProduct / (math.Sqrt(normA) * math.Sqrt(normB))
 }
 
 // maxSimilarityToSelected computes the maximum similarity between an item and all selected items
@@ -58,9 +42,11 @@ func maxSimilarityToSelected(item mmrItem, selectedItems []mmrItem) float64 {
 
 	maxSim := 0.0
 	for _, selected := range selectedItems {
-		sim := jaccardSimilarity(item.tokens, selected.tokens)
-		if sim > maxSim {
-			maxSim = sim
+		if len(item.vector) > 0 && len(selected.vector) > 0 {
+			sim := cosineSimilarity(item.vector, selected.vector)
+			if sim > maxSim {
+				maxSim = sim
+			}
 		}
 	}
 	return maxSim
@@ -83,14 +69,15 @@ func applyMMR(results []*SearchResult, lambda float64) []*SearchResult {
 	// Clamp lambda to [0, 1]
 	lambda = math.Max(0, math.Min(1, lambda))
 
-	// Convert to MMR items
+	// Convert to MMR items with embeddings
 	items := make([]mmrItem, len(results))
 	for i, r := range results {
 		items[i] = mmrItem{
-			id:      r.ID,
-			score:   r.Score,
-			content: r.Text,
-			tokens:  tokenize(r.Text),
+			id:        r.ID,
+			score:     r.Score,
+			content:   r.Text,
+			vector:    r.Vector,
+			embedding: &r.VectorEmbedding,
 		}
 	}
 

@@ -37,55 +37,55 @@ type ConnectParams struct {
 
 // AuthParams 认证参数
 type AuthParams struct {
-	Token        string `json:"token,omitempty"`
-	DeviceToken  string `json:"deviceToken,omitempty"`
-	Password     string `json:"password,omitempty"`
+	Token       string `json:"token,omitempty"`
+	DeviceToken string `json:"deviceToken,omitempty"`
+	Password    string `json:"password,omitempty"`
 }
 
 // ConnectionInfo 连接信息
 type ConnectionInfo struct {
-	ConnID                string
-	Client                ClientInfo
-	Role                  string
-	Scopes                []string
-	PresenceKey           string
-	ClientIP              string
-	CanvasHostURL         string
-	CanvasCapability      string
+	ConnID                    string
+	Client                    ClientInfo
+	Role                      string
+	Scopes                    []string
+	PresenceKey               string
+	ClientIP                  string
+	CanvasHostURL             string
+	CanvasCapability          string
 	CanvasCapabilityExpiresAt time.Time
-	Authenticated         bool
-	DeviceID              string
-	Metadata              map[string]interface{}
-	CreatedAt             time.Time
-	LastActivityAt        time.Time
+	Authenticated             bool
+	DeviceID                  string
+	Metadata                  map[string]interface{}
+	CreatedAt                 time.Time
+	LastActivityAt            time.Time
 }
 
 // PresenceEntry 在线状态条目
 type PresenceEntry struct {
-	Host              *string  `json:"host,omitempty"`
-	IP                *string  `json:"ip,omitempty"`
-	Version           *string  `json:"version,omitempty"`
-	Platform          *string  `json:"platform,omitempty"`
-	DeviceFamily      *string  `json:"deviceFamily,omitempty"`
-	ModelIdentifier   *string  `json:"modelIdentifier,omitempty"`
-	Mode              *string  `json:"mode,omitempty"`
-	LastInputSeconds  *int64   `json:"lastInputSeconds,omitempty"`
-	Reason            *string  `json:"reason,omitempty"`
-	Tags              []string `json:"tags,omitempty"`
-	Text              *string  `json:"text,omitempty"`
-	Ts                int64    `json:"ts"`
-	DeviceID          *string  `json:"deviceId,omitempty"`
-	Roles             []string `json:"roles,omitempty"`
-	Scopes            []string `json:"scopes,omitempty"`
-	InstanceID        *string  `json:"instanceId,omitempty"`
+	Host             *string  `json:"host,omitempty"`
+	IP               *string  `json:"ip,omitempty"`
+	Version          *string  `json:"version,omitempty"`
+	Platform         *string  `json:"platform,omitempty"`
+	DeviceFamily     *string  `json:"deviceFamily,omitempty"`
+	ModelIdentifier  *string  `json:"modelIdentifier,omitempty"`
+	Mode             *string  `json:"mode,omitempty"`
+	LastInputSeconds *int64   `json:"lastInputSeconds,omitempty"`
+	Reason           *string  `json:"reason,omitempty"`
+	Tags             []string `json:"tags,omitempty"`
+	Text             *string  `json:"text,omitempty"`
+	Ts               int64    `json:"ts"`
+	DeviceID         *string  `json:"deviceId,omitempty"`
+	Roles            []string `json:"roles,omitempty"`
+	Scopes           []string `json:"scopes,omitempty"`
+	InstanceID       *string  `json:"instanceId,omitempty"`
 }
 
 // HealthStatus 健康状态
 type HealthStatus struct {
-	Status     string                 `json:"status"`
-	Timestamp  int64                  `json:"timestamp"`
+	Status     string                     `json:"status"`
+	Timestamp  int64                      `json:"timestamp"`
 	Components map[string]ComponentStatus `json:"components,omitempty"`
-	Issues     []string               `json:"issues,omitempty"`
+	Issues     []string                   `json:"issues,omitempty"`
 }
 
 // ComponentStatus 组件状态
@@ -120,14 +120,14 @@ type SessionDefaults struct {
 
 // ConnectionState 连接状态
 type ConnectionState struct {
-	ConnID            string
-	ClientID          string
-	ConnectedAt       time.Time
-	LastHeartbeatAt   time.Time
-	StateVersion      StateVersion
-	BufferedBytes     int64
-	MessagesSent      int64
-	MessagesReceived  int64
+	ConnID           string
+	ClientID         string
+	ConnectedAt      time.Time
+	LastHeartbeatAt  time.Time
+	StateVersion     StateVersion
+	BufferedBytes    int64
+	MessagesSent     int64
+	MessagesReceived int64
 }
 
 // Role 角色
@@ -138,17 +138,17 @@ const (
 
 // Scope 权限范围
 const (
-	ScopeRead       string = "read"
-	ScopeWrite      string = "write"
-	ScopeAdmin      string = "admin"
-	ScopeExecute    string = "execute"
-	ScopeConfig     string = "config"
-	ScopeAgents     string = "agents"
-	ScopeSessions   string = "sessions"
-	ScopeCron       string = "cron"
-	ScopeChannels   string = "channels"
-	ScopeNodes      string = "nodes"
-	ScopeDevices    string = "devices"
+	ScopeRead     string = "read"
+	ScopeWrite    string = "write"
+	ScopeAdmin    string = "admin"
+	ScopeExecute  string = "execute"
+	ScopeConfig   string = "config"
+	ScopeAgents   string = "agents"
+	ScopeSessions string = "sessions"
+	ScopeCron     string = "cron"
+	ScopeChannels string = "channels"
+	ScopeNodes    string = "nodes"
+	ScopeDevices  string = "devices"
 )
 
 // AllScopes 所有权限范围
@@ -190,20 +190,20 @@ func HasAllScopes(scopes []string, requiredScopes []string) bool {
 
 // ClientCapabilities 客户端能力
 const (
-	CapChat            string = "chat"
-	CapSessions        string = "sessions"
-	CapAgents          string = "agents"
-	CapCron            string = "cron"
-	CapChannels        string = "channels"
-	CapNodes           string = "nodes"
-	CapDevices         string = "devices"
-	CapBrowser         string = "browser"
-	CapTTS             string = "tts"
-	CapVoiceWake       string = "voicewake"
-	CapWizard          string = "wizard"
-	CapExecApproval    string = "exec_approval"
-	CapStreaming       string = "streaming"
-	CapAttachments     string = "attachments"
+	CapChat         string = "chat"
+	CapSessions     string = "sessions"
+	CapAgents       string = "agents"
+	CapCron         string = "cron"
+	CapChannels     string = "channels"
+	CapNodes        string = "nodes"
+	CapDevices      string = "devices"
+	CapBrowser      string = "browser"
+	CapTTS          string = "tts"
+	CapVoiceWake    string = "voicewake"
+	CapWizard       string = "wizard"
+	CapExecApproval string = "exec_approval"
+	CapStreaming    string = "streaming"
+	CapAttachments  string = "attachments"
 )
 
 // DefaultClientCapabilities 默认客户端能力

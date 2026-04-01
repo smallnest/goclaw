@@ -144,51 +144,51 @@ var BaseMethods = []string{
 
 // GatewayEvents Gateway 事件列表（20个）
 var GatewayEvents = []string{
-	"connect.challenge",    // 连接挑战
-	"agent",                // Agent 事件
-	"chat",                 // 聊天事件
-	"presence",             // 在线状态
-	"tick",                 // 定时心跳
-	"talk.mode",            // 语音模式
-	"shutdown",             // 关闭事件
-	"health",               // 健康状态
-	"heartbeat",            // 心跳
-	"cron",                 // Cron 事件
-	"node.pair.requested",  // Node 配对请求
-	"node.pair.resolved",   // Node 配对解决
-	"node.invoke.request",  // Node 调用请求
-	"device.pair.requested", // 设备配对请求
-	"device.pair.resolved",  // 设备配对解决
-	"voicewake.changed",    // 语音唤醒变更
+	"connect.challenge",       // 连接挑战
+	"agent",                   // Agent 事件
+	"chat",                    // 聊天事件
+	"presence",                // 在线状态
+	"tick",                    // 定时心跳
+	"talk.mode",               // 语音模式
+	"shutdown",                // 关闭事件
+	"health",                  // 健康状态
+	"heartbeat",               // 心跳
+	"cron",                    // Cron 事件
+	"node.pair.requested",     // Node 配对请求
+	"node.pair.resolved",      // Node 配对解决
+	"node.invoke.request",     // Node 调用请求
+	"device.pair.requested",   // 设备配对请求
+	"device.pair.resolved",    // 设备配对解决
+	"voicewake.changed",       // 语音唤醒变更
 	"exec.approval.requested", // 执行批准请求
 	"exec.approval.resolved",  // 执行批准解决
-	"update.available",     // 更新可用
+	"update.available",        // 更新可用
 }
 
 // ControlPlaneWriteMethods 控制平面写操作方法（需要速率限制）
 var ControlPlaneWriteMethods = map[string]bool{
-	"config.set":        true,
-	"config.apply":      true,
-	"config.patch":      true,
-	"agents.create":     true,
-	"agents.update":     true,
-	"agents.delete":     true,
-	"agents.files.set":  true,
-	"skills.install":    true,
-	"skills.update":     true,
-	"sessions.reset":    true,
-	"sessions.delete":   true,
-	"sessions.patch":    true,
-	"cron.add":          true,
-	"cron.update":       true,
-	"cron.remove":       true,
-	"node.pair.approve": true,
-	"node.pair.reject":  true,
-	"device.pair.approve": true,
-	"device.pair.reject":  true,
-	"device.pair.remove":  true,
-	"device.token.rotate": true,
-	"device.token.revoke": true,
+	"config.set":            true,
+	"config.apply":          true,
+	"config.patch":          true,
+	"agents.create":         true,
+	"agents.update":         true,
+	"agents.delete":         true,
+	"agents.files.set":      true,
+	"skills.install":        true,
+	"skills.update":         true,
+	"sessions.reset":        true,
+	"sessions.delete":       true,
+	"sessions.patch":        true,
+	"cron.add":              true,
+	"cron.update":           true,
+	"cron.remove":           true,
+	"node.pair.approve":     true,
+	"node.pair.reject":      true,
+	"device.pair.approve":   true,
+	"device.pair.reject":    true,
+	"device.pair.remove":    true,
+	"device.token.rotate":   true,
+	"device.token.revoke":   true,
 	"exec.approval.resolve": true,
 }
 

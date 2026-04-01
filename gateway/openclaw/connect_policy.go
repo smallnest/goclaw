@@ -16,53 +16,53 @@ type ConnectPolicy struct {
 	TickIntervalMs   int64
 
 	// 安全设置
-	CheckOrigin      bool
-	AllowedOrigins   []string
-	AllowedIPs       []string
-	BlockedIPs       []string
+	CheckOrigin    bool
+	AllowedOrigins []string
+	AllowedIPs     []string
+	BlockedIPs     []string
 
 	// 速率限制
-	EnableRateLimit  bool
-	MaxConnectionsPerIP int
+	EnableRateLimit           bool
+	MaxConnectionsPerIP       int
 	ConnectionCleanupInterval time.Duration
 
 	// 状态
-	mu               sync.RWMutex
+	mu                sync.RWMutex
 	ipConnectionCount map[string]int
-	connections      map[string]*ConnectionStats
+	connections       map[string]*ConnectionStats
 }
 
 // ConnectionStats 连接统计
 type ConnectionStats struct {
-	ConnID            string
-	RemoteAddr        string
-	ConnectedAt       time.Time
-	LastActivityAt    time.Time
-	MessagesSent      int64
-	MessagesReceived  int64
-	BytesSent         int64
-	BytesReceived     int64
-	BufferedBytes     int64
+	ConnID           string
+	RemoteAddr       string
+	ConnectedAt      time.Time
+	LastActivityAt   time.Time
+	MessagesSent     int64
+	MessagesReceived int64
+	BytesSent        int64
+	BytesReceived    int64
+	BufferedBytes    int64
 }
 
 // NewConnectPolicy 创建连接策略
 func NewConnectPolicy() *ConnectPolicy {
 	return &ConnectPolicy{
-		MaxPayload:       10 * 1024 * 1024, // 10MB
+		MaxPayload:       10 * 1024 * 1024,  // 10MB
 		MaxBufferedBytes: 100 * 1024 * 1024, // 100MB
 		TickIntervalMs:   30000,             // 30秒
 
-		CheckOrigin:      true,
-		AllowedOrigins:   []string{},
-		AllowedIPs:       []string{},
-		BlockedIPs:       []string{},
+		CheckOrigin:    true,
+		AllowedOrigins: []string{},
+		AllowedIPs:     []string{},
+		BlockedIPs:     []string{},
 
-		EnableRateLimit:  true,
-		MaxConnectionsPerIP: 10,
+		EnableRateLimit:           true,
+		MaxConnectionsPerIP:       10,
 		ConnectionCleanupInterval: 5 * time.Minute,
 
 		ipConnectionCount: make(map[string]int),
-		connections:      make(map[string]*ConnectionStats),
+		connections:       make(map[string]*ConnectionStats),
 	}
 }
 

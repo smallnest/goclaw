@@ -9,18 +9,18 @@ import (
 
 // ChatMessage 聊天消息
 type ChatMessage struct {
-	Role         string      `json:"role"`         // "user" | "assistant" | "system"
-	Content      string      `json:"content"`
-	Timestamp    time.Time   `json:"timestamp"`
-	Metadata     interface{} `json:"metadata,omitempty"`
+	Role      string      `json:"role"` // "user" | "assistant" | "system"
+	Content   string      `json:"content"`
+	Timestamp time.Time   `json:"timestamp"`
+	Metadata  interface{} `json:"metadata,omitempty"`
 }
 
 // ChatAttachment 聊天附件
 type ChatAttachment struct {
-	Type       string      `json:"type,omitempty"`
-	MimeType   string      `json:"mimeType,omitempty"`
-	FileName   string      `json:"fileName,omitempty"`
-	Content    interface{} `json:"content,omitempty"`
+	Type     string      `json:"type,omitempty"`
+	MimeType string      `json:"mimeType,omitempty"`
+	FileName string      `json:"fileName,omitempty"`
+	Content  interface{} `json:"content,omitempty"`
 }
 
 // ChatSendParams chat.send 参数
@@ -75,23 +75,23 @@ type ChatEvent struct {
 
 // ChatRunState 聊天运行状态
 type ChatRunState struct {
-	RunID        string
-	SessionKey   string
-	ConnID       string
-	StartedAt    time.Time
-	UpdatedAt    time.Time
-	State        string
-	AbortCh      chan struct{}
-	ResultCh     chan *ChatEvent
+	RunID      string
+	SessionKey string
+	ConnID     string
+	StartedAt  time.Time
+	UpdatedAt  time.Time
+	State      string
+	AbortCh    chan struct{}
+	ResultCh   chan *ChatEvent
 }
 
 // ChatManager 聊天管理器
 type ChatManager struct {
-	mu            sync.RWMutex
-	runs          map[string]*ChatRunState // runID -> state
-	sessionRuns   map[string][]string      // sessionKey -> []runID
-	runSeq        int64
-	eventSeq      int64
+	mu          sync.RWMutex
+	runs        map[string]*ChatRunState // runID -> state
+	sessionRuns map[string][]string      // sessionKey -> []runID
+	runSeq      int64
+	eventSeq    int64
 }
 
 // NewChatManager 创建聊天管理器
@@ -257,10 +257,10 @@ func (cm *ChatManager) StreamDelta(runID string, message interface{}) error {
 	}
 
 	event := &ChatEvent{
-		RunID:    runID,
-		State:    "delta",
-		Message:  message,
-		Seq:      cm.nextSeq(),
+		RunID:   runID,
+		State:   "delta",
+		Message: message,
+		Seq:     cm.nextSeq(),
 	}
 
 	select {

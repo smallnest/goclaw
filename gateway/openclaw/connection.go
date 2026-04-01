@@ -13,47 +13,47 @@ import (
 
 // Connection WebSocket 连接
 type Connection struct {
-	mu                  sync.RWMutex
-	conn                *websocket.Conn
-	id                  string
-	clientInfo          ClientInfo
-	authContext         *AuthContext
-	connectPolicy       *ConnectPolicy
-	snapshotManager     *SnapshotManager
+	mu              sync.RWMutex
+	conn            *websocket.Conn
+	id              string
+	clientInfo      ClientInfo
+	authContext     *AuthContext
+	connectPolicy   *ConnectPolicy
+	snapshotManager *SnapshotManager
 
 	// 连接状态
-	authenticated       bool
-	role                string
-	scopes              []string
-	deviceID            string
+	authenticated bool
+	role          string
+	scopes        []string
+	deviceID      string
 
 	// 协议
-	protocol            int
-	remoteAddr          string
+	protocol   int
+	remoteAddr string
 
 	// 订阅
-	subscriptions       map[string]bool
+	subscriptions map[string]bool
 
 	// 状态
-	connectedAt         time.Time
-	lastActivityAt      time.Time
-	sendChan            chan []byte
-	closeChan           chan struct{}
-	onceClose           sync.Once
+	connectedAt    time.Time
+	lastActivityAt time.Time
+	sendChan       chan []byte
+	closeChan      chan struct{}
+	onceClose      sync.Once
 
 	// 上下文
-	ctx                 context.Context
-	cancel              context.CancelFunc
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // ConnectionConfig 连接配置
 type ConnectionConfig struct {
-	AuthContext       *AuthContext
-	ConnectPolicy     *ConnectPolicy
-	SnapshotManager   *SnapshotManager
-	SendBufferSize    int
-	ReadTimeout       time.Duration
-	WriteTimeout      time.Duration
+	AuthContext     *AuthContext
+	ConnectPolicy   *ConnectPolicy
+	SnapshotManager *SnapshotManager
+	SendBufferSize  int
+	ReadTimeout     time.Duration
+	WriteTimeout    time.Duration
 }
 
 // NewConnection 创建连接
@@ -69,20 +69,20 @@ func NewConnection(conn *websocket.Conn, remoteAddr string, config *ConnectionCo
 	}
 
 	return &Connection{
-		conn:              conn,
-		id:                uuid.New().String(),
-		authContext:       config.AuthContext,
-		connectPolicy:     config.ConnectPolicy,
-		snapshotManager:   config.SnapshotManager,
-		remoteAddr:        remoteAddr,
-		subscriptions:     make(map[string]bool),
-		connectedAt:       time.Now(),
-		lastActivityAt:    time.Now(),
-		sendChan:          make(chan []byte, config.SendBufferSize),
-		closeChan:         make(chan struct{}),
-		ctx:               ctx,
-		cancel:            cancel,
-		protocol:          ProtocolVersion,
+		conn:            conn,
+		id:              uuid.New().String(),
+		authContext:     config.AuthContext,
+		connectPolicy:   config.ConnectPolicy,
+		snapshotManager: config.SnapshotManager,
+		remoteAddr:      remoteAddr,
+		subscriptions:   make(map[string]bool),
+		connectedAt:     time.Now(),
+		lastActivityAt:  time.Now(),
+		sendChan:        make(chan []byte, config.SendBufferSize),
+		closeChan:       make(chan struct{}),
+		ctx:             ctx,
+		cancel:          cancel,
+		protocol:        ProtocolVersion,
 	}
 }
 
@@ -420,7 +420,6 @@ func (c *Connection) StartReader(handler func(*Connection, *Request) error) {
 		}
 	}()
 }
-
 
 // ValidateConnect 验证连接参数
 func (c *Connection) ValidateConnect(params *ConnectParams) error {

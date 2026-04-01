@@ -804,7 +804,7 @@ func installWindowsService(execPath string) {
 	// Create the service
 	fmt.Printf("Creating service: %s\n", windowsServiceName)
 	createCmd := exec.Command("sc.exe", "create", windowsServiceName,
-		"binPath=", "`" + execPath + "` gateway run",
+		"binPath=", "`"+execPath+"` gateway run",
 		"DisplayName= GoClaw Gateway",
 		"start= auto")
 

@@ -8,40 +8,40 @@ import (
 
 // Snapshot 状态快照
 type Snapshot struct {
-	Presence       []PresenceEntry `json:"presence"`
-	Health         HealthStatus    `json:"health"`
-	StateVersion   StateVersion    `json:"stateVersion"`
-	UptimeMs       int64           `json:"uptimeMs"`
-	ConfigPath     string          `json:"configPath,omitempty"`
-	StateDir       string          `json:"stateDir,omitempty"`
+	Presence        []PresenceEntry  `json:"presence"`
+	Health          HealthStatus     `json:"health"`
+	StateVersion    StateVersion     `json:"stateVersion"`
+	UptimeMs        int64            `json:"uptimeMs"`
+	ConfigPath      string           `json:"configPath,omitempty"`
+	StateDir        string           `json:"stateDir,omitempty"`
 	SessionDefaults *SessionDefaults `json:"sessionDefaults,omitempty"`
-	AuthMode       string          `json:"authMode,omitempty"`
-	UpdateAvailable *UpdateInfo    `json:"updateAvailable,omitempty"`
-	Timestamp      int64           `json:"timestamp"`
+	AuthMode        string           `json:"authMode,omitempty"`
+	UpdateAvailable *UpdateInfo      `json:"updateAvailable,omitempty"`
+	Timestamp       int64            `json:"timestamp"`
 }
 
 // SnapshotManager 快照管理器
 type SnapshotManager struct {
-	mu                sync.RWMutex
-	presence          map[string]*PresenceEntry
-	health            HealthStatus
-	stateVersion      StateVersion
-	startTime         time.Time
-	configPath        string
-	stateDir          string
-	sessionDefaults   *SessionDefaults
-	authMode          string
-	updateAvailable   *UpdateInfo
-	changeListeners   []chan Snapshot
+	mu              sync.RWMutex
+	presence        map[string]*PresenceEntry
+	health          HealthStatus
+	stateVersion    StateVersion
+	startTime       time.Time
+	configPath      string
+	stateDir        string
+	sessionDefaults *SessionDefaults
+	authMode        string
+	updateAvailable *UpdateInfo
+	changeListeners []chan Snapshot
 }
 
 // NewSnapshotManager 创建快照管理器
 func NewSnapshotManager() *SnapshotManager {
 	return &SnapshotManager{
-		presence:     make(map[string]*PresenceEntry),
-		stateVersion: StateVersion{Presence: ptrInt64(0), Health: ptrInt64(0)},
-		startTime:    time.Now(),
-		authMode:     "none",
+		presence:        make(map[string]*PresenceEntry),
+		stateVersion:    StateVersion{Presence: ptrInt64(0), Health: ptrInt64(0)},
+		startTime:       time.Now(),
+		authMode:        "none",
 		changeListeners: make([]chan Snapshot, 0),
 	}
 }
@@ -57,16 +57,16 @@ func (sm *SnapshotManager) GetSnapshot() *Snapshot {
 	}
 
 	return &Snapshot{
-		Presence:       presence,
-		Health:         sm.health,
-		StateVersion:   sm.stateVersion,
-		UptimeMs:       time.Since(sm.startTime).Milliseconds(),
-		ConfigPath:     sm.configPath,
-		StateDir:       sm.stateDir,
+		Presence:        presence,
+		Health:          sm.health,
+		StateVersion:    sm.stateVersion,
+		UptimeMs:        time.Since(sm.startTime).Milliseconds(),
+		ConfigPath:      sm.configPath,
+		StateDir:        sm.stateDir,
 		SessionDefaults: sm.sessionDefaults,
-		AuthMode:       sm.authMode,
+		AuthMode:        sm.authMode,
 		UpdateAvailable: sm.updateAvailable,
-		Timestamp:      time.Now().Unix(),
+		Timestamp:       time.Now().Unix(),
 	}
 }
 

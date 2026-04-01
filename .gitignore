@@ -68,3 +68,6 @@ src-tauri/binaries/
 
 # Tauri Wix output
 src-tauri/WixTools/
+
+# Test coverage reports
+*TEST_SUMMARY.md

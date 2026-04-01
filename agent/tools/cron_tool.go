@@ -592,7 +592,7 @@ func (t *CronTool) execAddExplicit(ctx context.Context, params map[string]interf
 		WakeMode:      cron.WakeModeNow,
 		Payload:       payload,
 		State: cron.JobState{
-				Enabled: true,
+			Enabled: true,
 		},
 	}
 

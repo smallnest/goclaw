@@ -19,10 +19,10 @@ type InboundMessage struct {
 
 // Media 媒体文件
 type Media struct {
-	Type     string                 `json:"type"`              // image, video, audio, document
-	URL      string                 `json:"url"`               // 文件URL
-	Base64   string                 `json:"base64"`            // Base64编码内容
-	MimeType string                 `json:"mimetype"`          // MIME类型
+	Type     string                 `json:"type"`               // image, video, audio, document
+	URL      string                 `json:"url"`                // 文件URL
+	Base64   string                 `json:"base64"`             // Base64编码内容
+	MimeType string                 `json:"mimetype"`           // MIME类型
 	Metadata map[string]interface{} `json:"metadata,omitempty"` // 额外元数据（如加密参数等）
 }
 
@@ -63,10 +63,10 @@ type ChatEvent struct {
 	ChatID    string      `json:"chat_id"`
 	RunID     string      `json:"run_id"`
 	Seq       int         `json:"seq"`
-	State     string      `json:"state"`     // "delta", "thinking", "tool", "final", "error"
-	Content   string      `json:"content"`   // 增量内容
-	Message   string      `json:"message"`   // 完整消息（final 时）
-	Error     string      `json:"error"`     // 错误信息
+	State     string      `json:"state"`   // "delta", "thinking", "tool", "final", "error"
+	Content   string      `json:"content"` // 增量内容
+	Message   string      `json:"message"` // 完整消息（final 时）
+	Error     string      `json:"error"`   // 错误信息
 	Timestamp time.Time   `json:"timestamp"`
 	Metadata  interface{} `json:"metadata,omitempty"`
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/smallnest/goclaw/internal/logger"
@@ -35,6 +36,7 @@ type Orchestrator struct {
 	config     *LoopConfig
 	state      *AgentState // Initial state, used as template for each Run
 	eventChan  chan *Event
+	cancelMu   sync.Mutex
 	cancelFunc context.CancelFunc
 }
 
@@ -53,7 +55,9 @@ func (o *Orchestrator) Run(ctx context.Context, prompts []AgentMessage) ([]Agent
 		zap.Int("prompts_count", len(prompts)))
 
 	ctx, cancel := context.WithCancel(ctx)
+	o.cancelMu.Lock()
 	o.cancelFunc = cancel
+	o.cancelMu.Unlock()
 
 	// Initialize state with prompts
 	newMessages := make([]AgentMessage, len(prompts))
@@ -79,6 +83,9 @@ func (o *Orchestrator) Run(ctx context.Context, prompts []AgentMessage) ([]Agent
 	o.emit(endEvent)
 
 	cancel()
+	o.cancelMu.Lock()
+	o.cancelFunc = nil
+	o.cancelMu.Unlock()
 	if err != nil {
 		return nil, fmt.Errorf("agent loop failed: %w", err)
 	}
@@ -723,6 +730,9 @@ func (o *Orchestrator) fetchFollowUpMessages() []AgentMessage {
 // Stop stops the orchestrator
 // Safe to call multiple times
 func (o *Orchestrator) Stop() {
+	o.cancelMu.Lock()
+	defer o.cancelMu.Unlock()
+
 	if o.cancelFunc != nil {
 		o.cancelFunc()
 		o.cancelFunc = nil

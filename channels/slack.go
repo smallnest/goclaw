@@ -156,29 +156,15 @@ func (c *SlackChannel) handleMessage(ctx context.Context, ev *slack.MessageEvent
 func (c *SlackChannel) handleCommand(ctx context.Context, ev *slack.MessageEvent) {
 	command := ev.Text
 
-	switch command {
-	case "/start":
-		_, _, err := c.client.PostMessage(ev.Channel, slack.MsgOptionText("👋 Welcome to goclaw!\n\nI can help you with various tasks. Send /help to see available commands.", false))
-		if err != nil {
-			logger.Error("Failed to send Slack message", zap.Error(err))
-		}
-	case "/help":
-		helpText := `🐾 goclaw commands:
+	// Use shared command response helper
+	response := GetDefaultCommandResponse(command, c.IsRunning())
+	if response == "" {
+		return
+	}
 
-/start - Get started
-/help - Show this help message
-
-You can chat with me directly and I'll do my best to help!`
-		_, _, err := c.client.PostMessage(ev.Channel, slack.MsgOptionText(helpText, false))
-		if err != nil {
-			logger.Error("Failed to send Slack message", zap.Error(err))
-		}
-	case "/status":
-		statusText := fmt.Sprintf("✅ goclaw is running\n\nChannel status: %s", map[bool]string{true: "🟢 Online", false: "🔴 Offline"}[c.IsRunning()])
-		_, _, err := c.client.PostMessage(ev.Channel, slack.MsgOptionText(statusText, false))
-		if err != nil {
-			logger.Error("Failed to send Slack message", zap.Error(err))
-		}
+	_, _, err := c.client.PostMessage(ev.Channel, slack.MsgOptionText(response, false))
+	if err != nil {
+		logger.Error("Failed to send Slack message", zap.Error(err))
 	}
 }
 

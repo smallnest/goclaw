@@ -4,6 +4,7 @@ import (
 	"math"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"time"
 )
@@ -130,21 +131,10 @@ func applyTemporalDecayToResults(results []*SearchResult, config TemporalDecayCo
 		r.Score = applyTemporalDecayToScore(r.Score, ageDays, halfLife)
 	}
 
-	// Re-sort by decayed score
-	// Simple bubble sort for small slices (results are typically < 100)
-	n := len(results)
-	for i := 0; i < n-1; i++ {
-		swapped := false
-		for j := 0; j < n-i-1; j++ {
-			if results[j].Score < results[j+1].Score {
-				results[j], results[j+1] = results[j+1], results[j]
-				swapped = true
-			}
-		}
-		if !swapped {
-			break
-		}
-	}
+	// Re-sort by decayed score using efficient O(n log n) sort
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].Score > results[j].Score
+	})
 
 	return results
 }

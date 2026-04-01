@@ -252,7 +252,7 @@ func runTUI(cmd *cobra.Command, args []string) {
 			logger.Info("Skills loaded", zap.Int("count", len(skills)))
 		}
 
-}
+	}
 	// Create TUI agent
 	maxIterations := cfg.Agents.Defaults.MaxIterations
 	if maxIterations == 0 {

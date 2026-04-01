@@ -23,13 +23,13 @@ func (m *mockErrorClassifier) IsFailoverError(err error) bool {
 
 func TestNewRetryManager(t *testing.T) {
 	tests := []struct {
-		name      string
-		config    *RetryConfig
+		name       string
+		config     *RetryConfig
 		classifier gerrors.ErrorClassifier
 	}{
 		{
-			name:      "nil config uses defaults",
-			config:    nil,
+			name:       "nil config uses defaults",
+			config:     nil,
 			classifier: nil,
 		},
 		{
@@ -38,8 +38,8 @@ func TestNewRetryManager(t *testing.T) {
 				Enabled:         true,
 				MaxRetries:      5,
 				InitialDelay:    1 * time.Second,
-				MaxDelay:       30 * time.Second,
-				BackoffFactor:  1.5,
+				MaxDelay:        30 * time.Second,
+				BackoffFactor:   1.5,
 				RetryableErrors: []string{"auth", "rate_limit"},
 			},
 			classifier: &mockErrorClassifier{},
@@ -142,20 +142,20 @@ func TestRetryManager_ShouldRetry(t *testing.T) {
 
 func TestRetryManager_GetDelay(t *testing.T) {
 	config := &RetryConfig{
-		Enabled:        true,
-		MaxRetries:     5,
-		InitialDelay:   1 * time.Second,
-		MaxDelay:      10 * time.Second,
-		BackoffFactor:  2.0,
+		Enabled:         true,
+		MaxRetries:      5,
+		InitialDelay:    1 * time.Second,
+		MaxDelay:        10 * time.Second,
+		BackoffFactor:   2.0,
 		RetryableErrors: []string{"auth"},
 	}
 
 	rm := NewRetryManager(config, nil).(*retryManager)
 
 	tests := []struct {
-		attempt  int
-		wantMin  time.Duration
-		wantMax  time.Duration
+		attempt int
+		wantMin time.Duration
+		wantMax time.Duration
 	}{
 		{0, 1 * time.Second, 1 * time.Second},
 		{1, 2 * time.Second, 2 * time.Second},
@@ -177,12 +177,12 @@ func TestRetryManager_GetDelay(t *testing.T) {
 
 func TestRetryManager_RecordError(t *testing.T) {
 	tests := []struct {
-		name           string
-		config         *RetryConfig
+		name            string
+		config          *RetryConfig
 		classifier      gerrors.ErrorClassifier
-		err            error
+		err             error
 		wantShouldRetry bool
-		wantAction     RecoveryAction
+		wantAction      RecoveryAction
 	}{
 		{
 			name: "auth error should rotate profile",
@@ -193,7 +193,7 @@ func TestRetryManager_RecordError(t *testing.T) {
 				RetryableErrors: []string{"auth"},
 			},
 			classifier:      &mockErrorClassifier{reason: gerrors.FailoverReasonAuth},
-			err:            errors.New("invalid api key"),
+			err:             errors.New("invalid api key"),
 			wantShouldRetry: true,
 			wantAction:      RecoveryActionRotateProfile,
 		},
@@ -206,7 +206,7 @@ func TestRetryManager_RecordError(t *testing.T) {
 				RetryableErrors: []string{"rate_limit"},
 			},
 			classifier:      &mockErrorClassifier{reason: gerrors.FailoverReasonRateLimit},
-			err:            errors.New("rate limit exceeded"),
+			err:             errors.New("rate limit exceeded"),
 			wantShouldRetry: true,
 			wantAction:      RecoveryActionBackoff,
 		},
@@ -219,7 +219,7 @@ func TestRetryManager_RecordError(t *testing.T) {
 				RetryableErrors: []string{"context_overflow"},
 			},
 			classifier:      &mockErrorClassifier{reason: gerrors.FailoverReasonContextOverflow},
-			err:            errors.New("context length exceeded"),
+			err:             errors.New("context length exceeded"),
 			wantShouldRetry: true,
 			wantAction:      RecoveryActionCompressContext,
 		},
@@ -232,7 +232,7 @@ func TestRetryManager_RecordError(t *testing.T) {
 				RetryableErrors: []string{"auth"},
 			},
 			classifier:      &mockErrorClassifier{reason: gerrors.FailoverReasonUnknown},
-			err:            errors.New("unknown error"),
+			err:             errors.New("unknown error"),
 			wantShouldRetry: false,
 		},
 	}

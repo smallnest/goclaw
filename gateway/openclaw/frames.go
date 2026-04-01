@@ -26,10 +26,10 @@ type Frame interface {
 
 // Request 请求帧
 type Request struct {
-	TypeVal FrameType           `json:"type"`
-	ID      string              `json:"id"`
-	Method  string              `json:"method"`
-	Params  json.RawMessage     `json:"params,omitempty"`
+	TypeVal FrameType       `json:"type"`
+	ID      string          `json:"id"`
+	Method  string          `json:"method"`
+	Params  json.RawMessage `json:"params,omitempty"`
 }
 
 // Type 实现 Frame 接口
@@ -39,11 +39,11 @@ func (r *Request) Type() FrameType {
 
 // Response 响应帧
 type Response struct {
-	TypeVal   FrameType       `json:"type"`
-	ID        string          `json:"id"`
-	OK        bool            `json:"ok"`
-	Payload   json.RawMessage `json:"payload,omitempty"`
-	Error     *ErrorDetail    `json:"error,omitempty"`
+	TypeVal FrameType       `json:"type"`
+	ID      string          `json:"id"`
+	OK      bool            `json:"ok"`
+	Payload json.RawMessage `json:"payload,omitempty"`
+	Error   *ErrorDetail    `json:"error,omitempty"`
 }
 
 // Type 实现 Frame 接口
@@ -53,20 +53,20 @@ func (r *Response) Type() FrameType {
 
 // ErrorDetail 错误详情
 type ErrorDetail struct {
-	Code        string          `json:"code"`
-	Message     string          `json:"message"`
-	Details     json.RawMessage `json:"details,omitempty"`
-	Retryable   bool            `json:"retryable,omitempty"`
-	RetryAfterMs int64          `json:"retryAfterMs,omitempty"`
+	Code         string          `json:"code"`
+	Message      string          `json:"message"`
+	Details      json.RawMessage `json:"details,omitempty"`
+	Retryable    bool            `json:"retryable,omitempty"`
+	RetryAfterMs int64           `json:"retryAfterMs,omitempty"`
 }
 
 // Event 事件帧
 type Event struct {
-	TypeVal       FrameType       `json:"type"`
-	Event         string          `json:"event"`
-	Payload       json.RawMessage `json:"payload,omitempty"`
-	Seq           int64           `json:"seq,omitempty"`
-	StateVersion  *StateVersion   `json:"stateVersion,omitempty"`
+	TypeVal      FrameType       `json:"type"`
+	Event        string          `json:"event"`
+	Payload      json.RawMessage `json:"payload,omitempty"`
+	Seq          int64           `json:"seq,omitempty"`
+	StateVersion *StateVersion   `json:"stateVersion,omitempty"`
 }
 
 // Type 实现 Frame 接口
@@ -82,14 +82,14 @@ type StateVersion struct {
 
 // HelloOK hello-ok 响应帧
 type HelloOK struct {
-	TypeVal       FrameType       `json:"type"`
-	Protocol      int             `json:"protocol"`
-	Server        ServerInfo      `json:"server"`
-	Features      Features        `json:"features"`
-	Snapshot      json.RawMessage `json:"snapshot"`
-	CanvasHostURL string          `json:"canvasHostUrl,omitempty"`
-	Auth          *AuthInfo            `json:"auth,omitempty"`
-	Policy        *HelloConnectPolicy  `json:"policy,omitempty"`
+	TypeVal       FrameType           `json:"type"`
+	Protocol      int                 `json:"protocol"`
+	Server        ServerInfo          `json:"server"`
+	Features      Features            `json:"features"`
+	Snapshot      json.RawMessage     `json:"snapshot"`
+	CanvasHostURL string              `json:"canvasHostUrl,omitempty"`
+	Auth          *AuthInfo           `json:"auth,omitempty"`
+	Policy        *HelloConnectPolicy `json:"policy,omitempty"`
 }
 
 // Type 实现 Frame 接口
@@ -112,15 +112,15 @@ type Features struct {
 // AuthInfo 认证信息
 type AuthInfo struct {
 	DeviceToken string   `json:"deviceToken"`
-	Role       string   `json:"role"`
-	Scopes     []string `json:"scopes"`
+	Role        string   `json:"role"`
+	Scopes      []string `json:"scopes"`
 }
 
 // HelloConnectPolicy hello-ok 中的连接策略
 type HelloConnectPolicy struct {
-	MaxPayload        int64 `json:"maxPayload"`
-	MaxBufferedBytes  int64 `json:"maxBufferedBytes"`
-	TickIntervalMs    int64 `json:"tickIntervalMs"`
+	MaxPayload       int64 `json:"maxPayload"`
+	MaxBufferedBytes int64 `json:"maxBufferedBytes"`
+	TickIntervalMs   int64 `json:"tickIntervalMs"`
 }
 
 // ConnectChallenge 连接挑战事件

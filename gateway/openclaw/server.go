@@ -11,25 +11,25 @@ import (
 
 // Server OpenClaw Gateway 服务器
 type Server struct {
-	mu                sync.RWMutex
-	config            *ServerConfig
-	authContext       *AuthContext
-	snapshotMgr       *SnapshotManager
-	connectPolicy     *ConnectPolicy
-	broadcastMgr      *BroadcastManager
-	messageHandler    *MessageHandler
-	chatMgr           *ChatManager
-	nodePairingMgr    *NodePairingManager
-	devicePairingMgr  *DevicePairingManager
-	nodeInvokeMgr     *NodeInvokeManager
+	mu               sync.RWMutex
+	config           *ServerConfig
+	authContext      *AuthContext
+	snapshotMgr      *SnapshotManager
+	connectPolicy    *ConnectPolicy
+	broadcastMgr     *BroadcastManager
+	messageHandler   *MessageHandler
+	chatMgr          *ChatManager
+	nodePairingMgr   *NodePairingManager
+	devicePairingMgr *DevicePairingManager
+	nodeInvokeMgr    *NodeInvokeManager
 
-	connections       map[string]*Connection
-	upgrader          *websocket.Upgrader
-	running           bool
-	ctx               context.Context
-	cancel            context.CancelFunc
+	connections map[string]*Connection
+	upgrader    *websocket.Upgrader
+	running     bool
+	ctx         context.Context
+	cancel      context.CancelFunc
 
-	tickStopper       func()
+	tickStopper func()
 }
 
 // ServerConfig 服务器配置
@@ -48,11 +48,11 @@ type ServerConfig struct {
 	TrustedProxies []string
 
 	// 策略配置
-	CheckOrigin     bool
-	AllowedOrigins  []string
-	AllowedIPs      []string
-	BlockedIPs      []string
-	MaxConnPerIP    int
+	CheckOrigin    bool
+	AllowedOrigins []string
+	AllowedIPs     []string
+	BlockedIPs     []string
+	MaxConnPerIP   int
 }
 
 // DefaultServerConfig 默认服务器配置
@@ -65,9 +65,9 @@ func DefaultServerConfig() *ServerConfig {
 		PongTimeout:    60 * time.Second,
 		MaxMessageSize: 10 * 1024 * 1024, // 10MB
 
-		AuthMode:      AuthModeNone,
-		CheckOrigin:   true,
-		MaxConnPerIP:  10,
+		AuthMode:     AuthModeNone,
+		CheckOrigin:  true,
+		MaxConnPerIP: 10,
 	}
 }
 
@@ -80,19 +80,19 @@ func NewServer(config *ServerConfig) *Server {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := &Server{
-		config:         config,
-		authContext:    NewAuthContext(),
-		snapshotMgr:    NewSnapshotManager(),
-		connectPolicy:  NewConnectPolicy(),
-		broadcastMgr:   nil, // 将在下面设置
-		messageHandler: nil, // 将在下面设置
-		chatMgr:        NewChatManager(),
-		nodePairingMgr: nil, // 将在下面设置
+		config:           config,
+		authContext:      NewAuthContext(),
+		snapshotMgr:      NewSnapshotManager(),
+		connectPolicy:    NewConnectPolicy(),
+		broadcastMgr:     nil, // 将在下面设置
+		messageHandler:   nil, // 将在下面设置
+		chatMgr:          NewChatManager(),
+		nodePairingMgr:   nil, // 将在下面设置
 		devicePairingMgr: nil, // 将在下面设置
-		nodeInvokeMgr:  nil, // 将在下面设置
-		connections:    make(map[string]*Connection),
-		ctx:            ctx,
-		cancel:         cancel,
+		nodeInvokeMgr:    nil, // 将在下面设置
+		connections:      make(map[string]*Connection),
+		ctx:              ctx,
+		cancel:           cancel,
 	}
 
 	// 设置依赖关系
@@ -116,9 +116,9 @@ func NewServer(config *ServerConfig) *Server {
 
 	// 创建 WebSocket 升级器
 	s.upgrader = &websocket.Upgrader{
-		ReadBufferSize:  1024,
-		WriteBufferSize: 1024,
-		CheckOrigin:     s.connectPolicy.CheckOriginFunc,
+		ReadBufferSize:   1024,
+		WriteBufferSize:  1024,
+		CheckOrigin:      s.connectPolicy.CheckOriginFunc,
 		HandshakeTimeout: 10 * time.Second,
 	}
 

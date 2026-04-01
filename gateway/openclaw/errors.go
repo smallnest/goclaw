@@ -5,13 +5,13 @@ type ErrorCode string
 
 const (
 	// 通用错误
-	ErrorInvalidRequest   ErrorCode = "INVALID_REQUEST"
-	ErrorParseError       ErrorCode = "PARSE_ERROR"
-	ErrorMethodNotFound   ErrorCode = "METHOD_NOT_FOUND"
-	ErrorInvalidParams    ErrorCode = "INVALID_PARAMS"
-	ErrorInternalError    ErrorCode = "INTERNAL_ERROR"
-	ErrorNotImplemented   ErrorCode = "NOT_IMPLEMENTED"
-	ErrorUnavailable      ErrorCode = "UNAVAILABLE"
+	ErrorInvalidRequest ErrorCode = "INVALID_REQUEST"
+	ErrorParseError     ErrorCode = "PARSE_ERROR"
+	ErrorMethodNotFound ErrorCode = "METHOD_NOT_FOUND"
+	ErrorInvalidParams  ErrorCode = "INVALID_PARAMS"
+	ErrorInternalError  ErrorCode = "INTERNAL_ERROR"
+	ErrorNotImplemented ErrorCode = "NOT_IMPLEMENTED"
+	ErrorUnavailable    ErrorCode = "UNAVAILABLE"
 
 	// 认证相关
 	ErrorUnauthorized     ErrorCode = "UNAUTHORIZED"
@@ -26,36 +26,36 @@ const (
 	ErrorRateLimited      ErrorCode = "RATE_LIMITED"
 
 	// 资源相关
-	ErrorNotFound         ErrorCode = "NOT_FOUND"
-	ErrorAlreadyExists    ErrorCode = "ALREADY_EXISTS"
-	ErrorConflict         ErrorCode = "CONFLICT"
+	ErrorNotFound      ErrorCode = "NOT_FOUND"
+	ErrorAlreadyExists ErrorCode = "ALREADY_EXISTS"
+	ErrorConflict      ErrorCode = "CONFLICT"
 
 	// 执行相关
-	ErrorExecutionFailed  ErrorCode = "EXECUTION_FAILED"
-	ErrorAborted          ErrorCode = "ABORTED"
-	ErrorTimeout          ErrorCode = "TIMEOUT"
+	ErrorExecutionFailed ErrorCode = "EXECUTION_FAILED"
+	ErrorAborted         ErrorCode = "ABORTED"
+	ErrorTimeout         ErrorCode = "TIMEOUT"
 
 	// 配置相关
-	ErrorInvalidConfig    ErrorCode = "INVALID_CONFIG"
-	ErrorConfigRequired   ErrorCode = "CONFIG_REQUIRED"
+	ErrorInvalidConfig  ErrorCode = "INVALID_CONFIG"
+	ErrorConfigRequired ErrorCode = "CONFIG_REQUIRED"
 
 	// Node 相关
-	ErrorNodeOffline      ErrorCode = "NODE_OFFLINE"
-	ErrorNodeUnreachable  ErrorCode = "NODE_UNREACHABLE"
-	ErrorInvokeFailed     ErrorCode = "INVOKE_FAILED"
+	ErrorNodeOffline     ErrorCode = "NODE_OFFLINE"
+	ErrorNodeUnreachable ErrorCode = "NODE_UNREACHABLE"
+	ErrorInvokeFailed    ErrorCode = "INVOKE_FAILED"
 
 	// Session 相关
-	ErrorSessionNotFound  ErrorCode = "SESSION_NOT_FOUND"
-	ErrorSessionExpired   ErrorCode = "SESSION_EXPIRED"
-	ErrorSessionLocked    ErrorCode = "SESSION_LOCKED"
+	ErrorSessionNotFound ErrorCode = "SESSION_NOT_FOUND"
+	ErrorSessionExpired  ErrorCode = "SESSION_EXPIRED"
+	ErrorSessionLocked   ErrorCode = "SESSION_LOCKED"
 
 	// Cron 相关
-	ErrorCronNotFound     ErrorCode = "CRON_NOT_FOUND"
-	ErrorInvalidSchedule  ErrorCode = "INVALID_SCHEDULE"
+	ErrorCronNotFound    ErrorCode = "CRON_NOT_FOUND"
+	ErrorInvalidSchedule ErrorCode = "INVALID_SCHEDULE"
 
 	// Channel 相关
-	ErrorChannelNotFound  ErrorCode = "CHANNEL_NOT_FOUND"
-	ErrorChannelDisabled  ErrorCode = "CHANNEL_DISABLED"
+	ErrorChannelNotFound ErrorCode = "CHANNEL_NOT_FOUND"
+	ErrorChannelDisabled ErrorCode = "CHANNEL_DISABLED"
 )
 
 // ErrorSeverity 错误严重程度
@@ -103,7 +103,7 @@ func NewErrorInfoWithDetails(code ErrorCode, message string, details interface{}
 func isRetryable(code ErrorCode) bool {
 	switch code {
 	case ErrorUnavailable, ErrorNodeOffline, ErrorNodeUnreachable,
-	     ErrorRateLimited, ErrorTimeout:
+		ErrorRateLimited, ErrorTimeout:
 		return true
 	default:
 		return false
@@ -112,21 +112,21 @@ func isRetryable(code ErrorCode) bool {
 
 // Common error messages
 const (
-	ErrMessageInvalidRequest   = "Invalid request format"
-	ErrMessageParseError       = "Failed to parse request"
-	ErrMessageMethodNotFound   = "Method not found or not supported"
-	ErrMessageInvalidParams    = "Invalid parameters"
-	ErrMessageInternalError    = "Internal server error"
-	ErrMessageUnauthorized     = "Authentication required"
-	ErrMessageNotPaired        = "Device/node not paired"
-	ErrMessageNotFound         = "Resource not found"
-	ErrMessageAlreadyExists    = "Resource already exists"
-	ErrMessageSessionNotFound  = "Session not found"
-	ErrMessageCronNotFound     = "Cron job not found"
-	ErrMessageInvalidSchedule  = "Invalid schedule expression"
-	ErrMessageChannelNotFound  = "Channel not found"
-	ErrMessageNodeOffline      = "Node is offline"
-	ErrMessageExecutionFailed  = "Execution failed"
-	ErrMessageAborted          = "Operation aborted"
-	ErrMessageTimeout          = "Operation timeout"
+	ErrMessageInvalidRequest  = "Invalid request format"
+	ErrMessageParseError      = "Failed to parse request"
+	ErrMessageMethodNotFound  = "Method not found or not supported"
+	ErrMessageInvalidParams   = "Invalid parameters"
+	ErrMessageInternalError   = "Internal server error"
+	ErrMessageUnauthorized    = "Authentication required"
+	ErrMessageNotPaired       = "Device/node not paired"
+	ErrMessageNotFound        = "Resource not found"
+	ErrMessageAlreadyExists   = "Resource already exists"
+	ErrMessageSessionNotFound = "Session not found"
+	ErrMessageCronNotFound    = "Cron job not found"
+	ErrMessageInvalidSchedule = "Invalid schedule expression"
+	ErrMessageChannelNotFound = "Channel not found"
+	ErrMessageNodeOffline     = "Node is offline"
+	ErrMessageExecutionFailed = "Execution failed"
+	ErrMessageAborted         = "Operation aborted"
+	ErrMessageTimeout         = "Operation timeout"
 )

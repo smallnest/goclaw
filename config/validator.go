@@ -129,10 +129,57 @@ func (v *Validator) validateAgentDefaults(defaults *AgentDefaults) error {
 		return errors.InvalidConfig("max_tokens must be between 1 and 128000")
 	}
 
+	// Validate retry configuration
+	if defaults.Retry != nil {
+		if err := v.validateRetryConfig(defaults.Retry); err != nil {
+			return err
+		}
+	}
+
 	// Validate subagents configuration
-	// Note: Subagents is of type *SubagentsConfig, not *AgentSubagentConfig
-	// Skip validation for now as the structure differs
-	_ = defaults.Subagents
+	if defaults.Subagents != nil {
+		if err := v.validateSubagentsDefaults(defaults.Subagents); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+// validateRetryConfig validates retry configuration
+func (v *Validator) validateRetryConfig(retry *RetryConfig) error {
+	if retry.MaxRetries < 0 || retry.MaxRetries > 10 {
+		return errors.InvalidConfig("retry.max_retries must be between 0 and 10")
+	}
+
+	if retry.InitialDelay < 0 || retry.InitialDelay > 60*time.Second {
+		return errors.InvalidConfig("retry.initial_delay must be between 0 and 60 seconds")
+	}
+
+	if retry.MaxDelay < 0 || retry.MaxDelay > 300*time.Second {
+		return errors.InvalidConfig("retry.max_delay must be between 0 and 300 seconds")
+	}
+
+	if retry.BackoffFactor < 1.0 || retry.BackoffFactor > 10.0 {
+		return errors.InvalidConfig("retry.backoff_factor must be between 1.0 and 10.0")
+	}
+
+	return nil
+}
+
+// validateSubagentsDefaults validates subagents configuration in defaults
+func (v *Validator) validateSubagentsDefaults(subagents *SubagentsConfig) error {
+	if subagents.MaxConcurrent < 1 || subagents.MaxConcurrent > 10 {
+		return errors.InvalidConfig("subagents.max_concurrent must be between 1 and 10")
+	}
+
+	if subagents.ArchiveAfterMinutes < 1 || subagents.ArchiveAfterMinutes > 1440 {
+		return errors.InvalidConfig("subagents.archive_after_minutes must be between 1 and 1440 (24 hours)")
+	}
+
+	if subagents.TimeoutSeconds < 60 || subagents.TimeoutSeconds > 3600 {
+		return errors.InvalidConfig("subagents.timeout_seconds must be between 60 and 3600")
+	}
 
 	return nil
 }
@@ -177,6 +224,11 @@ func (v *Validator) validateProviders(cfg *Config) error {
 	// Check if at least one provider is configured in models.providers
 	if !cfg.Models.HasProviders() {
 		return errors.InvalidConfig("at least one LLM provider must be configured in models.providers")
+	}
+
+	// Validate models.mode
+	if cfg.Models.Mode != "" && cfg.Models.Mode != "merge" && cfg.Models.Mode != "replace" {
+		return errors.InvalidConfig("models.mode must be 'merge' or 'replace'")
 	}
 
 	// Validate each provider in models.providers
@@ -434,6 +486,11 @@ func (v *Validator) validateShellTool(shell *ShellToolConfig) error {
 
 // validateWebTool validates web tool configuration
 func (v *Validator) validateWebTool(web *WebToolConfig) error {
+	// Timeout of 0 means not set, skip validation
+	if web.Timeout == 0 {
+		return nil
+	}
+
 	// Check timeout
 	if web.Timeout < 1 || web.Timeout > 300 {
 		return errors.InvalidConfig("web timeout must be between 1 and 300 seconds")
@@ -457,16 +514,17 @@ func (v *Validator) validateBrowserTool(browser *BrowserToolConfig) error {
 
 // validateGateway validates gateway configuration
 func (v *Validator) validateGateway(cfg *Config) error {
-	if cfg.Gateway.Port < 1024 || cfg.Gateway.Port > 65535 {
+	// Port 0 means not configured, skip validation
+	if cfg.Gateway.Port != 0 && (cfg.Gateway.Port < 1024 || cfg.Gateway.Port > 65535) {
 		return errors.InvalidConfig("gateway port must be between 1024 and 65535")
 	}
 
-	if cfg.Gateway.ReadTimeout < 1 || cfg.Gateway.ReadTimeout > 300 {
-		return errors.InvalidConfig("gateway read_timeout must be between 1 and 300 seconds")
+	if cfg.Gateway.ReadTimeout < 0 || cfg.Gateway.ReadTimeout > 300*time.Second {
+		return errors.InvalidConfig("gateway read_timeout must be between 0 and 300 seconds")
 	}
 
-	if cfg.Gateway.WriteTimeout < 1 || cfg.Gateway.WriteTimeout > 300 {
-		return errors.InvalidConfig("gateway write_timeout must be between 1 and 300 seconds")
+	if cfg.Gateway.WriteTimeout < 0 || cfg.Gateway.WriteTimeout > 300*time.Second {
+		return errors.InvalidConfig("gateway write_timeout must be between 0 and 300 seconds")
 	}
 
 	// Validate WebSocket configuration
@@ -484,16 +542,22 @@ func (v *Validator) validateWebSocketConfig(ws *WebSocketConfig) error {
 		return nil
 	}
 
-	if ws.Port < 1024 || ws.Port > 65535 {
+	// Port 0 means use default, skip validation
+	if ws.Port != 0 && (ws.Port < 1024 || ws.Port > 65535) {
 		return errors.InvalidConfig("websocket port must be between 1024 and 65535")
 	}
 
-	if ws.PingInterval < 1*time.Second || ws.PingInterval > 5*time.Minute {
-		return errors.InvalidConfig("websocket ping_interval must be between 1s and 5m")
+	if ws.PingInterval < 0 || ws.PingInterval > 5*time.Minute {
+		return errors.InvalidConfig("websocket ping_interval must be between 0 and 5m")
 	}
 
-	if ws.PongTimeout < 1*time.Second || ws.PongTimeout > 5*time.Minute {
-		return errors.InvalidConfig("websocket pong_timeout must be between 1s and 5m")
+	if ws.PongTimeout < 0 || ws.PongTimeout > 5*time.Minute {
+		return errors.InvalidConfig("websocket pong_timeout must be between 0 and 5m")
+	}
+
+	// Validate auth token if auth is enabled
+	if ws.EnableAuth && strings.TrimSpace(ws.AuthToken) == "" {
+		return errors.InvalidConfig("websocket auth_token is required when enable_auth is true")
 	}
 
 	return nil

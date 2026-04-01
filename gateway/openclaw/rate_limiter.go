@@ -7,11 +7,11 @@ import (
 
 // RateLimiter 速率限制器
 type RateLimiter struct {
-	mu         sync.RWMutex
-	limiters   map[string]*tokenBucketLimiter
-	globalLimit *tokenBucketLimiter
+	mu              sync.RWMutex
+	limiters        map[string]*tokenBucketLimiter
+	globalLimit     *tokenBucketLimiter
 	cleanupInterval time.Duration
-	lastCleanup    time.Time
+	lastCleanup     time.Time
 }
 
 // tokenBucketLimiter 令牌桶限流器

@@ -18,14 +18,14 @@ type NodePairingManager struct {
 
 // NodePairRequest Node 配对请求
 type NodePairRequest struct {
-	ID          string                 `json:"id"`
-	NodeID      string                 `json:"nodeId"`
-	Name        string                 `json:"name"`
-	Capabilities []string              `json:"capabilities"`
-	Metadata    map[string]interface{} `json:"metadata"`
-	RequestedAt time.Time              `json:"requestedAt"`
-	ExpiresAt   time.Time              `json:"expiresAt"`
-	Status      string                 `json:"status"` // "pending" | "approved" | "rejected" | "expired"
+	ID           string                 `json:"id"`
+	NodeID       string                 `json:"nodeId"`
+	Name         string                 `json:"name"`
+	Capabilities []string               `json:"capabilities"`
+	Metadata     map[string]interface{} `json:"metadata"`
+	RequestedAt  time.Time              `json:"requestedAt"`
+	ExpiresAt    time.Time              `json:"expiresAt"`
+	Status       string                 `json:"status"` // "pending" | "approved" | "rejected" | "expired"
 }
 
 // NewNodePairingManager 创建 Node 配对管理器
@@ -227,7 +227,7 @@ func RegisterNodePairingMethods(mh *MessageHandler, npm *NodePairingManager) {
 		var params struct {
 			NodeID       string                 `json:"nodeId"`
 			Name         string                 `json:"name"`
-			Capabilities []string              `json:"capabilities,omitempty"`
+			Capabilities []string               `json:"capabilities,omitempty"`
 			Metadata     map[string]interface{} `json:"metadata,omitempty"`
 		}
 		if err := parseParams(req.Params, &params); err != nil {
@@ -262,8 +262,8 @@ func RegisterNodePairingMethods(mh *MessageHandler, npm *NodePairingManager) {
 	// node.pair.approve
 	mh.Register("node.pair.approve", func(conn *Connection, req *Request) (interface{}, *ErrorInfo) {
 		var params struct {
-			RequestID string                 `json:"requestId"`
-			Metadata  map[string]string      `json:"metadata,omitempty"`
+			RequestID string            `json:"requestId"`
+			Metadata  map[string]string `json:"metadata,omitempty"`
 		}
 		if err := parseParams(req.Params, &params); err != nil {
 			return nil, NewErrorInfo(ErrorInvalidParams, err.Error())
@@ -278,8 +278,8 @@ func RegisterNodePairingMethods(mh *MessageHandler, npm *NodePairingManager) {
 		}
 
 		return map[string]interface{}{
-			"status":     "approved",
-			"requestId":  params.RequestID,
+			"status":    "approved",
+			"requestId": params.RequestID,
 		}, nil
 	})
 
@@ -302,8 +302,8 @@ func RegisterNodePairingMethods(mh *MessageHandler, npm *NodePairingManager) {
 		}
 
 		return map[string]interface{}{
-			"status":     "rejected",
-			"requestId":  params.RequestID,
+			"status":    "rejected",
+			"requestId": params.RequestID,
 		}, nil
 	})
 

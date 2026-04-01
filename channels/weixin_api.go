@@ -64,9 +64,9 @@ func generateWechatUIN() string {
 // buildHeaders builds the common headers for API requests
 func buildHeaders(token string, bodyLength int) map[string]string {
 	headers := map[string]string{
-		"Content-Type":   "application/json",
+		"Content-Type":      "application/json",
 		"AuthorizationType": "ilink_bot_token",
-		"X-WECHAT-UIN":  generateWechatUIN(),
+		"X-WECHAT-UIN":      generateWechatUIN(),
 	}
 	if bodyLength > 0 {
 		headers["Content-Length"] = fmt.Sprintf("%d", bodyLength)
@@ -192,7 +192,7 @@ func (c *WeixinAPIClient) GetUpdates(ctx context.Context, req *GetUpdatesReq) (*
 func (c *WeixinAPIClient) SendMessage(ctx context.Context, req *SendMessageReq) error {
 	// Wrap in msg field as per API
 	body := map[string]interface{}{
-		"msg":        req,
+		"msg": req,
 		"base_info": map[string]string{
 			"channel_version": "1.0.0",
 		},
@@ -204,17 +204,17 @@ func (c *WeixinAPIClient) SendMessage(ctx context.Context, req *SendMessageReq) 
 func (c *WeixinAPIClient) GetUploadURL(ctx context.Context, req *GetUploadUrlReq) (*GetUploadUrlResp, error) {
 	// Add base_info
 	body := map[string]interface{}{
-		"filekey":         req.FileKey,
-		"media_type":      req.MediaType,
-		"to_user_id":      req.ToUserID,
-		"rawsize":         req.RawSize,
-		"rawfilemd5":      req.RawFileMD5,
-		"filesize":        req.FileSize,
-		"thumb_rawsize":   req.ThumbRawSize,
+		"filekey":          req.FileKey,
+		"media_type":       req.MediaType,
+		"to_user_id":       req.ToUserID,
+		"rawsize":          req.RawSize,
+		"rawfilemd5":       req.RawFileMD5,
+		"filesize":         req.FileSize,
+		"thumb_rawsize":    req.ThumbRawSize,
 		"thumb_rawfilemd5": req.ThumbRawFileMD5,
-		"thumb_filesize":  req.ThumbFileSize,
-		"no_need_thumb":   req.NoNeedThumb,
-		"aeskey":          req.AESKey,
+		"thumb_filesize":   req.ThumbFileSize,
+		"no_need_thumb":    req.NoNeedThumb,
+		"aeskey":           req.AESKey,
 		"base_info": map[string]string{
 			"channel_version": "1.0.0",
 		},
@@ -259,17 +259,17 @@ func (c *WeixinAPIClient) SendTyping(ctx context.Context, ilinkUserID, typingTic
 
 // QRCodeResponse is the response from get_bot_qrcode API (GET request)
 type QRCodeResponse struct {
-	QRCode           string `json:"qrcode"`              // Unique identifier for polling
-	QRCodeImgContent string `json:"qrcode_img_content"`  // URL to display as QR code
+	QRCode           string `json:"qrcode"`             // Unique identifier for polling
+	QRCodeImgContent string `json:"qrcode_img_content"` // URL to display as QR code
 }
 
 // QRCodeStatusResponse is the response from get_qrcode_status API (GET request)
 type QRCodeStatusResponse struct {
-	Status       string `json:"status"`         // "wait", "scaned", "confirmed", "expired"
-	BotToken     string `json:"bot_token"`      // Available when confirmed
-	ILinkBotID   string `json:"ilink_bot_id"`   // Bot ID
-	BaseURL      string `json:"baseurl"`        // API base URL
-	ILinkUserID  string `json:"ilink_user_id"`  // User ID who scanned
+	Status      string `json:"status"`        // "wait", "scaned", "confirmed", "expired"
+	BotToken    string `json:"bot_token"`     // Available when confirmed
+	ILinkBotID  string `json:"ilink_bot_id"`  // Bot ID
+	BaseURL     string `json:"baseurl"`       // API base URL
+	ILinkUserID string `json:"ilink_user_id"` // User ID who scanned
 }
 
 // GetBotQRCode gets the QR code for bot login (GET request)
