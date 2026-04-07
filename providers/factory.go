@@ -40,7 +40,7 @@ func NewProviderFromModelsConfig(cfg *config.Config) (Provider, error) {
 	case config.ModelAPIOpenAICompletions:
 		return NewOpenAIProviderWithTimeout(resolved.APIKey, resolved.BaseURL, resolved.ModelID, maxTokens, timeout)
 	case config.ModelAPIOllama:
-		return NewOpenAIProviderWithTimeout(resolved.APIKey, resolved.BaseURL, resolved.ModelID, maxTokens, timeout)
+		return NewOllamaProviderWithTimeout(resolved.APIKey, resolved.BaseURL, resolved.ModelID, maxTokens, timeout)
 	default:
 		// 默认使用 OpenAI 兼容的 API
 		return NewOpenAIProviderWithTimeout(resolved.APIKey, resolved.BaseURL, resolved.ModelID, maxTokens, timeout)
