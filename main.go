@@ -19,6 +19,7 @@ var (
 func main() {
 	// Setup signal handler for dumping goroutine stack traces
 	setupStackDumpSignal()
+	fmt.Println("所有参数：", os.Args)
 
 	// Set version in CLI package
 	cli.SetVersion(Version)
@@ -36,7 +37,7 @@ func main() {
 // Based on: https://colobu.com/2016/12/21/how-to-dump-goroutine-stack-traces/
 func setupStackDumpSignal() {
 	ch := make(chan os.Signal, 1)
-	notifyStackDumpSignal(ch)
+	// notifyStackDumpSignal(ch)
 
 	go func() {
 		for range ch {
