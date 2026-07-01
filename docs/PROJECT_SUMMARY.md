@@ -27,7 +27,7 @@
 |------|----------|--------|------|
 | **技能系统** | ✅ | ✅ | 完全兼容 OpenClaw 技能格式 |
 | **工具系统** | ✅ | ✅ | FileSystem, Shell, Web, Browser |
-| **多 LLM 提供商** | ✅ | ✅ | OpenAI, Anthropic, OpenRouter |
+| **多 LLM 提供商** | ✅ | ✅ | OpenAI, Anthropic, OpenRouter, Requesty |
 | **OAuth 认证** | ✅ | ✅ | Anthropic, OpenAI OAuth 支持 |
 | **会话管理** | ✅ | ✅ | JSONL 格式，完整工具调用链 |
 | **消息通道** | ✅ | ✅ | 基础通道支持 |

@@ -54,7 +54,7 @@ GoClaw 就是在这个背景下做出来的。
 
 Orchestrator 是核心协调器，它管理 LLM 调用、工具执行、状态维护。下面有 AgentState 管消息历史和队列，ContextBuilder 组装系统提示词，RetryManager 处理重试和故障转移。工具系统通过 ToolRegistry 注册，技能系统通过 SkillsLoader 加载。
 
-Provider 层负责对接 LLM。支持 OpenAI、Anthropic、OpenRouter 等提供商，还支持配置轮换和故障转移——主账号挂了自动切备用账号。
+Provider 层负责对接 LLM。支持 OpenAI、Anthropic、OpenRouter、Requesty 等提供商，还支持配置轮换和故障转移——主账号挂了自动切备用账号。
 
 ### 双循环机制：为什么很多 Agent 看起来能跑，其实一复杂就散？
 
@@ -424,7 +424,7 @@ AI Agent 一旦能读文件、跑命令、访问网络，安全就不是一个�
 
 ## LLM 提供商：别把整个系统的命门，交给一个模型或一个账号
 
-在工程实践里，模型能力当然重要，但更重要的是不要把整个系统绑死在单一模型或单一账号上。GoClaw 目前主要支持四类 provider：OpenAI、Qianfan（百度千帆，走 OpenAI-compatible 接口）、Anthropic，以及 OpenRouter。像 GPT-4、GPT-4o、DeepSeek 这类模型，只要底层接口兼容，也都可以接进来。
+在工程实践里，模型能力当然重要，但更重要的是不要把整个系统绑死在单一模型或单一账号上。GoClaw 目前主要支持五类 provider：OpenAI、Qianfan（百度千帆，走 OpenAI-compatible 接口）、Anthropic、OpenRouter，以及 Requesty（走 OpenAI-compatible 接口）。像 GPT-4、GPT-4o、DeepSeek 这类模型，只要底层接口兼容，也都可以接进来。
 
 因为一旦系统真的跑起来，限流、欠费、波动、服务异常都不是“小概率事件”，而是迟早会遇到的日常。
 
@@ -455,6 +455,12 @@ AI Agent 一旦能读文件、跑命令、访问网络，安全就不是一个�
     },
     "openrouter": {
       "api_key": "YOUR_OPENROUTER_API_KEY",
+      "base_url": "",
+      "timeout": 600,
+      "max_retries": 3
+    },
+    "requesty": {
+      "api_key": "YOUR_REQUESTY_API_KEY",
       "base_url": "",
       "timeout": 600,
       "max_retries": 3

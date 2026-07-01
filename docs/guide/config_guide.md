@@ -59,6 +59,12 @@ This guide covers configuring goclaw, including new features like multi-provider
       "base_url": "https://openrouter.ai/api/v1",
       "timeout": 60,
       "max_retries": 3
+    },
+    "requesty": {
+      "api_key": "sk-...",
+      "base_url": "https://router.requesty.ai/v1",
+      "timeout": 60,
+      "max_retries": 3
     }
   }
 }
@@ -276,6 +282,7 @@ Models can be specified with prefixes:
 - `qianfan:deepseek-v3.2`: Explicitly use Qianfan
 - `claude-3-opus-20240229`: Use Anthropic
 - `openrouter:anthropic/claude-opus-4-5`: Use OpenRouter
+- `requesty:anthropic/claude-sonnet-4-5`: Use Requesty
 - `openai:gpt-4-turbo`: Explicitly use OpenAI
 
 ## Tool Configuration

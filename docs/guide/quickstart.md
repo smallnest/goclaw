@@ -177,6 +177,18 @@ GoClaw 支持多个 LLM 提供商：
 }
 ```
 
+**Requesty:**
+```json
+{
+  "providers": {
+    "requesty": {
+      "api_key": "sk-...",
+      "base_url": "https://router.requesty.ai/v1"
+    }
+  }
+}
+```
+
 #### 模型选择
 
 通过修改 `model` 参数选择不同的模型：
@@ -186,6 +198,7 @@ GoClaw 支持多个 LLM 提供商：
 - `openai:gpt-3.5-turbo` - OpenAI GPT-3.5
 - `claude-3-opus-20240229` - Anthropic Claude 3 Opus
 - `openrouter:anthropic/claude-opus-4-5` - 通过 OpenRouter 使用指定模型
+- `requesty:anthropic/claude-sonnet-4-5` - 通过 Requesty 使用指定模型
 
 ### 多账号配置
 

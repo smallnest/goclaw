@@ -112,6 +112,7 @@ goclaw/
 │   ├── openai.go            # OpenAI
 │   ├── anthropic.go         # Anthropic
 │   ├── openrouter.go        # OpenRouter
+│   ├── requesty.go          # Requesty
 │   ├── rotation.go          # 轮换提供商
 │   ├── streaming.go         # 流式支持
 │   └── circuit.go           # 熔断器
