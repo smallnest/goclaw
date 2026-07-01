@@ -38,7 +38,7 @@ func init() {
 	onboardCmd.Flags().StringVarP(&onboardAPIKey, "api-key", "k", "", "API key for the provider (required in non-interactive mode)")
 	onboardCmd.Flags().StringVarP(&onboardBaseURL, "base-url", "u", "", "Base URL for the provider API")
 	onboardCmd.Flags().StringVarP(&onboardModel, "model", "m", "", "Model name to use")
-	onboardCmd.Flags().StringVarP(&onboardProvider, "provider", "p", "qianfan", "Provider name (e.g., qianfan, openai, anthropic, openrouter)")
+	onboardCmd.Flags().StringVarP(&onboardProvider, "provider", "p", "qianfan", "Provider name (e.g., qianfan, openai, anthropic, openrouter, requesty)")
 	onboardCmd.Flags().BoolVar(&onboardSkipPrompts, "skip-prompts", false, "Skip all prompts (use defaults)")
 }
 
@@ -179,6 +179,7 @@ func interactiveSetup(cfg *config.Config) error {
 		fmt.Println("    - openai")
 		fmt.Println("    - anthropic")
 		fmt.Println("    - openrouter")
+		fmt.Println("    - requesty")
 		fmt.Println("    - ollama (本地)")
 		fmt.Println("    - google / google-vertex (Gemini)")
 		fmt.Println("    - Or any OpenAI-compatible provider (e.g., deepseek, moonshot, grok, chutes)")
@@ -273,6 +274,8 @@ func getDefaultBaseURL(provider string) string {
 		return "https://api.anthropic.com"
 	case "openrouter":
 		return "https://openrouter.ai/api/v1"
+	case "requesty":
+		return "https://router.requesty.ai/v1"
 	case "ollama":
 		return "http://localhost:11434/v1"
 	default:
@@ -290,6 +293,8 @@ func getDefaultModel(provider string) string {
 		return "claude-sonnet-4-20250514"
 	case "openrouter":
 		return "anthropic/claude-sonnet-4"
+	case "requesty":
+		return "anthropic/claude-sonnet-4-5"
 	case "ollama":
 		return "llama3.2"
 	default:

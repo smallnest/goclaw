@@ -13,7 +13,7 @@ Go 语言版本的 OpenClaw - 一个功能强大的 AI Agent 框架。
 - 💾 **持久化会话**：基于 JSONL 的会话存储，支持完整的工具调用链 (Tool Calls) 记录与恢复
 - 📢 **多渠道支持**：Telegram、WhatsApp、飞书 (Feishu)、QQ、企业微信 (WeWork)、钉钉 (DingTalk)、百度如流 (Infoflow)、Gotify、Slack、Discord、Google Chat、Microsoft Teams、微信 (Weixin)
 - 🔧 **灵活配置**：支持 YAML/JSON 配置，热加载，环境变量支持
-- 🎯 **多 LLM 提供商**：OpenAI、Qianfan（百度千帆，OpenAI-compatible）、Anthropic、OpenRouter，支持故障转移
+- 🎯 **多 LLM 提供商**：OpenAI、Qianfan（百度千帆，OpenAI-compatible）、Anthropic、OpenRouter、Requesty，支持故障转移
 - 🌐 **WebSocket Gateway**：内置网关服务，支持实时通信
 - ⏰ **Cron 调度**：内置定时任务调度器
 - 🖥️ **Browser 自动化**：基于 Chrome DevTools Protocol 的浏览器控制
@@ -123,7 +123,8 @@ goclaw/
 │   ├── factory.go      # 提供商工厂
 │   ├── openai.go       # OpenAI 实现
 │   ├── anthropic.go    # Anthropic 实现
-│   └── openrouter.go   # OpenRouter 实现
+│   ├── openrouter.go   # OpenRouter 实现
+│   └── requesty.go     # Requesty 实现
 ├── gateway/            # WebSocket 网关
 │   ├── server.go       # 网关服务器
 │   ├── handler.go      # 消息处理器
@@ -612,6 +613,7 @@ A: 在 `models.providers` 中配置提供商，然后在 `agents.defaults.model.
 - `openai/gpt-4o` - OpenAI
 - `anthropic/claude-sonnet-4-20250514` - Anthropic
 - `openrouter/anthropic/claude-sonnet-4` - OpenRouter
+- `requesty/anthropic/claude-sonnet-4-5` - Requesty
 
 ### Q: 工具调用失败怎么办？
 
